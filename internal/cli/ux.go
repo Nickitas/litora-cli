@@ -20,6 +20,8 @@ func canonicalCommandPath(command string) string {
 		return cmdModel + " " + cmdKochOrganic
 	case cmdDimension:
 		return cmdModel + " " + cmdDimension
+	case cmdErosion:
+		return cmdModel + " " + cmdErosion
 	default:
 		return command
 	}
@@ -27,7 +29,7 @@ func canonicalCommandPath(command string) string {
 
 func legacyAlias(command string) string {
 	switch command {
-	case cmdCoastline, cmdParadox, cmdKoch, cmdKochOrganic, cmdDimension:
+	case cmdCoastline, cmdParadox, cmdKoch, cmdKochOrganic, cmdDimension, cmdErosion:
 		return command
 	default:
 		return ""
@@ -71,6 +73,12 @@ func getCommandUX(command string) commandUX {
 			Mode:        "синтетическая демонстрация",
 			Summary:     "оценивает box-counting размерность на синтетических organic-итерациях, построенных от загруженной береговой линии",
 			RuntimeNote: "диагностика размерности относится к сгенерированной organic-модели, а не напрямую к сырой геометрии береговой линии",
+		}
+	case cmdErosion:
+		return commandUX{
+			Mode:        "синтетическая демонстрация",
+			Summary:     "моделирует направленную волновую эрозию по fetch, экспозиции и shelter-эффекту бухт",
+			RuntimeNote: "каждый шаг оценивает открытость сегмента к волнам и сглаживает берег сильнее на открытых мысах, чем в защищённых врезах",
 		}
 	case cmdAll:
 		return commandUX{

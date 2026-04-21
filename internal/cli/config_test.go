@@ -111,3 +111,38 @@ func TestParseConfigRejectsWrongGroupCommand(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
+
+func TestParseConfigErosionWaveFlags(t *testing.T) {
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+
+	cfg, err := parseConfig([]string{
+		cmdModel,
+		cmdErosion,
+		"--steps", "3",
+		"--erosion-strength", "75",
+		"--wave-direction", "45",
+		"--wind-speed", "14",
+		"--fetch-spread", "60",
+		"--fetch-samples", "11",
+		"--max-fetch-km", "220",
+		"--depth-scale", "5000",
+		"--exposure-power", "2",
+	}, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("parseConfig returned error: %v", err)
+	}
+
+	if cfg.Command != cmdErosion {
+		t.Fatalf("expected command %q, got %q", cmdErosion, cfg.Command)
+	}
+	if cfg.WaveDirection != 45 || cfg.WindSpeed != 14 {
+		t.Fatalf("expected wave settings to be parsed, got direction=%.1f wind=%.1f", cfg.WaveDirection, cfg.WindSpeed)
+	}
+	if cfg.FetchSamples != 11 || cfg.MaxFetchKM != 220 {
+		t.Fatalf("expected fetch settings to be parsed, got samples=%d maxFetch=%.1f", cfg.FetchSamples, cfg.MaxFetchKM)
+	}
+	if cfg.DepthScale != 5000 || cfg.ExposurePower != 2 {
+		t.Fatalf("expected depth/exposure settings to be parsed, got depth=%.1f exposure=%.1f", cfg.DepthScale, cfg.ExposurePower)
+	}
+}

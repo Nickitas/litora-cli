@@ -3,20 +3,90 @@ package cli
 import (
 	"coastal-geometry/internal/domain/geometry"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
+)
+
+const (
+	defaultBathymetryFile = "data/black-sea-bathymetry.json"
 )
 
 func runErosionCommand(app *App) error {
 	steps := app.Config.Steps
 	strength := app.Config.ErosionStrength
 	seed := app.Config.Seed
+	// Для волновой эрозии используем дефолтное значение, если не задано
+	if strength == 0 && app.Config.Command == "all" {
+		strength = 30.0 // Дефолтное значение для команды all
+	}
 
-	snapshots := geometry.SimulateErosionWithSeed(app.ModelBase, steps, strength, seed)
+	// Автоматическая загрузка батиметрии
+	bathymetryPath := app.Config.BathymetryPath
+	if bathymetryPath == "" {
+		// Проверяем файл по умолчанию
+		if _, err := os.Stat(defaultBathymetryFile); err == nil {
+			bathymetryPath = defaultBathymetryFile
+			fmt.Printf("\n📊 Используется батиметрия: %s\n", bathymetryPath)
+		} else {
+			// Файл не найден - предлагаем скачать
+			fmt.Println("\n⚠️  Батиметрия не найдена")
+			fmt.Println("Для лучшей точности рекомендуется использовать реальные данные.")
+			fmt.Println("\nФайл можно получить:")
+			fmt.Println("  1. Автоматически: go run cmd/download-bathymetry/main.go")
+			fmt.Println("  2. Скриптом: bash scripts/download_bathymetry.sh")
+			fmt.Println("  3. Вручную: см. scripts/BATHYMETRY_DATA.md")
+			fmt.Println("\nИспользуется геометрический proxy (менее точно).\n")
+
+			// Продолжаем без батиметрии
+			bathymetryPath = ""
+		}
+	}
+
+	var bathymetryGrid *geometry.BathymetryGrid
+	if bathymetryPath != "" {
+		data, err := os.ReadFile(bathymetryPath)
+		if err != nil {
+			return fmt.Errorf("ошибка чтения файла батиметрии %q: %w", bathymetryPath, err)
+		}
+		bathymetryGrid, err = geometry.LoadBathymetryFromJSON(data, geometry.BathymetryLoadOptions{
+			Resolution: 0.01,
+		})
+		if err != nil {
+			return fmt.Errorf("ошибка загрузки батиметрии из %q: %w", bathymetryPath, err)
+		}
+
+		absPath, _ := filepath.Abs(bathymetryPath)
+		fmt.Printf("✓ Загружена батиметрия: %d точек, разрешение ~%.1f км\n",
+			len(bathymetryGrid.Points), bathymetryGrid.Resolution*111)
+		fmt.Printf("  Источник: %s\n", absPath)
+	}
+
+	waveOptions := geometry.WaveErosionOptions{
+		StrengthMeters:           strength,
+		WindSourceDirectionDeg:   app.Config.WaveDirection,
+		WindSpeedMetersPerSecond: app.Config.WindSpeed,
+		FetchSpreadDeg:           app.Config.FetchSpread,
+		FetchSamples:             app.Config.FetchSamples,
+		MaxFetchMeters:           app.Config.MaxFetchKM * 1000,
+		DepthScaleMeters:         app.Config.DepthScale,
+		ExposurePower:            app.Config.ExposurePower,
+		BathymetryGrid:           bathymetryGrid,
+	}
+
+	snapshots := geometry.SimulateWaveErosionWithSeed(app.ModelBase, steps, waveOptions, seed)
 
 	fmt.Println("\n" + strings.Repeat("=", 80))
-	fmt.Println("\tЭРОЗИЯ: МНОГОШАГОВАЯ СИМУЛЯЦИЯ")
+	fmt.Println("\tЭРОЗИЯ: ВОЛНОВАЯ СИМУЛЯЦИЯ")
 	fmt.Println(strings.Repeat("=", 80))
-	fmt.Printf("Шаги=%d, σ=%.1f м, seed=%d\n\n", steps, strength, seed)
+	fmt.Printf("Шаги=%d, базовый отступ=%.1f м, волны %.0f°, ветер %.1f м/с, fetch<=%.0f км, seed=%d\n\n",
+		steps,
+		strength,
+		app.Config.WaveDirection,
+		app.Config.WindSpeed,
+		app.Config.MaxFetchKM,
+		seed,
+	)
 	fmt.Printf("%-6s %-10s %-12s %-14s\n", "Шаг", "Точек", "Длина, км", "Площадь, км²")
 	fmt.Println(strings.Repeat("-", 56))
 
@@ -26,5 +96,5 @@ func runErosionCommand(app *App) error {
 		fmt.Printf("%-6d %-10d %-12.0f %-14.0f\n", i, len(state), length, area)
 	}
 
-	return writeErosionSVGSeries(app.Base, app.ModelBase, snapshots, steps, strength, seed, app.Config.OutputPath, newExportContext(app))
+	return writeErosionSVGSeries(app.Base, app.ModelBase, snapshots, steps, strength, seed, waveOptions, app.Config.OutputPath, newExportContext(app))
 }

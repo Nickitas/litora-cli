@@ -139,7 +139,7 @@ func writeOrganicKochSVGSeries(originalBase, modelBase []geometry.LatLon, iterat
 	}, output, ctx)
 }
 
-func writeErosionSVGSeries(originalBase, modelBase []geometry.LatLon, snapshots [][]geometry.LatLon, steps int, strength float64, seed int64, output string, ctx exportContext) error {
+func writeErosionSVGSeries(originalBase, modelBase []geometry.LatLon, snapshots [][]geometry.LatLon, steps int, strength float64, seed int64, waveOptions geometry.WaveErosionOptions, output string, ctx exportContext) error {
 	outputDir, err := resolveSeriesOutputDir(output)
 	if err != nil {
 		return err
@@ -185,7 +185,8 @@ func writeErosionSVGSeries(originalBase, modelBase []geometry.LatLon, snapshots 
 			fmt.Sprintf("Шаг %d: %.0f км, %d т. расчёт / %d т. SVG", step, lengths[step], len(snapshots[step]), len(renderSnapshots[step])),
 			fmt.Sprintf("Площадь: %.0f км²", areas[step]),
 		}
-		meta = append(meta, fmt.Sprintf("Эрозия: σ=%.0f м, seed=%d", strength, seed))
+		meta = append(meta, fmt.Sprintf("Эрозия: базовый отступ %.0f м, seed=%d", strength, seed))
+		meta = append(meta, fmt.Sprintf("Волны: %.0f° от севера, ветер %.1f м/с, сектор ±%.0f°, fetch <= %.0f км", waveOptions.WindSourceDirectionDeg, waveOptions.WindSpeedMetersPerSecond, waveOptions.FetchSpreadDeg, waveOptions.MaxFetchMeters/1000))
 
 		if err := svgrender.DrawDocument(svgrender.Document{
 			Title:     fmt.Sprintf("Эрозия — шаг %d", step),
@@ -222,6 +223,13 @@ func writeErosionSVGSeries(originalBase, modelBase []geometry.LatLon, snapshots 
 		ModelSimplification: modelSimplification,
 		ErosionStrength:     strength,
 		ErosionSeed:         seed,
+		WaveDirectionDeg:    waveOptions.WindSourceDirectionDeg,
+		WindSpeedMS:         waveOptions.WindSpeedMetersPerSecond,
+		FetchSpreadDeg:      waveOptions.FetchSpreadDeg,
+		FetchSamples:        waveOptions.FetchSamples,
+		MaxFetchKM:          waveOptions.MaxFetchMeters / 1000,
+		DepthScaleMeters:    waveOptions.DepthScaleMeters,
+		ExposurePower:       waveOptions.ExposurePower,
 		Steps:               stepMetrics,
 		Highlights:          coastlineHighlightsMetricsFromHints(visualHints),
 		Validation:          validationMetricsFromData(ctx.Validation, validationSummary),

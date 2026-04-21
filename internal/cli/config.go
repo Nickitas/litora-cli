@@ -35,6 +35,14 @@ type config struct {
 	AngleJitter     float64
 	HeightJitter    float64
 	ErosionStrength float64
+	WaveDirection   float64
+	WindSpeed       float64
+	FetchSpread     float64
+	FetchSamples    int
+	MaxFetchKM      float64
+	DepthScale      float64
+	ExposurePower   float64
+	BathymetryPath  string
 	ModelMaxPoints  int
 	DisableSimplify bool
 }
@@ -78,6 +86,16 @@ func parseConfig(args []string, stdout, stderr io.Writer) (config, error) {
 		fs.Float64Var(&cfg.ErosionStrength, "erosion-strength", 0, "Gaussian erosion strength in meters; applied after fractal growth (0 disables)")
 		fs.IntVar(&cfg.ModelMaxPoints, "model-max-points", 0, "max points for model base (0 keeps default budget); higher preserves details")
 		fs.BoolVar(&cfg.DisableSimplify, "no-model-simplify", false, "disable model base simplification before fractal growth")
+		// Волновая эрозия
+		fs.IntVar(&cfg.Steps, "steps", 5, "number of wave erosion steps (0+)")
+		fs.Float64Var(&cfg.WaveDirection, "wave-direction", 0, "direction waves come from, in degrees clockwise from north")
+		fs.Float64Var(&cfg.WindSpeed, "wind-speed", 12, "wind speed driving wave energy, in m/s")
+		fs.Float64Var(&cfg.FetchSpread, "fetch-spread", 55, "half-width of the offshore sector sampled for fetch, in degrees")
+		fs.IntVar(&cfg.FetchSamples, "fetch-samples", 9, "number of ray directions used to estimate fetch/exposure")
+		fs.Float64Var(&cfg.MaxFetchKM, "max-fetch-km", 150, "upper clamp for fetch distance in kilometers")
+		fs.Float64Var(&cfg.DepthScale, "depth-scale", 4000, "nearshore openness scale used as a depth proxy, in meters")
+		fs.Float64Var(&cfg.ExposurePower, "exposure-power", 1.5, "nonlinear weight for wave-incidence angle")
+		fs.StringVar(&cfg.BathymetryPath, "bathymetry", "", "path to bathymetry JSON file with lat,lon,depth points (empty uses automatic)")
 		fs.Usage = func() { printCommandUsage(stdout, command) }
 	case cmdCoastline:
 		fs.StringVar(&cfg.InputPath, "input", coastline.DefaultCoastlineJSONPath, "path to local coastline JSON/GeoJSON fallback file")
@@ -138,7 +156,15 @@ func parseConfig(args []string, stdout, stderr io.Writer) (config, error) {
 		fs.StringVar(&cfg.OutputPath, "output", "", "output directory for generated visualizations (default: ./output)")
 		fs.IntVar(&cfg.Steps, "steps", 5, "number of erosion steps (0+)")
 		fs.Int64Var(&cfg.Seed, "seed", 42, "random seed for erosion simulation")
-		fs.Float64Var(&cfg.ErosionStrength, "erosion-strength", 50, "Gaussian erosion strength in meters; applied each step (0 disables)")
+		fs.Float64Var(&cfg.ErosionStrength, "erosion-strength", 50, "base shoreline retreat in meters per step before fetch/exposure scaling (0 disables)")
+		fs.Float64Var(&cfg.WaveDirection, "wave-direction", 0, "direction waves come from, in degrees clockwise from north")
+		fs.Float64Var(&cfg.WindSpeed, "wind-speed", 12, "wind speed driving wave energy, in m/s")
+		fs.Float64Var(&cfg.FetchSpread, "fetch-spread", 55, "half-width of the offshore sector sampled for fetch, in degrees")
+		fs.IntVar(&cfg.FetchSamples, "fetch-samples", 9, "number of ray directions used to estimate fetch/exposure")
+		fs.Float64Var(&cfg.MaxFetchKM, "max-fetch-km", 150, "upper clamp for fetch distance in kilometers")
+		fs.Float64Var(&cfg.DepthScale, "depth-scale", 4000, "nearshore openness scale used as a depth proxy, in meters")
+		fs.Float64Var(&cfg.ExposurePower, "exposure-power", 1.5, "nonlinear weight for wave-incidence angle")
+		fs.StringVar(&cfg.BathymetryPath, "bathymetry", "", "path to bathymetry JSON file with lat,lon,depth points (empty uses geometric proxy)")
 		fs.Usage = func() { printCommandUsage(stdout, command) }
 	}
 
@@ -170,6 +196,24 @@ func parseConfig(args []string, stdout, stderr io.Writer) (config, error) {
 	}
 	if command == cmdErosion && cfg.Steps < 0 {
 		return config{}, fmt.Errorf("steps must be non-negative")
+	}
+	if command == cmdErosion && cfg.WindSpeed <= 0 {
+		return config{}, fmt.Errorf("wind-speed must be positive")
+	}
+	if command == cmdErosion && cfg.FetchSpread < 0 {
+		return config{}, fmt.Errorf("fetch-spread must be non-negative")
+	}
+	if command == cmdErosion && cfg.FetchSamples <= 0 {
+		return config{}, fmt.Errorf("fetch-samples must be positive")
+	}
+	if command == cmdErosion && cfg.MaxFetchKM <= 0 {
+		return config{}, fmt.Errorf("max-fetch-km must be positive")
+	}
+	if command == cmdErosion && cfg.DepthScale <= 0 {
+		return config{}, fmt.Errorf("depth-scale must be positive")
+	}
+	if command == cmdErosion && cfg.ExposurePower <= 0 {
+		return config{}, fmt.Errorf("exposure-power must be positive")
 	}
 	if cfg.ModelMaxPoints < 0 {
 		return config{}, fmt.Errorf("model-max-points must be non-negative")
