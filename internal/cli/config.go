@@ -45,6 +45,7 @@ type config struct {
 	BathymetryPath  string
 	ModelMaxPoints  int
 	DisableSimplify bool
+	Quiet           bool
 }
 
 func parseConfig(args []string, stdout, stderr io.Writer) (config, error) {
@@ -66,6 +67,9 @@ func parseConfig(args []string, stdout, stderr io.Writer) (config, error) {
 	cfg := config{Command: command}
 	fs := flag.NewFlagSet(command, flag.ContinueOnError)
 	fs.SetOutput(stderr)
+
+	// Общие флаги для всех команд
+	fs.BoolVar(&cfg.Quiet, "quiet", false, "suppress startup banner")
 
 	switch command {
 	case cmdSource:

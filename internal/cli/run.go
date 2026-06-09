@@ -16,6 +16,11 @@ func Run(args []string, stdout, stderr io.Writer) {
 		exitWithError(stderr, err)
 	}
 
+	// Show banner only if not quiet and not a help request
+	if !cfg.Quiet && !isHelpRequest(args) {
+		printBanner(stdout)
+	}
+
 	app, err := NewApp(cfg)
 	if err != nil {
 		exitWithError(stderr, err)
@@ -34,6 +39,20 @@ func Run(args []string, stdout, stderr io.Writer) {
 func exitWithError(stderr io.Writer, err error) {
 	fmt.Fprintf(stderr, "error: %v\n", err)
 	os.Exit(1)
+}
+
+func isHelpRequest(args []string) bool {
+	if len(args) == 0 {
+		return false
+	}
+
+	arg := args[0]
+	switch arg {
+	case "-h", "--help", "help":
+		return true
+	default:
+		return false
+	}
 }
 
 func printValidationReport(w io.Writer, report coastline.ValidationReport) {
