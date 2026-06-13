@@ -1,0 +1,110 @@
+{
+  "generated_at": "2026-06-10T19:29:47Z",
+  "command": "all",
+  "dataset": "Black Sea",
+  "source": "data/cache/black-sea.geojson (cached copy of https://geo.vliz.be/geoserver/MarineRegions/wfs?cql_filter=mrgid%3D3319\u0026outputFormat=application%2Fjson\u0026request=GetFeature\u0026service=WFS\u0026typeName=iho\u0026version=1.0.0)",
+  "title": "Органическая кривая Коха",
+  "output_dir": "/Users/datsky/edu/fraes-cli/output",
+  "reference_coastline": {
+    "points_count": 9635,
+    "length_km": 6391.057193562526
+  },
+  "reference_render": {
+    "points_count": 1800,
+    "length_km": 5949.039321836947
+  },
+  "model_base": {
+    "points_count": 391,
+    "length_km": 5334.126834246317
+  },
+  "model_simplification": {
+    "applied": true,
+    "points_before": 9635,
+    "points_after": 391,
+    "length_before_km": 6391.057193562526,
+    "length_after_km": 5334.126834246317,
+    "length_delta_km": -1056.9303593162085,
+    "length_delta_percent": -16.537645139223837
+  },
+  "erosion_seed": 42,
+  "organic_options": {
+    "seed": 42,
+    "angle_jitter_deg": 18,
+    "height_jitter_pct": 0.25
+  },
+  "iterations": [
+    {
+      "iteration": 0,
+      "svg_file": "/Users/datsky/edu/fraes-cli/output/koch-organic_iter_0.svg",
+      "points_count": 391,
+      "render_points_count": 391,
+      "length_km": 5334.126834246317,
+      "relative_to_model_base": 1,
+      "relative_to_reference": 0.8346235486077617
+    },
+    {
+      "iteration": 1,
+      "svg_file": "/Users/datsky/edu/fraes-cli/output/koch-organic_iter_1.svg",
+      "points_count": 1561,
+      "render_points_count": 1561,
+      "length_km": 7544.041019148017,
+      "relative_to_model_base": 1.4142972699324552,
+      "relative_to_reference": 1.180405806217295
+    },
+    {
+      "iteration": 2,
+      "svg_file": "/Users/datsky/edu/fraes-cli/output/koch-organic_iter_2.svg",
+      "points_count": 6241,
+      "render_points_count": 1800,
+      "length_km": 10175.305395029945,
+      "relative_to_model_base": 1.907585948219707,
+      "relative_to_reference": 1.5921161533774337
+    },
+    {
+      "iteration": 3,
+      "svg_file": "/Users/datsky/edu/fraes-cli/output/koch-organic_iter_3.svg",
+      "points_count": 24961,
+      "render_points_count": 1800,
+      "length_km": 13624.238135021504,
+      "relative_to_model_base": 2.5541646380717404,
+      "relative_to_reference": 2.1317659539558953
+    },
+    {
+      "iteration": 4,
+      "svg_file": "/Users/datsky/edu/fraes-cli/output/koch-organic_iter_4.svg",
+      "points_count": 99841,
+      "render_points_count": 1800,
+      "length_km": 18189.506991654704,
+      "relative_to_model_base": 3.4100252125378607,
+      "relative_to_reference": 2.846087343730286
+    },
+    {
+      "iteration": 5,
+      "svg_file": "/Users/datsky/edu/fraes-cli/output/koch-organic_iter_5.svg",
+      "points_count": 399361,
+      "render_points_count": 1799,
+      "length_km": 24283.322410594978,
+      "relative_to_model_base": 4.552445632655466,
+      "relative_to_reference": 3.799578328770812
+    }
+  ],
+  "highlights": {
+    "long_segments": []
+  },
+  "validation": {
+    "fixes": [],
+    "warnings": [],
+    "summary": [
+      {
+        "warning_type": "long_segment",
+        "count": 0,
+        "threshold_km": 450
+      },
+      {
+        "warning_type": "duplicate_location",
+        "count": 0
+      }
+    ],
+    "duplicate_locations": []
+  }
+}
