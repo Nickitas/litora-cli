@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-10T19:29:47Z",
+  "generated_at": "2026-06-13T10:32:58Z",
   "command": "all",
   "dataset": "Black Sea",
   "source": "data/cache/black-sea.geojson (cached copy of https://geo.vliz.be/geoserver/MarineRegions/wfs?cql_filter=mrgid%3D3319\u0026outputFormat=application%2Fjson\u0026request=GetFeature\u0026service=WFS\u0026typeName=iho\u0026version=1.0.0)",

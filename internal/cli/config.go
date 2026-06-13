@@ -43,6 +43,8 @@ type config struct {
 	DepthScale      float64
 	ExposurePower   float64
 	BathymetryPath  string
+	LithologyPath   string
+	EnableLithology bool
 	ModelMaxPoints  int
 	DisableSimplify bool
 	Quiet           bool
@@ -100,6 +102,8 @@ func parseConfig(args []string, stdout, stderr io.Writer) (config, error) {
 		fs.Float64Var(&cfg.DepthScale, "depth-scale", 4000, "nearshore openness scale used as a depth proxy, in meters")
 		fs.Float64Var(&cfg.ExposurePower, "exposure-power", 1.5, "nonlinear weight for wave-incidence angle")
 		fs.StringVar(&cfg.BathymetryPath, "bathymetry", "", "path to bathymetry JSON file with lat,lon,depth points (empty uses automatic)")
+		fs.StringVar(&cfg.LithologyPath, "lithology", "", "path to lithology JSON file with rock resistance data (empty uses default)")
+		fs.BoolVar(&cfg.EnableLithology, "enable-lithology", false, "enable lithology-based erosion modulation (retreat /= resistance)")
 		fs.Usage = func() { printCommandUsage(stdout, command) }
 	case cmdCoastline:
 		fs.StringVar(&cfg.InputPath, "input", coastline.DefaultCoastlineJSONPath, "path to local coastline JSON/GeoJSON fallback file")
@@ -169,6 +173,8 @@ func parseConfig(args []string, stdout, stderr io.Writer) (config, error) {
 		fs.Float64Var(&cfg.DepthScale, "depth-scale", 4000, "nearshore openness scale used as a depth proxy, in meters")
 		fs.Float64Var(&cfg.ExposurePower, "exposure-power", 1.5, "nonlinear weight for wave-incidence angle")
 		fs.StringVar(&cfg.BathymetryPath, "bathymetry", "", "path to bathymetry JSON file with lat,lon,depth points (empty uses geometric proxy)")
+		fs.StringVar(&cfg.LithologyPath, "lithology", "", "path to lithology JSON file with rock resistance data (empty uses default)")
+		fs.BoolVar(&cfg.EnableLithology, "enable-lithology", false, "enable lithology-based erosion modulation (retreat /= resistance)")
 		fs.Usage = func() { printCommandUsage(stdout, command) }
 	}
 

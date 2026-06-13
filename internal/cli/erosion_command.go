@@ -10,6 +10,7 @@ import (
 
 const (
 	defaultBathymetryFile = "data/black-sea-bathymetry.json"
+	defaultLithologyFile = "data/black-sea-lithology.json"
 )
 
 func runErosionCommand(app *App) error {
@@ -36,7 +37,7 @@ func runErosionCommand(app *App) error {
 			fmt.Println("  1. Автоматически: go run cmd/download-bathymetry/main.go")
 			fmt.Println("  2. Скриптом: bash scripts/download_bathymetry.sh")
 			fmt.Println("  3. Вручную: см. scripts/BATHYMETRY_DATA.md")
-			fmt.Println("\nИспользуется геометрический proxy (менее точно).\n")
+			fmt.Println("\nИспользуется геометрический proxy (менее точно).")
 
 			// Продолжаем без батиметрии
 			bathymetryPath = ""
@@ -62,6 +63,46 @@ func runErosionCommand(app *App) error {
 		fmt.Printf("  Источник: %s\n", absPath)
 	}
 
+	// Загрузка литологии
+	lithologyPath := app.Config.LithologyPath
+	enableLithology := app.Config.EnableLithology
+
+	var lithologyProfile *geometry.LithologyProfile
+	if lithologyPath != "" || enableLithology {
+		if lithologyPath == "" {
+			lithologyPath = defaultLithologyFile
+		}
+		data, err := os.ReadFile(lithologyPath)
+		if err != nil {
+			if enableLithology {
+				return fmt.Errorf("ошибка чтения файла литологии %q: %w", lithologyPath, err)
+			}
+			fmt.Printf("\n⚠️  Литология не найдена: %v (используется дефолтный профиль)\n", err)
+			lithologyProfile = geometry.CreateDefaultBlackSeaProfile()
+		} else {
+			lithologyProfile, err = geometry.LoadLithologyProfile(data)
+			if err != nil {
+				if enableLithology {
+					return fmt.Errorf("ошибка загрузки литологии из %q: %w", lithologyPath, err)
+				}
+				fmt.Printf("\n⚠️  Ошибка загрузки литологии, используется дефолтный профиль: %v\n", err)
+				lithologyProfile = geometry.CreateDefaultBlackSeaProfile()
+			} else {
+				absPath, _ := filepath.Abs(lithologyPath)
+				stats := lithologyProfile.GetStatistics()
+				fmt.Printf("✓ Загружена литология: %s (%d точек, %d классов)\n",
+					stats["name"], stats["num_points"], stats["num_classes"])
+				fmt.Printf("  Источник: %s\n", absPath)
+			}
+		}
+	}
+
+	// Если включена литология но профиль не был загружен явно
+	if enableLithology && lithologyProfile == nil {
+		lithologyProfile = geometry.CreateDefaultBlackSeaProfile()
+		fmt.Println("Используется дефолтный литологический профиль")
+	}
+
 	waveOptions := geometry.WaveErosionOptions{
 		StrengthMeters:           strength,
 		WindSourceDirectionDeg:   app.Config.WaveDirection,
@@ -72,6 +113,12 @@ func runErosionCommand(app *App) error {
 		DepthScaleMeters:         app.Config.DepthScale,
 		ExposurePower:            app.Config.ExposurePower,
 		BathymetryGrid:           bathymetryGrid,
+		LithologyProfile:         lithologyProfile,
+		EnableLithology:          enableLithology,
+	}
+
+	if enableLithology && lithologyProfile != nil {
+		fmt.Println("✓ Литология включена: эрозия модулируется по сопротивлению пород")
 	}
 
 	snapshots := geometry.SimulateWaveErosionWithSeed(app.ModelBase, steps, waveOptions, seed)

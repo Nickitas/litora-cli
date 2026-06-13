@@ -166,21 +166,22 @@ func bilinearInterpolate1D(v0, v1, t float64) float64 {
 }
 
 func validateBathymetryPoints(points []BathymetryPoint) error {
-	// Константы для Чёрного моря
+	// Константы для Чёрного моря с tolerant margin для учёта погрешности на границах
 	const (
 		minLat = 40.0
 		maxLat = 47.0
 		minLon = 27.0
-		maxLon = 42.0
+		maxLon = 42.5 // Расширено для GEBCO данных (формально 42.0)
+		margin = 0.1 // Tolerant margin для boundary issues (градусы)
 		maxDepth = -3000.0 // Максимальная глубина с запасом
 	)
 
 	for i, p := range points {
-		// Проверка координат
-		if p.Lat < minLat || p.Lat > maxLat {
+		// Проверка координат с tolerant margin
+		if p.Lat < minLat-margin || p.Lat > maxLat+margin {
 			return fmt.Errorf("point %d: latitude %.4f outside Black Sea bounds [%.1f, %.1f]", i, p.Lat, minLat, maxLat)
 		}
-		if p.Lon < minLon || p.Lon > maxLon {
+		if p.Lon < minLon-margin || p.Lon > maxLon+margin {
 			return fmt.Errorf("point %d: longitude %.4f outside Black Sea bounds [%.1f, %.1f]", i, p.Lon, minLon, maxLon)
 		}
 

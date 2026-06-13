@@ -472,6 +472,167 @@ smoothedRetreat = retreat + shapeCorrection × smoothAlpha
 
 ---
 
+## Литологический модуль
+
+### Структура данных
+
+**Литологический профиль** содержит распределение пород по региону с их сопротивляемостью эрозии:
+
+```go
+type LithologyProfile struct {
+    Metadata  LithologyMetadata         // Метаданные профиля
+    Points    []LithologyPoint          // Точки замера lithology
+    Classes   map[string]LithologyClass // Классы пород
+    Baselines map[string]ErosionBaseline // Базовые скорости эрозии
+}
+
+type LithologyPoint struct {
+    Lat              float64  // Широта
+    Lon              float64  // Долгота
+    Region           string   // Регион
+    Lithology        string   // Класс породы
+    Resistance       float64  // Сопротивление эрозии [0.1-10.0]
+    Color            string   // Цвет для визуализации
+    Description      string   // Описание
+    Confidence       string   // Уверенность в данных
+    Source           string   // Источник данных
+    ErosionObserved  *float64 // Наблюдаемая эрозия (м/год)
+    Dynamic          bool     // Динамическая литология (пляжи)
+}
+
+type LithologyClass struct {
+    Resistance    float64    // Базовое сопротивление
+    Color         string     // Цвет для SVG
+    Description   string     // Описание породы
+    ErosionRange  []float64  // Диапазон эрозии (м/год)
+    Dynamic       bool       // Динамический класс
+}
+
+type LithologyState struct {
+    Class       string  // Класс породы в точке
+    Resistance  float64 // Интерполированное сопротивление
+    Color       string  // Цвет
+    Description string  // Описание
+}
+```
+
+### IDW интерполяция
+
+Модуль использует **Inverse Distance Weighting (IDW)** для интерполяции сопротивления пород между точками замера:
+
+```
+Для запрашиваемой точки (lat, lon):
+  1. Найти N ближайших точек (по умолчанию N=6)
+  2. Рассчитать веса:  wᵢ = 1 / distance²
+  3. Нормировать:      Wᵢ = wᵢ / Σwⱼ
+  4. Интерполировать:  R = Σ(Wᵢ × Resistanceᵢ)
+  5. Класс и цвет — от точки с максимальным весом
+```
+
+**Физический смысл:** Точки ближе к точке замера наследуют её свойства, с плавным переходом между регионами.
+
+### Загрузка профиля
+
+```go
+// Из JSON файла
+profile, err := LoadLithologyProfileFromFile("data/black-sea-lithology.json")
+
+// Из байтов
+profile, err := LoadLithologyProfile(jsonData)
+
+// Получение литологии в точке
+state := profile.GetLithologyAt(lat, lon)
+fmt.Printf("Порода: %s, Сопротивление: %.1f\n", state.Class, state.Resistance)
+
+// Статистика профиля
+stats := profile.GetStatistics()
+// → num_points, num_classes, resistance_min/max/mean, confidence_distribution
+```
+
+### Интеграция с эрозией
+
+Литология модулирует скорость отступа берега в волновой эрозии:
+
+```go
+options := WaveErosionOptions{
+    StrengthMeters:  50,
+    WindSpeed:       12,
+    // ...
+    LithologyProfile: profile,  // Загруженный профиль
+    EnableLithology:  true,     // Включить модуляцию
+}
+
+// Внутри waveErodeStep для каждой точки:
+if options.EnableLithology && options.LithologyProfile != nil {
+    lithology := options.LithologyProfile.GetLithologyAt(lat, lon)
+    retreatMeters /= lithology.Resistance  // Чем выше R, тем медленнее эрозия
+}
+```
+
+**Формула модуляции:**
+```
+retreatActual = retreatBase / Resistance
+
+где:
+  retreatBase   — базовый отступ (м) от энергии волны
+  Resistance    — сопротивление породы [0.1-10.0]
+  retreatActual — фактический отступ с учётом литологии
+```
+
+| Сопротивление | Порода | Эрозия |
+|---------------|--------|--------|
+| 0.8-1.4 | Очень мягкие (глина, дельта) | Очень быстрая |
+| 1.5-2.4 | Мягкие (ил, песок) | Быстрая |
+| 2.5-3.9 | Средние (песчаник) | Значительная |
+| 4.0-5.9 | Средне-твёрдые (известняк) | Умеренная |
+| 6.0-7.9 | Твёрдые (вулканит) | Медленная |
+| 8.0-10.0 | Очень твёрдые (серпентинит) | Очень медленная |
+
+### Формат данных
+
+**Пример lithology JSON:**
+```json
+{
+  "metadata": {
+    "name": "Black Sea Lithology Profile",
+    "version": "1.0",
+    "resolution": 0.5,
+    "bounds": {"min_lat": 40.0, "max_lat": 47.0, "min_lon": 27.0, "max_lon": 42.0},
+    "regions": ["crimea", "turkey", "bulgaria", "romania", "georgia"]
+  },
+  "points": [
+    {
+      "lat": 46.2, "lon": 33.0, "region": "crimea",
+      "lithology_class": "limestone", "resistance": 4.8,
+      "color": "#6b6b6b", "confidence": "high"
+    }
+  ],
+  "classes": {
+    "limestone": {
+      "resistance": 4.5, "color": "#6b6b6b",
+      "description": "Sarmatian limestone"
+    },
+    "clay": {
+      "resistance": 1.2, "color": "#c4a484",
+      "description": "Shales and clay"
+    }
+  }
+}
+```
+
+### Дефолтный профиль
+
+При отсутствии данных автоматически создаётся профиль для Чёрного моря:
+
+```go
+profile := CreateDefaultBlackSeaProfile()
+// 5 точек по регионам: Crimea, Turkey, Bulgaria, Romania, Georgia
+// 4 класса: limestone, volcanic, clay, sediment
+// 6 baseline категорий erosion
+```
+
+---
+
 ## Батиметрический модуль
 
 ### Структура данных
@@ -751,6 +912,16 @@ metersPerDegLat = 2π × R / 360 ≈ 111194.9 м
 | `BuildGrid(points, resolution)` | Построение сетки из точек | `*BathymetryGrid` |
 | `(grid).InterpolateDepth(lat, lon)` | Интерполяция глубины | `float64` (м) |
 
+### Литология
+
+| Функция | Описание | Возвращает |
+|---------|----------|------------|
+| `LoadLithologyProfile(data)` | Загрузка профиля из JSON | `*LithologyProfile` |
+| `LoadLithologyProfileFromFile(path)` | Загрузка профиля из файла | `*LithologyProfile` |
+| `(profile).GetLithologyAt(lat, lon)` | Интерполяция литологии (IDW) | `LithologyState` |
+| `(profile).GetStatistics()` | Статистика профиля | `map[string]interface{}` |
+| `CreateDefaultBlackSeaProfile()` | Дефолтный профиль Чёрного моря | `*LithologyProfile` |
+
 ### Эрозия
 
 | Функция | Описание | Возвращает |
@@ -892,6 +1063,49 @@ func main() {
     }
 }
 ```
+
+### Волновая эрозия с литологией
+
+```go
+func main() {
+    coast := loadCoastline()
+    
+    // Загрузка литологического профиля
+    lithData := loadFile("black-sea-lithology.json")
+    profile, err := geometry.LoadLithologyProfile(lithData)
+    if err != nil {
+        log.Fatal(err)
+    }
+    
+    // Параметры с учётом литологии
+    options := geometry.WaveErosionOptions{
+        StrengthMeters:           50,
+        WindSourceDirectionDeg:   0,
+        WindSpeedMetersPerSecond: 12,
+        // ...
+        LithologyProfile: profile,  // Включить литологию
+        EnableLithology:  true,
+    }
+    
+    snapshots := geometry.SimulateWaveErosionWithSeed(coast, 10, options, 42)
+    
+    // Анализ по литологии
+    for i, point := range coast {
+        lith := profile.GetLithologyAt(point.Lat, point.Lon)
+        fmt.Printf("Точка %d: %s (R=%.1f)\n", i, lith.Class, lith.Resistance)
+    }
+}
+```
+
+**Пример распределения пород Чёрного моря:**
+
+| Регион | Доминирующая порода | Сопротивление | Эрозия |
+|--------|---------------------|---------------|--------|
+| Крым (юг) | Известняк | 4.5-4.8 | Умеренная |
+| Турция (Pontic) | Вулканит/Серпентинит | 6.5-9.0 | Медленная |
+| Болгария | Известняк | 4.0-4.2 | Умеренная |
+| Румыния (дельта) | Глины/Ил | 0.8-1.5 | Очень быстрая |
+| Краснодар | Пески/Ил | 1.0-2.5 | Быстрая |
 
 ### Волновая эрозия без батиметрии (геометрический proxy)
 

@@ -25,6 +25,8 @@ type WaveErosionOptions struct {
 	ProbeDistanceMeters      float64
 	Irregularity             float64
 	BathymetryGrid           *BathymetryGrid
+	LithologyProfile         *LithologyProfile
+	EnableLithology          bool
 }
 
 type waveSideResponse struct {
@@ -305,6 +307,17 @@ func waveErodeStep(points []LatLon, options WaveErosionOptions, seed int64, step
 		if options.MaxRetreatMeters > 0 {
 			retreatMeters = math.Min(retreatMeters, options.MaxRetreatMeters)
 		}
+
+		// Lithology modulation: resistance reduces retreat rate
+		if options.EnableLithology && options.LithologyProfile != nil {
+			lithology := options.LithologyProfile.GetLithologyAt(lat, lon)
+			if lithology.Resistance > 0 {
+				// Higher resistance = slower retreat (inverse relationship)
+				// Resistance=1.0 is baseline, Resistance>1.0 slows erosion
+				retreatMeters /= lithology.Resistance
+			}
+		}
+
 		if retreatMeters <= 0 {
 			continue
 		}
