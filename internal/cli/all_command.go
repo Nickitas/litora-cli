@@ -2,8 +2,6 @@ package cli
 
 import (
 	"coastal-geometry/internal/domain/coastline"
-	"fmt"
-	"strings"
 )
 
 func runAllCommand(app *App) error {
@@ -42,11 +40,6 @@ func runAllCommand(app *App) error {
 	if !assessment.Valid {
 		invalid = true
 	}
-
-	// Волновая эрозия с автоматическим использованием батиметрии
-	fmt.Println("\n" + strings.Repeat("=", 80))
-	fmt.Println("ЭТАП 5: ВОЛНОВАЯ ЭРОЗИЯ С БАТИМЕТРИЕЙ")
-	fmt.Println(strings.Repeat("=", 80))
 
 	if err := runErosionCommand(app); err != nil {
 		return err

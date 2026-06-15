@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"math"
 	"math/rand"
-	"strings"
 )
 
 type OrganicOptions struct {
@@ -87,16 +86,13 @@ func randomSigned(rng *rand.Rand, amplitude float64) float64 {
 func DemonstrateOrganic(base []geometry.LatLon, maxIterations int, opts OrganicOptions) {
 	baseLength := geometry.PolylineLength(base)
 
-	fmt.Println(strings.Repeat("═", 80))
-	fmt.Println("\tОРГАНИЧЕСКАЯ ФРАКТАЛЬНАЯ БЕРЕГОВАЯ ЛИНИЯ — KOCH ORGANIC")
-	fmt.Println(strings.Repeat("═", 90))
+	fmt.Println("\n  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+	fmt.Println("  ОРГАНИЧЕСКАЯ ФРАКТАЛЬНАЯ БЕРЕГОВАЯ ЛИНИЯ")
+	fmt.Println("  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
 
-	fmt.Printf("Исходная полилиния: %d точек, длина = %.0f км\n", len(base), baseLength)
-	fmt.Printf("Seed=%d, angle jitter=±%.1f°, height jitter=±%.0f%%\n\n",
-		opts.Seed, opts.AngleJitterDeg, opts.HeightJitterPct*100)
-
-	fmt.Printf("%-5s %-10s %-15s %-15s %-12s\n", "Итер.", "Точек", "Длина, км", "Прирост", "× от исходной")
-	fmt.Println(strings.Repeat("─", 80))
+	fmt.Println("  ┌──────┬───────────┬───────────┬─────────────┬─────────────┐")
+	fmt.Println("  │ Итер │ Точек     │ Длина км  │ Прирост     │ × от исходн │")
+	fmt.Println("  ├──────┼───────────┼───────────┼─────────────┼─────────────┤")
 
 	prevLength := baseLength
 	for iter := 0; iter <= maxIterations; iter++ {
@@ -113,12 +109,12 @@ func DemonstrateOrganic(base []geometry.LatLon, maxIterations int, opts OrganicO
 			multiplier = "1.000×"
 		}
 
-		fmt.Printf("%-5d %-10d %-15.0f %-15s %-12s\n",
+		fmt.Printf("  │ %-4d │ %-9d │ %-9.0f │ %-11s │ %-11s │\n",
 			iter, pointsCount, length, growth, multiplier)
 
 		prevLength = length
 	}
 
-	fmt.Println(strings.Repeat("─", 80))
-	fmt.Println("Organic Koch нарушает идеальную самоподобность, поэтому выглядит ближе к природной береговой линии.")
+	fmt.Println("  └──────┴───────────┴───────────┴─────────────┴─────────────┘")
+	fmt.Println()
 }

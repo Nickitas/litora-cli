@@ -2,7 +2,6 @@ package paradox
 
 import (
 	"fmt"
-	"strings"
 	"time"
 
 	"coastal-geometry/internal/domain/generators/koch"
@@ -10,16 +9,13 @@ import (
 )
 
 func Demonstrate(base []geometry.LatLon, maxIterations int, erosionStrength float64, seed int64) {
-	fmt.Println("\n" + strings.Repeat("=", 80))
-	fmt.Println("\tПАРАДОКС БЕРЕГОВОЙ ЛИНИИ")
-	fmt.Println(strings.Repeat("=", 80))
-	fmt.Println("Демонстрация использует изменение масштаба измерения и добавление новых")
-	fmt.Println("геометрических деталей через кривую Коха. Простое деление сегментов без")
-	fmt.Println("изменения формы здесь не используется.")
-	fmt.Println(strings.Repeat("-", 80))
+	fmt.Println("\n  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+	fmt.Println("  ПАРАДОКС БЕРЕГОВОЙ ЛИНИИ")
+	fmt.Println("  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
 
-	fmt.Printf("%-8s %-12s %-16s %-18s %-24s\n", "Уровень", "Точек", "Сегментов", "Средний шаг, км", "Длина, км")
-	fmt.Println(strings.Repeat("-", 80))
+	fmt.Println("  ┌──────────┬───────────┬───────────┬──────────────┬───────────┬───────────┐")
+	fmt.Println("  │ Уровень  │ Точек     │ Сегментов │ Сред. шаг км │ Длина км  │ Прирост   │")
+	fmt.Println("  ├──────────┼───────────┼───────────┼──────────────┼───────────┼───────────┤")
 
 	prevLength := 0.0
 	for level := 0; level <= maxIterations; level++ {
@@ -37,16 +33,17 @@ func Demonstrate(base []geometry.LatLon, maxIterations int, erosionStrength floa
 			avgStep = length / float64(segments)
 		}
 
-		growth := " | —"
+		var ratio string
 		if level > 0 {
-			growth = fmt.Sprintf(" | +%.0f км (%.3fx)", length-prevLength, length/prevLength)
+			ratio = fmt.Sprintf("×%.3f", length/prevLength)
+		} else {
+			ratio = "—"
 		}
 
-		fmt.Printf("%-8d %-12d %-16d %-18.2f %-24s\n", level, len(curve), segments, avgStep, fmt.Sprintf("%.0f%s", length, growth))
+		fmt.Printf("  │ %-8d │ %-9d │ %-9d │ %-12.2f │ %-9.0f │ %-9s │\n", level, len(curve), segments, avgStep, length, ratio)
 		prevLength = length
 	}
 
-	fmt.Println(strings.Repeat("-", 80))
-	fmt.Println("Вывод: длина растёт при уменьшении шага измерения, потому что на каждом")
-	fmt.Println("уровне появляются новые геометрические детали, а не только дополнительные точки.")
+	fmt.Println("  └──────────┴───────────┴───────────┴──────────────┴───────────┴───────────┘")
+	fmt.Println()
 }

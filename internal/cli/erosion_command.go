@@ -4,8 +4,6 @@ import (
 	"coastal-geometry/internal/domain/geometry"
 	"fmt"
 	"os"
-	"path/filepath"
-	"strings"
 )
 
 const (
@@ -28,18 +26,8 @@ func runErosionCommand(app *App) error {
 		// Проверяем файл по умолчанию
 		if _, err := os.Stat(defaultBathymetryFile); err == nil {
 			bathymetryPath = defaultBathymetryFile
-			fmt.Printf("\n📊 Используется батиметрия: %s\n", bathymetryPath)
 		} else {
-			// Файл не найден - предлагаем скачать
-			fmt.Println("\n⚠️  Батиметрия не найдена")
-			fmt.Println("Для лучшей точности рекомендуется использовать реальные данные.")
-			fmt.Println("\nФайл можно получить:")
-			fmt.Println("  1. Автоматически: go run cmd/download-bathymetry/main.go")
-			fmt.Println("  2. Скриптом: bash scripts/download_bathymetry.sh")
-			fmt.Println("  3. Вручную: см. scripts/BATHYMETRY_DATA.md")
-			fmt.Println("\nИспользуется геометрический proxy (менее точно).")
-
-			// Продолжаем без батиметрии
+			// Файл не найден - используем геометрический proxy
 			bathymetryPath = ""
 		}
 	}
@@ -56,11 +44,6 @@ func runErosionCommand(app *App) error {
 		if err != nil {
 			return fmt.Errorf("ошибка загрузки батиметрии из %q: %w", bathymetryPath, err)
 		}
-
-		absPath, _ := filepath.Abs(bathymetryPath)
-		fmt.Printf("✓ Загружена батиметрия: %d точек, разрешение ~%.1f км\n",
-			len(bathymetryGrid.Points), bathymetryGrid.Resolution*111)
-		fmt.Printf("  Источник: %s\n", absPath)
 	}
 
 	// Загрузка литологии
@@ -77,7 +60,6 @@ func runErosionCommand(app *App) error {
 			if enableLithology {
 				return fmt.Errorf("ошибка чтения файла литологии %q: %w", lithologyPath, err)
 			}
-			fmt.Printf("\n⚠️  Литология не найдена: %v (используется дефолтный профиль)\n", err)
 			lithologyProfile = geometry.CreateDefaultBlackSeaProfile()
 		} else {
 			lithologyProfile, err = geometry.LoadLithologyProfile(data)
@@ -85,14 +67,7 @@ func runErosionCommand(app *App) error {
 				if enableLithology {
 					return fmt.Errorf("ошибка загрузки литологии из %q: %w", lithologyPath, err)
 				}
-				fmt.Printf("\n⚠️  Ошибка загрузки литологии, используется дефолтный профиль: %v\n", err)
 				lithologyProfile = geometry.CreateDefaultBlackSeaProfile()
-			} else {
-				absPath, _ := filepath.Abs(lithologyPath)
-				stats := lithologyProfile.GetStatistics()
-				fmt.Printf("✓ Загружена литология: %s (%d точек, %d классов)\n",
-					stats["name"], stats["num_points"], stats["num_classes"])
-				fmt.Printf("  Источник: %s\n", absPath)
 			}
 		}
 	}
@@ -100,7 +75,6 @@ func runErosionCommand(app *App) error {
 	// Если включена литология но профиль не был загружен явно
 	if enableLithology && lithologyProfile == nil {
 		lithologyProfile = geometry.CreateDefaultBlackSeaProfile()
-		fmt.Println("Используется дефолтный литологический профиль")
 	}
 
 	waveOptions := geometry.WaveErosionOptions{
@@ -123,25 +97,23 @@ func runErosionCommand(app *App) error {
 
 	snapshots := geometry.SimulateWaveErosionWithSeed(app.ModelBase, steps, waveOptions, seed)
 
-	fmt.Println("\n" + strings.Repeat("=", 80))
-	fmt.Println("\tЭРОЗИЯ: ВОЛНОВАЯ СИМУЛЯЦИЯ")
-	fmt.Println(strings.Repeat("=", 80))
-	fmt.Printf("Шаги=%d, базовый отступ=%.1f м, волны %.0f°, ветер %.1f м/с, fetch<=%.0f км, seed=%d\n\n",
-		steps,
-		strength,
-		app.Config.WaveDirection,
-		app.Config.WindSpeed,
-		app.Config.MaxFetchKM,
-		seed,
-	)
-	fmt.Printf("%-6s %-10s %-12s %-14s\n", "Шаг", "Точек", "Длина, км", "Площадь, км²")
-	fmt.Println(strings.Repeat("-", 56))
+	fmt.Println("\n  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+	fmt.Println("  ВОЛНОВАЯ ЭРОЗИЯ")
+	fmt.Println("  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+
+	fmt.Println("  ┌──────┬───────────┬───────────┬─────────────┐")
+	fmt.Println("  │ Шаг  │ Точек     │ Длина км  │ Площадь км² │")
+	fmt.Println("  ├──────┼───────────┼───────────┼─────────────┤")
 
 	for i, state := range snapshots {
 		length := geometry.PolylineLength(state)
 		area := geometry.Area(state)
-		fmt.Printf("%-6d %-10d %-12.0f %-14.0f\n", i, len(state), length, area)
+		fmt.Printf("  │ %-4d │ %-9d │ %-9.0f │ %-11.0f │\n", i, len(state), length, area)
 	}
+
+	fmt.Println("  └──────┴───────────┴───────────┴─────────────┘")
+	fmt.Println()
+
 
 	return writeErosionSVGSeries(app.Base, app.ModelBase, snapshots, steps, strength, seed, waveOptions, app.Config.OutputPath, newExportContext(app))
 }

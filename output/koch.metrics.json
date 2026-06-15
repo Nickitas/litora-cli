@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-13T10:32:58Z",
+  "generated_at": "2026-06-15T19:41:20Z",
   "command": "all",
   "dataset": "Black Sea",
   "source": "data/cache/black-sea.geojson (cached copy of https://geo.vliz.be/geoserver/MarineRegions/wfs?cql_filter=mrgid%3D3319\u0026outputFormat=application%2Fjson\u0026request=GetFeature\u0026service=WFS\u0026typeName=iho\u0026version=1.0.0)",
@@ -26,6 +26,7 @@
     "length_delta_km": -256.2451229090766,
     "length_delta_percent": -4.009432479608894
   },
+  "erosion_strength_meters": 10,
   "erosion_seed": 42,
   "iterations": [
     {
@@ -33,9 +34,9 @@
       "svg_file": "/Users/datsky/edu/fraes-cli/output/koch_iter_0.svg",
       "points_count": 3071,
       "render_points_count": 1800,
-      "length_km": 6134.812070653449,
-      "relative_to_model_base": 1,
-      "relative_to_reference": 0.959905675203911,
+      "length_km": 6134.845450118006,
+      "relative_to_model_base": 1.0000054409921888,
+      "relative_to_reference": 0.9599108980431919,
       "theory": {
         "expected_length_km": 6134.812070653449,
         "error_km": 0,
@@ -47,9 +48,9 @@
       "svg_file": "/Users/datsky/edu/fraes-cli/output/koch_iter_1.svg",
       "points_count": 12281,
       "render_points_count": 1799,
-      "length_km": 8587.84370860115,
-      "relative_to_model_base": 1.3998544062469411,
-      "relative_to_reference": 1.3437281890156398,
+      "length_km": 8591.573488871729,
+      "relative_to_model_base": 1.4004623760148203,
+      "relative_to_reference": 1.3443117826461797,
       "theory": {
         "expected_length_km": 8179.749427537932,
         "error_km": 408.0942810632191,
@@ -61,27 +62,13 @@
       "svg_file": "/Users/datsky/edu/fraes-cli/output/koch_iter_2.svg",
       "points_count": 49121,
       "render_points_count": 1800,
-      "length_km": 11586.494145842895,
-      "relative_to_model_base": 1.8886469564843182,
-      "relative_to_reference": 1.812922931985891,
+      "length_km": 11624.140537905803,
+      "relative_to_model_base": 1.8947834756847994,
+      "relative_to_reference": 1.8188134115924308,
       "theory": {
         "expected_length_km": 10906.332570050576,
         "error_km": 680.1615757923191,
         "error_percent": 6.236391302242905
-      }
-    },
-    {
-      "iteration": 3,
-      "svg_file": "/Users/datsky/edu/fraes-cli/output/koch_iter_3.svg",
-      "points_count": 196481,
-      "render_points_count": 1800,
-      "length_km": 15494.004145502702,
-      "relative_to_model_base": 2.525587412794596,
-      "relative_to_reference": 2.4243256907650954,
-      "theory": {
-        "expected_length_km": 14541.776760067434,
-        "error_km": 952.2273854352679,
-        "error_percent": 6.548218977272019
       }
     }
   ],

@@ -4,7 +4,6 @@ import (
 	"coastal-geometry/internal/domain/geometry"
 	"fmt"
 	"math"
-	"strings"
 )
 
 const MaxIterations = 10
@@ -136,20 +135,18 @@ func CheckTheoryConsistency(base []geometry.LatLon, maxIterations int) TheoryChe
 }
 
 func Demonstrate(base []geometry.LatLon, maxIterations int) TheoryCheckReport {
-	baseLength := geometry.PolylineLength(base)
 	report := CheckTheoryConsistency(base, maxIterations)
 
-	fmt.Println(strings.Repeat("═", 80))
-	fmt.Println("\tФРАКТАЛЬНАЯ БЕРЕГОВАЯ ЛИНИЯ ЧЁРНОГО МОРЯ — КРИВАЯ КОХА (рекурсивная)")
-	fmt.Println(strings.Repeat("═", 90))
+	fmt.Println("\n  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+	fmt.Println("  КРИВАЯ КОХА — ФРАКТАЛЬНАЯ БЕРЕГОВАЯ ЛИНИЯ")
+	fmt.Println("  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
 
-	fmt.Printf("Исходная полилиния: %d точек, длина = %.0f км\n\n", len(base), baseLength)
-
-	fmt.Printf("%-5s %-10s %-15s %-15s %-15s %-12s\n", "Итер.", "Точек", "Измерено, км", "Теория, км", "Ошибка, км", "Ошибка, %")
-	fmt.Println(strings.Repeat("─", 96))
+	fmt.Println("  ┌──────┬───────────┬─────────────┬─────────────┬─────────────┬────────────┐")
+	fmt.Println("  │ Итер │ Точек     │ Измерено км │ Теория км   │ Ошибка км   │ Ошибка %   │")
+	fmt.Println("  ├──────┼───────────┼─────────────┼─────────────┼─────────────┼────────────┤")
 
 	for _, sample := range report.Samples {
-		fmt.Printf("%-5d %-10d %-15.0f %-15.0f %-15.2f %-12.2f\n",
+		fmt.Printf("  │ %-4d │ %-9d │ %-11.0f │ %-11.0f │ %-11.2f │ %-10.2f │\n",
 			sample.Iteration,
 			sample.PointsCount,
 			sample.MeasuredLengthKM,
@@ -158,15 +155,11 @@ func Demonstrate(base []geometry.LatLon, maxIterations int) TheoryCheckReport {
 			sample.ErrorPercent)
 
 		if sample.ErrorPercent > maxTheoryErrorPct {
-			fmt.Println("WARNING: Koch implementation inconsistent with theory")
+			fmt.Printf("  │      ⚠️  WARNING: несоответствие теории (ошибка > %.0f%%)                                    │\n", maxTheoryErrorPct)
 		}
 	}
 
-	fmt.Println(strings.Repeat("─", 96))
-	fmt.Printf("Математическая формула: Lₙ = L₀ × (4/3)ⁿ\n")
-	fmt.Printf("error = |L_measured - L_theory|\n")
-	fmt.Printf("Порог предупреждения: %.0f%%\n", maxTheoryErrorPct)
-	fmt.Printf("Фрактальная размерность D = log(4)/log(3) ≈ %.5f\n", math.Log(4)/math.Log(3))
-	fmt.Printf("При n→∞ длина → ∞, но кривая остаётся в ограниченной области\n")
+	fmt.Println("  └──────┴───────────┴─────────────┴─────────────┴─────────────┴────────────┘")
+	fmt.Println()
 	return report
 }

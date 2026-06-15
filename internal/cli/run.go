@@ -26,9 +26,6 @@ func Run(args []string, stdout, stderr io.Writer) {
 		exitWithError(stderr, err)
 	}
 
-	printLoadNotes(stdout, app)
-	printCommandUX(stdout, app.Config.Command)
-	printProcessNotes(stdout, app)
 	printValidationReport(stdout, app.Validation)
 
 	if err := executeCommand(app); err != nil {

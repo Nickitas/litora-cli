@@ -1,9 +1,9 @@
 {
-  "generated_at": "2026-04-21T21:25:17Z",
+  "generated_at": "2026-06-15T19:42:47Z",
   "command": "all",
   "dataset": "Black Sea",
   "source": "data/cache/black-sea.geojson (cached copy of https://geo.vliz.be/geoserver/MarineRegions/wfs?cql_filter=mrgid%3D3319\u0026outputFormat=application%2Fjson\u0026request=GetFeature\u0026service=WFS\u0026typeName=iho\u0026version=1.0.0)",
-  "svg_file": "/Users/datsky/Desktop/Fractal-Approximation-Erosion-Simulation/output/full-run/coastline.svg",
+  "svg_file": "/Users/datsky/edu/fraes-cli/output/full-run/coastline.svg",
   "real": {
     "points_count": 9635,
     "length_km": 6391.057193562526

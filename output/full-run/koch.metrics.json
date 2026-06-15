@@ -1,10 +1,10 @@
 {
-  "generated_at": "2026-04-21T21:25:17Z",
+  "generated_at": "2026-06-15T19:42:47Z",
   "command": "all",
   "dataset": "Black Sea",
   "source": "data/cache/black-sea.geojson (cached copy of https://geo.vliz.be/geoserver/MarineRegions/wfs?cql_filter=mrgid%3D3319\u0026outputFormat=application%2Fjson\u0026request=GetFeature\u0026service=WFS\u0026typeName=iho\u0026version=1.0.0)",
   "title": "Классическая кривая Коха",
-  "output_dir": "/Users/datsky/Desktop/Fractal-Approximation-Erosion-Simulation/output/full-run",
+  "output_dir": "/Users/datsky/edu/fraes-cli/output/full-run",
   "reference_coastline": {
     "points_count": 9635,
     "length_km": 6391.057193562526
@@ -30,7 +30,7 @@
   "iterations": [
     {
       "iteration": 0,
-      "svg_file": "/Users/datsky/Desktop/Fractal-Approximation-Erosion-Simulation/output/full-run/koch_iter_0.svg",
+      "svg_file": "/Users/datsky/edu/fraes-cli/output/full-run/koch_iter_0.svg",
       "points_count": 391,
       "render_points_count": 391,
       "length_km": 5334.126834246317,
@@ -44,7 +44,7 @@
     },
     {
       "iteration": 1,
-      "svg_file": "/Users/datsky/Desktop/Fractal-Approximation-Erosion-Simulation/output/full-run/koch_iter_1.svg",
+      "svg_file": "/Users/datsky/edu/fraes-cli/output/full-run/koch_iter_1.svg",
       "points_count": 1561,
       "render_points_count": 1561,
       "length_km": 7514.526377604919,
@@ -58,7 +58,7 @@
     },
     {
       "iteration": 2,
-      "svg_file": "/Users/datsky/Desktop/Fractal-Approximation-Erosion-Simulation/output/full-run/koch_iter_2.svg",
+      "svg_file": "/Users/datsky/edu/fraes-cli/output/full-run/koch_iter_2.svg",
       "points_count": 6241,
       "render_points_count": 1799,
       "length_km": 10153.583336818696,
@@ -72,7 +72,7 @@
     },
     {
       "iteration": 3,
-      "svg_file": "/Users/datsky/Desktop/Fractal-Approximation-Erosion-Simulation/output/full-run/koch_iter_3.svg",
+      "svg_file": "/Users/datsky/edu/fraes-cli/output/full-run/koch_iter_3.svg",
       "points_count": 24961,
       "render_points_count": 1798,
       "length_km": 13582.849298965984,
@@ -86,7 +86,7 @@
     },
     {
       "iteration": 4,
-      "svg_file": "/Users/datsky/Desktop/Fractal-Approximation-Erosion-Simulation/output/full-run/koch_iter_4.svg",
+      "svg_file": "/Users/datsky/edu/fraes-cli/output/full-run/koch_iter_4.svg",
       "points_count": 99841,
       "render_points_count": 1798,
       "length_km": 18125.378434237446,
@@ -100,7 +100,7 @@
     },
     {
       "iteration": 5,
-      "svg_file": "/Users/datsky/Desktop/Fractal-Approximation-Erosion-Simulation/output/full-run/koch_iter_5.svg",
+      "svg_file": "/Users/datsky/edu/fraes-cli/output/full-run/koch_iter_5.svg",
       "points_count": 399361,
       "render_points_count": 1798,
       "length_km": 24172.142142214932,
