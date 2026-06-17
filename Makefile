@@ -1,7 +1,7 @@
 .PHONY: all build test clean bathymetry help erosion erosion-with-bathymetry
 
 # Переменные
-BINARY_NAME=fraes
+BINARY_NAME=lito
 GO=go
 BATHYMETRY_FILE=data/black-sea-bathymetry.json
 
@@ -10,7 +10,7 @@ all: build
 # Сборка
 build:
 	@echo "🔨 Сборка $(BINARY_NAME)..."
-	$(GO) build -o $(BINARY_NAME) ./cmd/fraes
+	$(GO) build -o $(BINARY_NAME) ./cmd/lito
 	@echo "✓ Готово: ./$(BINARY_NAME)"
 
 # Тесты

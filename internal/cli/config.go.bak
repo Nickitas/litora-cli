@@ -16,9 +16,6 @@ const (
 	cmdSource        = "source"
 	cmdAll           = "all"
 	cmdCoastline     = "coastline"
-	cmdParadox       = "paradox"
-	cmdKoch          = "koch"
-	cmdKochOrganic   = "koch-organic"
 	cmdDimension     = "dimension"
 	cmdErosion       = "erosion"
 )
@@ -43,8 +40,19 @@ type config struct {
 	DepthScale      float64
 	ExposurePower   float64
 	BathymetryPath  string
+	LithologyPath   string
+	EnableLithology bool
 	ModelMaxPoints  int
 	DisableSimplify bool
+	Quiet           bool
+	// Temporal dynamics parameters
+	TargetYears            int
+	YearsPerStep           float64
+	StormProbability       float64
+	StormIntensityMult     float64
+	SeaLevelRise           float64
+	EnableSeasonality      bool
+	SeasonalPhase          float64
 }
 
 func parseConfig(args []string, stdout, stderr io.Writer) (config, error) {
@@ -67,6 +75,9 @@ func parseConfig(args []string, stdout, stderr io.Writer) (config, error) {
 	fs := flag.NewFlagSet(command, flag.ContinueOnError)
 	fs.SetOutput(stderr)
 
+	// Общие флаги для всех команд
+	fs.BoolVar(&cfg.Quiet, "quiet", false, "suppress startup banner")
+
 	switch command {
 	case cmdSource:
 		fs.StringVar(&cfg.InputPath, "input", coastline.DefaultCoastlineJSONPath, "path to local coastline JSON/GeoJSON fallback file")
@@ -86,6 +97,26 @@ func parseConfig(args []string, stdout, stderr io.Writer) (config, error) {
 		fs.Float64Var(&cfg.ErosionStrength, "erosion-strength", 0, "Gaussian erosion strength in meters; applied after fractal growth (0 disables)")
 		fs.IntVar(&cfg.ModelMaxPoints, "model-max-points", 0, "max points for model base (0 keeps default budget); higher preserves details")
 		fs.BoolVar(&cfg.DisableSimplify, "no-model-simplify", false, "disable model base simplification before fractal growth")
+		// Волновая эрозия
+		fs.IntVar(&cfg.Steps, "steps", 5, "number of wave erosion steps (0+)")
+		fs.Float64Var(&cfg.WaveDirection, "wave-direction", 0, "direction waves come from, in degrees clockwise from north")
+		fs.Float64Var(&cfg.WindSpeed, "wind-speed", 12, "wind speed driving wave energy, in m/s")
+		fs.Float64Var(&cfg.FetchSpread, "fetch-spread", 55, "half-width of the offshore sector sampled for fetch, in degrees")
+		fs.IntVar(&cfg.FetchSamples, "fetch-samples", 9, "number of ray directions used to estimate fetch/exposure")
+		fs.Float64Var(&cfg.MaxFetchKM, "max-fetch-km", 150, "upper clamp for fetch distance in kilometers")
+		fs.Float64Var(&cfg.DepthScale, "depth-scale", 4000, "nearshore openness scale used as a depth proxy, in meters")
+		fs.Float64Var(&cfg.ExposurePower, "exposure-power", 1.5, "nonlinear weight for wave-incidence angle")
+		fs.StringVar(&cfg.BathymetryPath, "bathymetry", "", "path to bathymetry JSON file with lat,lon,depth points (empty uses automatic)")
+		fs.StringVar(&cfg.LithologyPath, "lithology", "", "path to lithology JSON file with rock resistance data (empty uses default)")
+		fs.BoolVar(&cfg.EnableLithology, "enable-lithology", false, "enable lithology-based erosion modulation (retreat /= resistance)")
+		// Temporal dynamics flags
+		fs.IntVar(&cfg.TargetYears, "target-years", 0, "target simulation duration in years (0 uses steps)")
+		fs.Float64Var(&cfg.YearsPerStep, "years-per-step", 1.0, "years per erosion step (requires target-years)")
+		fs.Float64Var(&cfg.StormProbability, "storm-probability", 0, "probability of storm event per step [0-1]")
+		fs.Float64Var(&cfg.StormIntensityMult, "storm-intensity", 2.0, "storm intensity multiplier [1.0-10.0]")
+		fs.Float64Var(&cfg.SeaLevelRise, "sea-level-rise", 0, "sea level rise in meters per year")
+		fs.BoolVar(&cfg.EnableSeasonality, "enable-seasonality", false, "enable seasonal erosion variations")
+		fs.Float64Var(&cfg.SeasonalPhase, "seasonal-phase", 0, "seasonal phase offset in radians [0-2π]")
 		fs.Usage = func() { printCommandUsage(stdout, command) }
 	case cmdCoastline:
 		fs.StringVar(&cfg.InputPath, "input", coastline.DefaultCoastlineJSONPath, "path to local coastline JSON/GeoJSON fallback file")
@@ -155,6 +186,16 @@ func parseConfig(args []string, stdout, stderr io.Writer) (config, error) {
 		fs.Float64Var(&cfg.DepthScale, "depth-scale", 4000, "nearshore openness scale used as a depth proxy, in meters")
 		fs.Float64Var(&cfg.ExposurePower, "exposure-power", 1.5, "nonlinear weight for wave-incidence angle")
 		fs.StringVar(&cfg.BathymetryPath, "bathymetry", "", "path to bathymetry JSON file with lat,lon,depth points (empty uses geometric proxy)")
+		fs.StringVar(&cfg.LithologyPath, "lithology", "", "path to lithology JSON file with rock resistance data (empty uses default)")
+		fs.BoolVar(&cfg.EnableLithology, "enable-lithology", false, "enable lithology-based erosion modulation (retreat /= resistance)")
+		// Temporal dynamics flags
+		fs.IntVar(&cfg.TargetYears, "target-years", 0, "target simulation duration in years (0 uses steps)")
+		fs.Float64Var(&cfg.YearsPerStep, "years-per-step", 1.0, "years per erosion step (requires target-years)")
+		fs.Float64Var(&cfg.StormProbability, "storm-probability", 0, "probability of storm event per step [0-1]")
+		fs.Float64Var(&cfg.StormIntensityMult, "storm-intensity", 2.0, "storm intensity multiplier [1.0-10.0]")
+		fs.Float64Var(&cfg.SeaLevelRise, "sea-level-rise", 0, "sea level rise in meters per year")
+		fs.BoolVar(&cfg.EnableSeasonality, "enable-seasonality", false, "enable seasonal erosion variations")
+		fs.Float64Var(&cfg.SeasonalPhase, "seasonal-phase", 0, "seasonal phase offset in radians [0-2π]")
 		fs.Usage = func() { printCommandUsage(stdout, command) }
 	}
 

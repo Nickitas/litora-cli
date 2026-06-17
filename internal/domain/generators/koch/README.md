@@ -541,4 +541,4 @@ n→∞
 - [`../geometry`](../geometry) — `LatLon`, `PolylineLength`, `SimplifyPolyline`
 - [`../fractal`](../fractal) — расчёт фрактальной размерности box-counting
 - [`../coastline`](../coastline) — загрузка и валидация береговых линий
-- [`../../cmd/fraes`](../../cmd/fraes) — CLI-интерфейс, вызывающий генераторы
+- [`../../cmd/lito`](../../cmd/lito) — CLI-интерфейс, вызывающий генераторы

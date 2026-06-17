@@ -149,7 +149,7 @@ func fetchCoastlinePayload(client *http.Client, url string) ([]byte, error) {
 		return nil, fmt.Errorf("build GET request for %q: %w", url, err)
 	}
 	req.Header.Set("Accept", "application/geo+json, application/json;q=0.9, */*;q=0.1")
-	req.Header.Set("User-Agent", "fraes/1.0")
+	req.Header.Set("User-Agent", "lito/1.0")
 
 	resp, err := client.Do(req)
 	if err != nil {

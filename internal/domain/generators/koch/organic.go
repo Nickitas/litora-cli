@@ -7,6 +7,8 @@ import (
 	"math/rand"
 )
 
+const MaxIterations = 10
+
 type OrganicOptions struct {
 	Seed            int64
 	AngleJitterDeg  float64
@@ -81,40 +83,4 @@ func randomSigned(rng *rand.Rand, amplitude float64) float64 {
 		return 0
 	}
 	return (rng.Float64()*2 - 1) * amplitude
-}
-
-func DemonstrateOrganic(base []geometry.LatLon, maxIterations int, opts OrganicOptions) {
-	baseLength := geometry.PolylineLength(base)
-
-	fmt.Println("\n  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-	fmt.Println("  ОРГАНИЧЕСКАЯ ФРАКТАЛЬНАЯ БЕРЕГОВАЯ ЛИНИЯ")
-	fmt.Println("  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
-
-	fmt.Println("  ┌──────┬───────────┬───────────┬─────────────┬─────────────┐")
-	fmt.Println("  │ Итер │ Точек     │ Длина км  │ Прирост     │ × от исходн │")
-	fmt.Println("  ├──────┼───────────┼───────────┼─────────────┼─────────────┤")
-
-	prevLength := baseLength
-	for iter := 0; iter <= maxIterations; iter++ {
-		curve := OrganicKochCurve(base, iter, opts)
-		length := geometry.PolylineLength(curve)
-		pointsCount := len(curve)
-
-		growth := ""
-		multiplier := ""
-		if iter > 0 {
-			growth = fmt.Sprintf("+%.0f км", length-prevLength)
-			multiplier = fmt.Sprintf("%.3f×", length/baseLength)
-		} else {
-			multiplier = "1.000×"
-		}
-
-		fmt.Printf("  │ %-4d │ %-9d │ %-9.0f │ %-11s │ %-11s │\n",
-			iter, pointsCount, length, growth, multiplier)
-
-		prevLength = length
-	}
-
-	fmt.Println("  └──────┴───────────┴───────────┴─────────────┴─────────────┘")
-	fmt.Println()
 }

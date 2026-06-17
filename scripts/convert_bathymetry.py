@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Конвертация батиметрических данных в формат FRAES.
+Конвертация батиметрических данных в формат Litora-CLI.
 
 Пример использования:
     python scripts/convert_bathymetry.py \
@@ -11,8 +11,9 @@
 """
 
 import json
-import numpy as np
 import sys
+
+import numpy as np
 
 try:
     import xarray as xr
@@ -23,7 +24,7 @@ except ImportError:
 
 def convert_netcdf_to_json(input_file, output_file, bounds, resolution):
     """
-    Конвертирует NetCDF файл с батиметрией в JSON формат FRAES.
+    Конвертирует NetCDF файл с батиметрией в JSON формат Litora-CLI.
 
     Args:
         input_file: путь к NetCDF файлу
@@ -36,7 +37,7 @@ def convert_netcdf_to_json(input_file, output_file, bounds, resolution):
 
     # Определяем имена переменных (зависит от источника)
     depth_var = None
-    for var_name in ['elevation', 'depth', 'bathymetry', 'z']:
+    for var_name in ["elevation", "depth", "bathymetry", "z"]:
         if var_name in ds:
             depth_var = var_name
             break
@@ -51,14 +52,11 @@ def convert_netcdf_to_json(input_file, output_file, bounds, resolution):
     min_lat, max_lat, min_lon, max_lon = bounds
 
     print(f"Извлечение данных для региона: {bounds}")
-    subset = ds.sel(
-        lat=slice(min_lat, max_lat),
-        lon=slice(min_lon, max_lon)
-    )
+    subset = ds.sel(lat=slice(min_lat, max_lat), lon=slice(min_lon, max_lon))
 
     depths = subset[depth_var].values
-    lats = subset['lat'].values
-    lons = subset['lon'].values
+    lats = subset["lat"].values
+    lons = subset["lon"].values
 
     # Создаём регулярную сетку с заданным разрешением
     print(f"Создание сетки с разрешением {resolution}°...")
@@ -84,11 +82,13 @@ def convert_netcdf_to_json(input_file, output_file, bounds, resolution):
                 if depth > 0:
                     depth = -depth
 
-                points.append({
-                    "lat": round(lat, 6),
-                    "lon": round(lon, 6),
-                    "depth": round(depth, 2)
-                })
+                points.append(
+                    {
+                        "lat": round(lat, 6),
+                        "lon": round(lon, 6),
+                        "depth": round(depth, 2),
+                    }
+                )
             except IndexError:
                 continue
 
@@ -96,7 +96,7 @@ def convert_netcdf_to_json(input_file, output_file, bounds, resolution):
 
     # Сохраняем в JSON
     print(f"Сохранение в {output_file}...")
-    with open(output_file, 'w') as f:
+    with open(output_file, "w") as f:
         json.dump(points, f, indent=2)
 
     print("Готово!")
@@ -105,14 +105,25 @@ def convert_netcdf_to_json(input_file, output_file, bounds, resolution):
 if __name__ == "__main__":
     import argparse
 
-    parser = argparse.ArgumentParser(description="Конвертация батиметрии в формат FRAES")
+    parser = argparse.ArgumentParser(
+        description="Конвертация батиметрии в формат Litora-CLI"
+    )
     parser.add_argument("--input", required=True, help="Путь к NetCDF файлу")
     parser.add_argument("--output", required=True, help="Путь к выходному JSON файлу")
-    parser.add_argument("--resolution", type=float, default=0.01,
-                       help="Разрешение сетки в градусах (по умолчанию 0.01)")
-    parser.add_argument("--bounds", nargs=4, type=float, required=True,
-                       metavar=("MIN_LAT", "MAX_LAT", "MIN_LON", "MAX_LON"),
-                       help="Границы региона (для Чёрного моря: 40.5 46.5 27.5 42.5)")
+    parser.add_argument(
+        "--resolution",
+        type=float,
+        default=0.01,
+        help="Разрешение сетки в градусах (по умолчанию 0.01)",
+    )
+    parser.add_argument(
+        "--bounds",
+        nargs=4,
+        type=float,
+        required=True,
+        metavar=("MIN_LAT", "MAX_LAT", "MIN_LON", "MAX_LON"),
+        help="Границы региона (для Чёрного моря: 40.5 46.5 27.5 42.5)",
+    )
 
     args = parser.parse_args()
 

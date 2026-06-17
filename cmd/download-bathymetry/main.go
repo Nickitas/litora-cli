@@ -33,8 +33,8 @@ type BathymetryPoint struct {
 
 // GebcoResponse представляет ответ GEBCO API
 type GebcoResponse struct {
-	Longitude []float64 `json:"longitude"`
-	Latitude  []float64 `json:"latitude"`
+	Longitude []float64   `json:"longitude"`
+	Latitude  []float64   `json:"latitude"`
 	Elevation [][]float64 `json:"elevation"`
 }
 
@@ -94,7 +94,7 @@ func main() {
 	fmt.Println("\n=== Готово! ===")
 	fmt.Printf("Батиметрия сохранена: %s\n", outputFile)
 	fmt.Println("\nИспользование:")
-	fmt.Printf("  ./fraes model erosion --bathymetry %s --output ./output/erosion\n", outputFile)
+	fmt.Printf("  ./lito model erosion --bathymetry %s --output ./output/erosion\n", outputFile)
 }
 
 // downloadBathymetry загружает батиметрию через GEBCO API

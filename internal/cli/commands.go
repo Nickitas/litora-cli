@@ -8,12 +8,6 @@ func executeCommand(app *App) error {
 		return runAllCommand(app)
 	case cmdCoastline:
 		return runCoastlineCommand(app)
-	case cmdParadox:
-		return runParadoxCommand(app)
-	case cmdKoch:
-		return runKochCommand(app)
-	case cmdKochOrganic:
-		return runKochOrganicCommand(app)
 	case cmdDimension:
 		return runDimensionCommand(app)
 	case cmdErosion:

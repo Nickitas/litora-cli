@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-06-15T19:41:20Z",
-  "command": "all",
+  "generated_at": "2026-06-17T05:03:46Z",
+  "command": "real coastline",
   "dataset": "Black Sea",
   "source": "data/cache/black-sea.geojson (cached copy of https://geo.vliz.be/geoserver/MarineRegions/wfs?cql_filter=mrgid%3D3319\u0026outputFormat=application%2Fjson\u0026request=GetFeature\u0026service=WFS\u0026typeName=iho\u0026version=1.0.0)",
   "svg_file": "/Users/datsky/edu/fraes-cli/output/coastline.svg",

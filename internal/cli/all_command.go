@@ -7,6 +7,7 @@ import (
 func runAllCommand(app *App) error {
 	invalid := false
 
+	// 1. Базовая валидация и метрики береговой линии
 	sanity := coastline.MainCalculation(app.Base, app.Dataset, app.DataSource)
 	if sanity.Checked && !sanity.Valid {
 		invalid = true
@@ -15,24 +16,8 @@ func runAllCommand(app *App) error {
 		return err
 	}
 
-	runParadoxCommand(app)
-
-	// Классическая фрактальная аппроксимация (Koch)
-	if err := writeKochSVGSeries(app.Base, app.ModelBase, app.Config.Iterations, app.Config.OutputPath, app.Config.ErosionStrength, app.Config.Seed, newExportContext(app)); err != nil {
-		return err
-	}
-
-	// Органическая фрактальная модель
-	runKochOrganicMetrics(app.ModelBase, app.Config.Iterations, organicKochOptions(app))
-	if err := writeOrganicKochSVGSeries(app.Base, app.ModelBase, app.Config.Iterations, app.Config.OutputPath, organicKochOptions(app), app.Config.ErosionStrength, "koch-organic_iter", "koch-organic", false, newExportContext(app)); err != nil {
-		return err
-	}
-
-	// Анализ фрактальной размерности органической модели
-	if err := writeOrganicKochSVGSeries(app.Base, app.ModelBase, app.Config.Iterations, app.Config.OutputPath, organicKochOptions(app), app.Config.ErosionStrength, "dimension-organic_iter", "dimension-organic", true, newExportContext(app)); err != nil {
-		return err
-	}
-
+	// 2. Анализ фрактальной размерности (научно ценный компонент)
+	// Используем упрощенную органическую модель для анализа
 	assessment, err := runDimensionMetrics(app.ModelBase, app.Config.Iterations, organicKochOptions(app))
 	if err != nil {
 		return err
@@ -41,6 +26,7 @@ func runAllCommand(app *App) error {
 		invalid = true
 	}
 
+	// 3. Волновая эрозия с физически обоснованной моделью
 	if err := runErosionCommand(app); err != nil {
 		return err
 	}

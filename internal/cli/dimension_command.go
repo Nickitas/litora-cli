@@ -23,6 +23,14 @@ type dimensionAssessment struct {
 	Valid bool
 }
 
+func organicKochOptions(app *App) koch.OrganicOptions {
+	return koch.OrganicOptions{
+		Seed:            app.Config.Seed,
+		AngleJitterDeg:  app.Config.AngleJitter,
+		HeightJitterPct: app.Config.HeightJitter,
+	}
+}
+
 func runDimensionCommand(app *App) error {
 	opts := organicKochOptions(app)
 	if err := writeOrganicKochSVGSeries(app.Base, app.ModelBase, app.Config.Iterations, app.Config.OutputPath, opts, app.Config.ErosionStrength, "dimension_iter", "dimension", true, newExportContext(app)); err != nil {

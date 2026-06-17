@@ -1,4 +1,4 @@
-# Батиметрические данные для FRAES
+# Батиметрические данные для Litora-CLI
 
 ## Почему нужны реальные данные?
 
@@ -78,7 +78,7 @@ wget https://www.ngdc.noaa.gov/mgg/global/relief/ETOPO1/data/ice_surface/grid_re
 
 ```bash
 # После конвертации:
-./fraes model erosion \
+./lito model erosion \
     --steps 10 \
     --erosion-strength 50 \
     --wave-direction 0 \
