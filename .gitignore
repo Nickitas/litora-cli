@@ -3,3 +3,5 @@ lito-*
 .DS_Store
 .claude
 DEVELOPMENT_PLAN.md
+build/
+dist/
