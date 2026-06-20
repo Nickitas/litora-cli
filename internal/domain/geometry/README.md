@@ -21,6 +21,15 @@
   - [Алгоритм Рамера — Дугласа — Пекера](#алгоритм-рамера--дугласа--пекера)
   - [Бинарный поиск допуска](#бинарный-поиск-допуска)
   - [Обработка замкнутых полилиний](#обработка-замкнутых-полилиний)
+- [Волновая эрозия](#волновая-эрозия)
+  - [Физическая модель волнового воздействия](#физическая-модель-волнового-воздействия)
+  - [Fetch и экспозиция берега](#fetch-и-экспозиция-берега)
+  - [Батиметрия и физическая глубина](#батиметрия-и-физическая-глубина)
+  - [Параметры волновой эрозии](#параметры-волновой-эрозии)
+- [Батиметрический модуль](#батиметрический-модуль)
+  - [Структура данных](#структура-данных)
+  - [Загрузка и интерполяция](#загрузка-и-интерполяция)
+  - [Формат данных](#формат-данных)
 - [Эрозия](#эрозия)
   - [Модель Гауссовского сдвига](#модель-гауссовского-сдвига)
   - [Параллельное выполнение](#параллельное-выполнение)
@@ -43,7 +52,8 @@ internal/domain/geometry/
 ├── length.go       # Длина полилинии
 ├── area.go         # Площадь полигона (shoelace)
 ├── simplify.go     # Упрощение (Ramer-Douglas-Peucker)
-├── erosion.go      # Стохастическая эрозия
+├── erosion.go      # Стохастическая и волновая эрозия
+├── bathymetry.go   # Батиметрический модуль
 └── simplify_test.go # Тесты упрощения
 ```
 
@@ -344,6 +354,354 @@ if isClosedPolyline(points):
 
 ---
 
+## Волновая эрозия
+
+### Физическая модель волнового воздействия
+
+Модуль реализует физически обоснованную модель волновой эрозии береговой линии, которая учитывает:
+
+1. **Направленность волн** — волны приходят от определённого направления (задаётся пользователем)
+2. **Fetch расстояние** — длина открытой воды по направлению волны
+3. **Экспозиция сегмента** — насколько открыт сегмент берега к волнению
+4. **Батиметрия** — реальные глубины у берега влияют на энергию волн
+
+В отличие от простой гауссовской эрозии, волновая модель сильнее размывает открытые мысы и слабее — защищённые бухты.
+
+### Fetch и экспозиция берега
+
+**Fetch** — расстояние от точки берега до противоположного берега в заданном направлении. Чем больше fetch, тем выше энергия волн.
+
+**Расчёт fetch:**
+```
+Для каждого сегмента берега:
+  1. Определить нормаль к берегу ( seaward normal )
+  2. Выпустить лучи в секторе направлений волн
+  3. Найти пересечение с противоположным берегом
+  4. Fetch = расстояние до пересечения
+```
+
+**Экспозиция** — функция угла падения волны:
+```
+exposure = cos(θ)^power
+
+где:
+  θ — угол между нормалью к берегу и направлением волны
+  power — показатель нелинейности (по умолчанию 1.5)
+```
+
+Сегменты, ориентированные перпендикулярно волнам, получают максимальную экспозицию.
+
+### Батиметрия и физическая глубина
+
+**Физический принцип:** Чем глубже вода у берега, тем больше энергии волна может передать берегу, тем сильнее эрозия.
+
+**Расчёт depth factor:**
+
+**Геометрический proxy (без батиметрии):**
+```go
+depthFactor = 1 - exp(-fetch / depthScale)
+
+где fetch используется как proxy для глубины
+```
+
+**Физическая модель (с батиметрией):**
+```go
+effectiveDepth = max(0, -depthMeters)  // Глубина в метрах (положительная)
+depthFactor = 1 - exp(-effectiveDepth / depthScale)
+
+где depthMeters < 0 для подводных глубин
+```
+
+**Интерполяция батиметрии:**
+Батиметрические данные интерполируются билинейным методом для получения глубины в любой точке берега.
+
+### Параметры волновой эрозии
+
+```go
+type WaveErosionOptions struct {
+    StrengthMeters           float64  // Базовая сила эрозии (м)
+    WindSourceDirectionDeg   float64  // Направление ветра (градусы от севера)
+    WindSpeedMetersPerSecond float64  // Скорость ветра (м/с)
+    FetchSpreadDeg           float64  // Разброс направлений (градусы)
+    FetchSamples             int      // Число лучей для fetch
+    MaxFetchMeters           float64  // Максимальный fetch (м)
+    DepthScaleMeters         float64  // Масштаб глубины (м)
+    ExposurePower            float64  // Показатель экспозиции
+    BathymetryGrid           *BathymetryGrid // Опциональная батиметрия
+}
+```
+
+**Влияние параметров:**
+
+| Параметр | Влияние на эрозию |
+|----------|-------------------|
+| `StrengthMeters` | Базовый отступ берега за шаг |
+| `WindSpeedMetersPerSecond` | Энергия волн ∝ (скорость)² |
+| `FetchSpreadDeg` | Широта сектора выборки |
+| `FetchSamples` | Точность оценки экспозиции |
+| `DepthScaleMeters` | Масштаб затухания по глубине |
+| `ExposurePower` | Нелинейность угла падения |
+
+**Алгоритм расчёта отступа:**
+```go
+// 1. Оценить fetch и экспозицию
+fetch = meanFetchalongSector
+exposure = weightedIncidence / samples
+
+// 2. Определить depth factor
+if bathymetry != nil:
+    depth = interpolateDepth(lat, lon)
+    depthFactor = 1 - exp(-depth / depthScale)
+else:
+    depthFactor = 1 - exp(-fetch / depthScale)
+
+// 3. Рассчитать силу ветра
+windFactor = clamp((windSpeed / 12)², 0.1, 4.0)
+
+// 4. Базовый отступ
+retreat = strength × windFactor × fetchFactor × exposure × (0.35 + 0.65 × depthFactor)
+
+// 5. Поправка на форму берега
+protrusion = насколько выступает мыс
+bayShelter = насколько защищена бухта
+retreat ×= clamp(0.55 + protrusion - 0.35 × bayShelter, 0.1, 1.75)
+
+// 6. Сглаживание
+smoothedRetreat = retreat + shapeCorrection × smoothAlpha
+```
+
+---
+
+## Литологический модуль
+
+### Структура данных
+
+**Литологический профиль** содержит распределение пород по региону с их сопротивляемостью эрозии:
+
+```go
+type LithologyProfile struct {
+    Metadata  LithologyMetadata         // Метаданные профиля
+    Points    []LithologyPoint          // Точки замера lithology
+    Classes   map[string]LithologyClass // Классы пород
+    Baselines map[string]ErosionBaseline // Базовые скорости эрозии
+}
+
+type LithologyPoint struct {
+    Lat              float64  // Широта
+    Lon              float64  // Долгота
+    Region           string   // Регион
+    Lithology        string   // Класс породы
+    Resistance       float64  // Сопротивление эрозии [0.1-10.0]
+    Color            string   // Цвет для визуализации
+    Description      string   // Описание
+    Confidence       string   // Уверенность в данных
+    Source           string   // Источник данных
+    ErosionObserved  *float64 // Наблюдаемая эрозия (м/год)
+    Dynamic          bool     // Динамическая литология (пляжи)
+}
+
+type LithologyClass struct {
+    Resistance    float64    // Базовое сопротивление
+    Color         string     // Цвет для SVG
+    Description   string     // Описание породы
+    ErosionRange  []float64  // Диапазон эрозии (м/год)
+    Dynamic       bool       // Динамический класс
+}
+
+type LithologyState struct {
+    Class       string  // Класс породы в точке
+    Resistance  float64 // Интерполированное сопротивление
+    Color       string  // Цвет
+    Description string  // Описание
+}
+```
+
+### IDW интерполяция
+
+Модуль использует **Inverse Distance Weighting (IDW)** для интерполяции сопротивления пород между точками замера:
+
+```
+Для запрашиваемой точки (lat, lon):
+  1. Найти N ближайших точек (по умолчанию N=6)
+  2. Рассчитать веса:  wᵢ = 1 / distance²
+  3. Нормировать:      Wᵢ = wᵢ / Σwⱼ
+  4. Интерполировать:  R = Σ(Wᵢ × Resistanceᵢ)
+  5. Класс и цвет — от точки с максимальным весом
+```
+
+**Физический смысл:** Точки ближе к точке замера наследуют её свойства, с плавным переходом между регионами.
+
+### Загрузка профиля
+
+```go
+// Из JSON файла
+profile, err := LoadLithologyProfileFromFile("data/black-sea-lithology.json")
+
+// Из байтов
+profile, err := LoadLithologyProfile(jsonData)
+
+// Получение литологии в точке
+state := profile.GetLithologyAt(lat, lon)
+fmt.Printf("Порода: %s, Сопротивление: %.1f\n", state.Class, state.Resistance)
+
+// Статистика профиля
+stats := profile.GetStatistics()
+// → num_points, num_classes, resistance_min/max/mean, confidence_distribution
+```
+
+### Интеграция с эрозией
+
+Литология модулирует скорость отступа берега в волновой эрозии:
+
+```go
+options := WaveErosionOptions{
+    StrengthMeters:  50,
+    WindSpeed:       12,
+    // ...
+    LithologyProfile: profile,  // Загруженный профиль
+    EnableLithology:  true,     // Включить модуляцию
+}
+
+// Внутри waveErodeStep для каждой точки:
+if options.EnableLithology && options.LithologyProfile != nil {
+    lithology := options.LithologyProfile.GetLithologyAt(lat, lon)
+    retreatMeters /= lithology.Resistance  // Чем выше R, тем медленнее эрозия
+}
+```
+
+**Формула модуляции:**
+```
+retreatActual = retreatBase / Resistance
+
+где:
+  retreatBase   — базовый отступ (м) от энергии волны
+  Resistance    — сопротивление породы [0.1-10.0]
+  retreatActual — фактический отступ с учётом литологии
+```
+
+| Сопротивление | Порода | Эрозия |
+|---------------|--------|--------|
+| 0.8-1.4 | Очень мягкие (глина, дельта) | Очень быстрая |
+| 1.5-2.4 | Мягкие (ил, песок) | Быстрая |
+| 2.5-3.9 | Средние (песчаник) | Значительная |
+| 4.0-5.9 | Средне-твёрдые (известняк) | Умеренная |
+| 6.0-7.9 | Твёрдые (вулканит) | Медленная |
+| 8.0-10.0 | Очень твёрдые (серпентинит) | Очень медленная |
+
+### Формат данных
+
+**Пример lithology JSON:**
+```json
+{
+  "metadata": {
+    "name": "Black Sea Lithology Profile",
+    "version": "1.0",
+    "resolution": 0.5,
+    "bounds": {"min_lat": 40.0, "max_lat": 47.0, "min_lon": 27.0, "max_lon": 42.0},
+    "regions": ["crimea", "turkey", "bulgaria", "romania", "georgia"]
+  },
+  "points": [
+    {
+      "lat": 46.2, "lon": 33.0, "region": "crimea",
+      "lithology_class": "limestone", "resistance": 4.8,
+      "color": "#6b6b6b", "confidence": "high"
+    }
+  ],
+  "classes": {
+    "limestone": {
+      "resistance": 4.5, "color": "#6b6b6b",
+      "description": "Sarmatian limestone"
+    },
+    "clay": {
+      "resistance": 1.2, "color": "#c4a484",
+      "description": "Shales and clay"
+    }
+  }
+}
+```
+
+### Дефолтный профиль
+
+При отсутствии данных автоматически создаётся профиль для Чёрного моря:
+
+```go
+profile := CreateDefaultBlackSeaProfile()
+// 5 точек по регионам: Crimea, Turkey, Bulgaria, Romania, Georgia
+// 4 класса: limestone, volcanic, clay, sediment
+// 6 baseline категорий erosion
+```
+
+---
+
+## Батиметрический модуль
+
+### Структура данных
+
+```go
+type BathymetryPoint struct {
+    Lat   float64 `json:"lat"`   // Широта
+    Lon   float64 `json:"lon"`   // Долгота
+    Depth float64 `json:"depth"` // Глубина (м, отрицательная)
+}
+
+type BathymetryGrid struct {
+    Points     map[string]BathymetryPoint // Регулярная сетка
+    Resolution float64                    // Размер ячейки (градусы)
+    bounds                              // Границы сетки
+}
+```
+
+### Загрузка и интерполяция
+
+**Загрузка из JSON:**
+```go
+func LoadBathymetryFromJSON(data []byte, options BathymetryLoadOptions) (*BathymetryGrid, error)
+```
+
+Формат JSON — массив точек с `{lat, lon, depth}`. Модуль автоматически строит регулярную сетку с заданным разрешением.
+
+**Билинейная интерполяция:**
+```go
+func (g *BathymetryGrid) InterpolateDepth(lat, lon float64) (float64, error)
+```
+
+Интерполяция использует 4 соседние точки сетки:
+```
+P00 •------• P01
+    |      |
+    |  *   |  (*) — запрашиваемая точка
+    |      |
+P10 •------• P11
+
+depth = (1-t)(1-u)×P00 + t(1-u)×P01 + (1-t)u×P10 + t×u×P11
+
+где t, u — нормированные координаты в ячейке
+```
+
+### Формат данных
+
+**Пример батиметрического JSON:**
+```json
+[
+  {"lat": 45.0, "lon": 30.0, "depth": -100},
+  {"lat": 45.0, "lon": 30.01, "depth": -150},
+  {"lat": 45.01, "lon": 30.0, "depth": -120},
+  {"lat": 45.01, "lon": 30.01, "depth": -180}
+]
+```
+
+- **depth < 0** — подводная глубина (метров ниже уровня моря)
+- **depth = 0** — уровень моря
+- **depth > 0** — надводная высота (не используется для эрозии)
+
+**Рекомендации по разрешению:**
+- **0.01°** (~1.1 км) — для региональных моделей
+- **0.001°** (~110 м) — для детальных локальных моделей
+
+Чем выше разрешение, тем точнее интерполяция, но больше данных и медленнее расчёт.
+
+---
+
 ## Эрозия
 
 ### Модель Гауссовского сдвига
@@ -539,6 +897,31 @@ metersPerDegLat = 2π × R / 360 ≈ 111194.9 м
 |---------|----------|------------|
 | `SimplifyPolyline(points, options)` | Упрощение с целевым числом точек | `SimplifyResult` |
 
+### Волновая эрозия
+
+| Функция | Описание | Возвращает |
+|---------|----------|------------|
+| `SimulateWaveErosion(points, steps, options)` | Волновая эрозия (случайный seed) | `[][]LatLon` |
+| `SimulateWaveErosionWithSeed(points, steps, options, seed)` | Волновая эрозия (детерминированная) | `[][]LatLon` |
+
+### Батиметрия
+
+| Функция | Описание | Возвращает |
+|---------|----------|------------|
+| `LoadBathymetryFromJSON(data, options)` | Загрузка батиметрии из JSON | `*BathymetryGrid` |
+| `BuildGrid(points, resolution)` | Построение сетки из точек | `*BathymetryGrid` |
+| `(grid).InterpolateDepth(lat, lon)` | Интерполяция глубины | `float64` (м) |
+
+### Литология
+
+| Функция | Описание | Возвращает |
+|---------|----------|------------|
+| `LoadLithologyProfile(data)` | Загрузка профиля из JSON | `*LithologyProfile` |
+| `LoadLithologyProfileFromFile(path)` | Загрузка профиля из файла | `*LithologyProfile` |
+| `(profile).GetLithologyAt(lat, lon)` | Интерполяция литологии (IDW) | `LithologyState` |
+| `(profile).GetStatistics()` | Статистика профиля | `map[string]interface{}` |
+| `CreateDefaultBlackSeaProfile()` | Дефолтный профиль Чёрного моря | `*LithologyProfile` |
+
 ### Эрозия
 
 | Функция | Описание | Возвращает |
@@ -640,6 +1023,111 @@ func main() {
     
     area := geometry.Area(polygon)
     fmt.Printf("Площадь: %.0f км²\n", area)
+}
+```
+
+### Волновая эрозия с батиметрией
+
+```go
+func main() {
+    coast := loadCoastline()
+    
+    // Загрузка батиметрии
+    bathyData := loadFile("depths.json")
+    grid, err := geometry.LoadBathymetryFromJSON(bathyData, geometry.BathymetryLoadOptions{
+        Resolution: 0.01, // ~1.1 км
+    })
+    if err != nil {
+        log.Fatal(err)
+    }
+    
+    // Параметры волновой эрозии
+    options := geometry.WaveErosionOptions{
+        StrengthMeters:           50,   // Базовый отступ
+        WindSourceDirectionDeg:   0,    // Волны с севера
+        WindSpeedMetersPerSecond: 12,   // Скорость ветра
+        FetchSpreadDeg:           55,   // Сектор выборки
+        FetchSamples:             9,    // Число лучей
+        MaxFetchMeters:           150000, // 150 км
+        DepthScaleMeters:         4000, // Масштаб глубины
+        ExposurePower:            1.5,  // Нелинейность
+        BathymetryGrid:           grid, // Батиметрия
+    }
+    
+    // Симуляция
+    snapshots := geometry.SimulateWaveErosionWithSeed(coast, 10, options, 42)
+    
+    for step, snap := range snapshots {
+        length := geometry.PolylineLength(snap)
+        fmt.Printf("Шаг %d: %d точек, длина = %.0f км\n", step, len(snap), length)
+    }
+}
+```
+
+### Волновая эрозия с литологией
+
+```go
+func main() {
+    coast := loadCoastline()
+    
+    // Загрузка литологического профиля
+    lithData := loadFile("black-sea-lithology.json")
+    profile, err := geometry.LoadLithologyProfile(lithData)
+    if err != nil {
+        log.Fatal(err)
+    }
+    
+    // Параметры с учётом литологии
+    options := geometry.WaveErosionOptions{
+        StrengthMeters:           50,
+        WindSourceDirectionDeg:   0,
+        WindSpeedMetersPerSecond: 12,
+        // ...
+        LithologyProfile: profile,  // Включить литологию
+        EnableLithology:  true,
+    }
+    
+    snapshots := geometry.SimulateWaveErosionWithSeed(coast, 10, options, 42)
+    
+    // Анализ по литологии
+    for i, point := range coast {
+        lith := profile.GetLithologyAt(point.Lat, point.Lon)
+        fmt.Printf("Точка %d: %s (R=%.1f)\n", i, lith.Class, lith.Resistance)
+    }
+}
+```
+
+**Пример распределения пород Чёрного моря:**
+
+| Регион | Доминирующая порода | Сопротивление | Эрозия |
+|--------|---------------------|---------------|--------|
+| Крым (юг) | Известняк | 4.5-4.8 | Умеренная |
+| Турция (Pontic) | Вулканит/Серпентинит | 6.5-9.0 | Медленная |
+| Болгария | Известняк | 4.0-4.2 | Умеренная |
+| Румыния (дельта) | Глины/Ил | 0.8-1.5 | Очень быстрая |
+| Краснодар | Пески/Ил | 1.0-2.5 | Быстрая |
+
+### Волновая эрозия без батиметрии (геометрический proxy)
+
+```go
+func main() {
+    coast := loadCoastline()
+    
+    // Без батиметрии — используется fetch как proxy для глубины
+    options := geometry.WaveErosionOptions{
+        StrengthMeters:           50,
+        WindSourceDirectionDeg:   90,   // Волны с востока
+        WindSpeedMetersPerSecond: 14,
+        FetchSpreadDeg:           45,
+        FetchSamples:             7,
+        MaxFetchMeters:           5000,
+        DepthScaleMeters:         1000,
+        ExposurePower:            1.2,
+        BathymetryGrid:           nil,  // Без батиметрии
+    }
+    
+    snapshots := geometry.SimulateWaveErosion(coast, 5, options)
+    // ... обработка результатов
 }
 ```
 

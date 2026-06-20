@@ -5,8 +5,9 @@ import (
 	"fmt"
 	"math"
 	"math/rand"
-	"strings"
 )
+
+const MaxIterations = 10
 
 type OrganicOptions struct {
 	Seed            int64
@@ -82,43 +83,4 @@ func randomSigned(rng *rand.Rand, amplitude float64) float64 {
 		return 0
 	}
 	return (rng.Float64()*2 - 1) * amplitude
-}
-
-func DemonstrateOrganic(base []geometry.LatLon, maxIterations int, opts OrganicOptions) {
-	baseLength := geometry.PolylineLength(base)
-
-	fmt.Println(strings.Repeat("═", 80))
-	fmt.Println("\tОРГАНИЧЕСКАЯ ФРАКТАЛЬНАЯ БЕРЕГОВАЯ ЛИНИЯ — KOCH ORGANIC")
-	fmt.Println(strings.Repeat("═", 90))
-
-	fmt.Printf("Исходная полилиния: %d точек, длина = %.0f км\n", len(base), baseLength)
-	fmt.Printf("Seed=%d, angle jitter=±%.1f°, height jitter=±%.0f%%\n\n",
-		opts.Seed, opts.AngleJitterDeg, opts.HeightJitterPct*100)
-
-	fmt.Printf("%-5s %-10s %-15s %-15s %-12s\n", "Итер.", "Точек", "Длина, км", "Прирост", "× от исходной")
-	fmt.Println(strings.Repeat("─", 80))
-
-	prevLength := baseLength
-	for iter := 0; iter <= maxIterations; iter++ {
-		curve := OrganicKochCurve(base, iter, opts)
-		length := geometry.PolylineLength(curve)
-		pointsCount := len(curve)
-
-		growth := ""
-		multiplier := ""
-		if iter > 0 {
-			growth = fmt.Sprintf("+%.0f км", length-prevLength)
-			multiplier = fmt.Sprintf("%.3f×", length/baseLength)
-		} else {
-			multiplier = "1.000×"
-		}
-
-		fmt.Printf("%-5d %-10d %-15.0f %-15s %-12s\n",
-			iter, pointsCount, length, growth, multiplier)
-
-		prevLength = length
-	}
-
-	fmt.Println(strings.Repeat("─", 80))
-	fmt.Println("Organic Koch нарушает идеальную самоподобность, поэтому выглядит ближе к природной береговой линии.")
 }

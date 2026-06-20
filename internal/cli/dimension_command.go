@@ -6,7 +6,6 @@ import (
 	"coastal-geometry/internal/domain/geometry"
 	"fmt"
 	"math"
-	"strings"
 )
 
 const (
@@ -24,9 +23,17 @@ type dimensionAssessment struct {
 	Valid bool
 }
 
+func organicKochOptions(app *App) koch.OrganicOptions {
+	return koch.OrganicOptions{
+		Seed:            app.Config.Seed,
+		AngleJitterDeg:  app.Config.AngleJitter,
+		HeightJitterPct: app.Config.HeightJitter,
+	}
+}
+
 func runDimensionCommand(app *App) error {
 	opts := organicKochOptions(app)
-	if err := writeOrganicKochSVGSeries(app.Base, app.ModelBase, app.Config.Iterations, app.Config.OutputPath, opts, app.Config.ErosionStrength, "dimension_iter", "dimension", true, newExportContext(app)); err != nil {
+	if err := writeOrganicKochSVGSeries(app.Base, app.ModelBase, app.Config.Iterations, app.Config.OutputPath, opts, app.Config.ErosionStrength, "dimension_iter", "dimension", true, newExportContext(app), app.OutputPaths); err != nil {
 		return err
 	}
 	assessment, err := runDimensionMetrics(app.ModelBase, app.Config.Iterations, opts)
@@ -42,17 +49,13 @@ func runDimensionCommand(app *App) error {
 func runDimensionMetrics(base []geometry.LatLon, maxIterations int, opts koch.OrganicOptions) (dimensionAssessment, error) {
 	theoreticalDimension := math.Log(4) / math.Log(3)
 
-	fmt.Println(strings.Repeat("=", 80))
-	fmt.Println("\tЭМПИРИЧЕСКАЯ ФРАКТАЛЬНАЯ РАЗМЕРНОСТЬ (box-counting)")
-	fmt.Println(strings.Repeat("=", 80))
+	fmt.Println("\n  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+	fmt.Println("  ФРАКТАЛЬНАЯ РАЗМЕРНОСТЬ (BOX-COUNTING)")
+	fmt.Println("  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
 
-	fmt.Printf("Organic model: seed=%d, angle jitter=±%.1f°, height jitter=±%.0f%%\n\n",
-		opts.Seed, opts.AngleJitterDeg, opts.HeightJitterPct*100)
-	fmt.Printf("Теоретический ориентир классической кривой Коха: %.5f\n\n", theoreticalDimension)
-
-	fmt.Printf("%-5s %-10s %-12s %-12s %-8s %-8s %-10s %-10s %-8s\n",
-		"Итер.", "Точек", "Длина, км", "D", "Масш.", "R²", "Разброс", "Δ к пред.", "Стаб.")
-	fmt.Println(strings.Repeat("─", 104))
+	fmt.Println("  ┌──────┬───────────┬───────────┬─────────┬──────────┬──────────┬───────────┬───────────┬──────┐")
+	fmt.Println("  │ Итер │ Точек     │ Длина км  │ D       │ Масштаб  │ R²       │ Разброс   │ Δ к пред  │ Стаб │")
+	fmt.Println("  ├──────┼───────────┼───────────┼─────────┼──────────┼──────────┼───────────┼───────────┼──────┤")
 
 	results := make([]dimensionIterationResult, 0, maxIterations+1)
 	prevDimension := 0.0
@@ -85,11 +88,13 @@ func runDimensionMetrics(base []geometry.LatLon, maxIterations int, opts koch.Or
 			prevValid = false
 		}
 
-		fmt.Printf("%-5d %-10d %-12.0f %-12s %-8d %-8s %-10s %-10s %-8s\n",
-			iter, len(curve), length, dimensionValue, len(analysis.Samples), rSquared, spread, delta, stable)
+		fmt.Printf("  │ %-4d │ %-9d │ %-9.0f │ %-7s │ %-8s │ %-8s │ %-9s │ %-9s │ %-4s │\n",
+			iter, len(curve), length, dimensionValue, fmt.Sprint(len(analysis.Samples)), rSquared, spread, delta, stable)
 	}
 
-	fmt.Println(strings.Repeat("─", 104))
+	fmt.Println("  └──────┴───────────┴───────────┴─────────┴──────────┴──────────┴───────────┴───────────┴──────┘")
+	fmt.Println()
+
 	return printDimensionAssessment(results, theoreticalDimension), nil
 }
 
@@ -102,8 +107,6 @@ func printDimensionAssessment(results []dimensionIterationResult, theoreticalDim
 	}
 
 	if len(valid) < minConvergedIterations {
-		fmt.Println("Недостаточно валидных масштабов для оценки сходимости.")
-		fmt.Println("Текущие результаты не дают оснований утверждать, что модель согласуется с теоретическим значением.")
 		return dimensionAssessment{Valid: false}
 	}
 
@@ -127,18 +130,10 @@ func printDimensionAssessment(results []dimensionIterationResult, theoreticalDim
 	finalDimension := tail[len(tail)-1].Analysis.Dimension
 	deltaTheory := math.Abs(finalDimension - theoreticalDimension)
 
-	fmt.Printf("Последняя оценка: D=%.5f, |D-D_theory|=%.5f\n", finalDimension, deltaTheory)
-	fmt.Printf("Сходимость по последним %d итерациям: %v\n", minConvergedIterations, yesNo(convergedAcrossIterations))
-	fmt.Printf("Стабильность на нескольких масштабах: %v\n", yesNo(stableAcrossScales))
-
 	if convergedAcrossIterations && stableAcrossScales && deltaTheory <= theoryConvergenceTolerance {
-		fmt.Println("Эмпирическая оценка согласуется с теоретическим ориентиром классической кривой Коха.")
-		fmt.Println("Для organic-модели это ориентир, а не строгое доказательство.")
 		return dimensionAssessment{Valid: true}
 	}
 
-	fmt.Println("Результаты не сходятся достаточно надёжно к теоретическому значению.")
-	fmt.Println("По этим данным нельзя утверждать, что модель подтверждает теорию.")
 	return dimensionAssessment{Valid: false}
 }
 

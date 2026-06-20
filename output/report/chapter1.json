@@ -1,0 +1,187 @@
+{
+  "metadata": {
+    "csv_file": "output/csv/erosion_metrics.csv",
+    "generated_at": "2026-06-20T22:05:36.062604",
+    "total_records": 21
+  },
+  "summary": {
+    "total_steps": 21,
+    "initial_length_km": 6391.1,
+    "final_length_km": 5977.9,
+    "simulated_years": 50.0,
+    "total_erosion_m3": 413175.69999999995,
+    "storm_events": 4
+  },
+  "analysis": {
+    "steps": [
+      {
+        "step": 0,
+        "length_km": 6391.1,
+        "year": 0.0,
+        "area_km2": 419695.1,
+        "eroded_m3": 0.0,
+        "storm_event": false
+      },
+      {
+        "step": 1,
+        "length_km": 6342.9,
+        "year": 2.5,
+        "area_km2": 419689.8,
+        "eroded_m3": 48147.6,
+        "storm_event": false
+      },
+      {
+        "step": 2,
+        "length_km": 6276.4,
+        "year": 5.0,
+        "area_km2": 419680.2,
+        "eroded_m3": 66527.7,
+        "storm_event": true
+      },
+      {
+        "step": 3,
+        "length_km": 6246.9,
+        "year": 7.5,
+        "area_km2": 419674.4,
+        "eroded_m3": 29469.5,
+        "storm_event": false
+      },
+      {
+        "step": 4,
+        "length_km": 6185.2,
+        "year": 10.0,
+        "area_km2": 419659.4,
+        "eroded_m3": 61759.3,
+        "storm_event": true
+      },
+      {
+        "step": 5,
+        "length_km": 6166.3,
+        "year": 12.5,
+        "area_km2": 419653.5,
+        "eroded_m3": 18812.1,
+        "storm_event": false
+      },
+      {
+        "step": 6,
+        "length_km": 6149.4,
+        "year": 15.0,
+        "area_km2": 419647.6,
+        "eroded_m3": 16911.5,
+        "storm_event": false
+      },
+      {
+        "step": 7,
+        "length_km": 6134.0,
+        "year": 17.5,
+        "area_km2": 419641.8,
+        "eroded_m3": 15386.5,
+        "storm_event": false
+      },
+      {
+        "step": 8,
+        "length_km": 6119.7,
+        "year": 20.0,
+        "area_km2": 419636.0,
+        "eroded_m3": 14305.6,
+        "storm_event": false
+      },
+      {
+        "step": 9,
+        "length_km": 6106.2,
+        "year": 22.5,
+        "area_km2": 419630.4,
+        "eroded_m3": 13496.9,
+        "storm_event": false
+      },
+      {
+        "step": 10,
+        "length_km": 6093.4,
+        "year": 25.0,
+        "area_km2": 419624.7,
+        "eroded_m3": 12814.0,
+        "storm_event": false
+      },
+      {
+        "step": 11,
+        "length_km": 6081.4,
+        "year": 27.5,
+        "area_km2": 419619.1,
+        "eroded_m3": 12018.3,
+        "storm_event": false
+      },
+      {
+        "step": 12,
+        "length_km": 6062.7,
+        "year": 30.0,
+        "area_km2": 419609.8,
+        "eroded_m3": 18746.2,
+        "storm_event": true
+      },
+      {
+        "step": 13,
+        "length_km": 6051.9,
+        "year": 32.5,
+        "area_km2": 419604.5,
+        "eroded_m3": 10715.5,
+        "storm_event": false
+      },
+      {
+        "step": 14,
+        "length_km": 6041.8,
+        "year": 35.0,
+        "area_km2": 419599.1,
+        "eroded_m3": 10119.6,
+        "storm_event": false
+      },
+      {
+        "step": 15,
+        "length_km": 6032.2,
+        "year": 37.5,
+        "area_km2": 419593.8,
+        "eroded_m3": 9675.7,
+        "storm_event": false
+      },
+      {
+        "step": 16,
+        "length_km": 6022.8,
+        "year": 40.0,
+        "area_km2": 419588.6,
+        "eroded_m3": 9349.5,
+        "storm_event": false
+      },
+      {
+        "step": 17,
+        "length_km": 6013.7,
+        "year": 42.5,
+        "area_km2": 419583.3,
+        "eroded_m3": 9065.5,
+        "storm_event": false
+      },
+      {
+        "step": 18,
+        "length_km": 5994.1,
+        "year": 45.0,
+        "area_km2": 419570.7,
+        "eroded_m3": 19641.8,
+        "storm_event": true
+      },
+      {
+        "step": 19,
+        "length_km": 5985.8,
+        "year": 47.5,
+        "area_km2": 419565.7,
+        "eroded_m3": 8256.6,
+        "storm_event": false
+      },
+      {
+        "step": 20,
+        "length_km": 5977.9,
+        "year": 50.0,
+        "area_km2": 419560.7,
+        "eroded_m3": 7956.3,
+        "storm_event": false
+      }
+    ]
+  }
+}

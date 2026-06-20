@@ -1,0 +1,681 @@
+{
+  "metadata": {
+    "name": "Black Sea Lithology Profile",
+    "version": "1.0-alpha",
+    "created": "2025-01-XX",
+    "sources": [
+      "EMODnet Geology (seabed_substrate, coastal_behaviour)",
+      "DOORS Black Sea Program 2024",
+      "Scientific publications: Hippolyte et al. 2018, GeoEcoMar 2005",
+      "USGS Shorelines Romania 1984-2023"
+    ],
+    "resolution": 0.5,
+    "bounds": {
+      "min_lat": 40.0,
+      "max_lat": 47.0,
+      "min_lon": 27.0,
+      "max_lon": 42.0
+    },
+    "regions": [
+      "crimea_ukraine",
+      "krasnodar_russia",
+      "georgia_caucasus",
+      "turkey_pontic",
+      "bulgaria",
+      "romania_danube"
+    ],
+    "note": "Alpha version based on literature search. To be validated with EMODnet data."
+  },
+
+  "points": [
+    {
+      "lat": 46.2,
+      "lon": 33.0,
+      "region": "crimea_ukraine",
+      "lithology_class": "limestone",
+      "resistance": 4.8,
+      "color": "#6b6b6b",
+      "description": "Sarmatian limestone, well-cemented",
+      "confidence": "high",
+      "source": "literature + emodnet",
+      "erosion_observed": 0.5
+    },
+    {
+      "lat": 45.8,
+      "lon": 33.5,
+      "region": "crimea_ukraine",
+      "lithology_class": "limestone",
+      "resistance": 4.5,
+      "color": "#6b6b6b",
+      "description": "Neogene fractured limestone",
+      "confidence": "high",
+      "source": "literature",
+      "erosion_observed": 0.8
+    },
+    {
+      "lat": 45.4,
+      "lon": 34.0,
+      "region": "crimea_ukraine",
+      "lithology_class": "limestone",
+      "resistance": 4.6,
+      "color": "#6b6b6b",
+      "description": "Cape Khersones limestone",
+      "confidence": "high",
+      "source": "literature",
+      "erosion_observed": 0.6
+    },
+    {
+      "lat": 45.0,
+      "lon": 34.5,
+      "region": "crimea_ukraine",
+      "lithology_class": "clay_limestone",
+      "resistance": 2.5,
+      "color": "#a8a8a8",
+      "description": "Mixed clay-limestone formations",
+      "confidence": "medium",
+      "source": "literature",
+      "erosion_observed": 2.0
+    },
+    {
+      "lat": 44.6,
+      "lon": 35.0,
+      "region": "crimea_ukraine",
+      "lithology_class": "sandstone",
+      "resistance": 2.8,
+      "color": "#8b8b8b",
+      "description": "Early Cretaceous sandstone",
+      "confidence": "medium",
+      "source": "literature",
+      "erosion_observed": 1.5
+    },
+    {
+      "lat": 44.8,
+      "lon": 36.0,
+      "region": "crimea_ukraine",
+      "lithology_class": "clay",
+      "resistance": 1.2,
+      "color": "#c4a484",
+      "description": "Shales and clay formations",
+      "confidence": "medium",
+      "source": "literature",
+      "erosion_observed": 5.0
+    },
+    {
+      "lat": 45.2,
+      "lon": 37.0,
+      "region": "crimea_ukraine",
+      "lithology_class": "clay",
+      "resistance": 1.0,
+      "color": "#c4a484",
+      "description": "Soft clayey shores (high erosion)",
+      "confidence": "medium",
+      "source": "literature",
+      "erosion_observed": 8.0
+    },
+    {
+      "lat": 45.5,
+      "lon": 32.5,
+      "region": "crimea_ukraine",
+      "lithology_class": "conglomerate",
+      "resistance": 3.5,
+      "color": "#7a7a7a",
+      "description": "Early Cretaceous conglomerates",
+      "confidence": "low",
+      "source": "inferred",
+      "erosion_observed": 1.2
+    },
+    {
+      "lat": 46.0,
+      "lon": 37.5,
+      "region": "crimea_ukraine",
+      "lithology_class": "marl",
+      "resistance": 1.8,
+      "color": "#a8a8a8",
+      "description": "Marl and marlstone formations",
+      "confidence": "low",
+      "source": "inferred",
+      "erosion_observed": 3.0
+    },
+    {
+      "lat": 44.4,
+      "lon": 38.0,
+      "region": "krasnodar_russia",
+      "lithology_class": "sediment_mixed",
+      "resistance": 1.5,
+      "color": "#9e9e9e",
+      "description": "Anapa barrier beach sediments",
+      "confidence": "medium",
+      "source": "literature",
+      "erosion_observed": -0.5,
+      "note": "Accumulation zone"
+    },
+    {
+      "lat": 44.6,
+      "lon": 38.5,
+      "region": "krasnodar_russia",
+      "lithology_class": "sediment_loose",
+      "resistance": 1.0,
+      "color": "#c4a484",
+      "description": "Easily eroded sediments",
+      "confidence": "medium",
+      "source": "literature",
+      "erosion_observed": 4.0
+    },
+    {
+      "lat": 44.5,
+      "lon": 39.0,
+      "region": "krasnodar_russia",
+      "lithology_class": "sediment_consolidated",
+      "resistance": 2.2,
+      "color": "#8b8b8b",
+      "description": "Consolidated coastal sediments",
+      "confidence": "low",
+      "source": "inferred",
+      "erosion_observed": 2.5
+    },
+    {
+      "lat": 43.8,
+      "lon": 39.5,
+      "region": "krasnodar_russia",
+      "lithology_class": "sediment_mixed",
+      "resistance": 1.8,
+      "color": "#9e9e9e",
+      "description": "Gelendzhik area mixed sediments",
+      "confidence": "medium",
+      "source": "literature",
+      "erosion_observed": 1.8
+    },
+    {
+      "lat": 43.5,
+      "lon": 40.0,
+      "region": "krasnodar_russia",
+      "lithology_class": "sediment_consolidated",
+      "resistance": 2.5,
+      "color": "#8b8b8b",
+      "description": "Novorossiysk consolidated sediments",
+      "confidence": "medium",
+      "source": "literature",
+      "erosion_observed": 1.5
+    },
+    {
+      "lat": 43.8,
+      "lon": 41.0,
+      "region": "georgia_caucasus",
+      "lithology_class": "lithic_sand",
+      "resistance": 3.0,
+      "color": "#7a7a7a",
+      "description": "Lithic-rich sands from Greater Caucasus",
+      "confidence": "medium",
+      "source": "literature",
+      "erosion_observed": 1.2
+    },
+    {
+      "lat": 42.5,
+      "lon": 41.5,
+      "region": "georgia_caucasus",
+      "lithology_class": "sedimentary",
+      "resistance": 2.0,
+      "color": "#8b8b8b",
+      "description": "Marine and continental basin sediments",
+      "confidence": "low",
+      "source": "inferred",
+      "erosion_observed": 2.5
+    },
+    {
+      "lat": 42.0,
+      "lon": 41.8,
+      "region": "georgia_caucasus",
+      "lithology_class": "volcanic_basalt",
+      "resistance": 7.0,
+      "color": "#4a4a4a",
+      "description": "Volcanic rocks, basalt",
+      "confidence": "low",
+      "source": "inferred",
+      "erosion_observed": 0.3
+    },
+    {
+      "lat": 41.8,
+      "lon": 42.0,
+      "region": "georgia_caucasus",
+      "lithology_class": "metamorphic",
+      "resistance": 5.0,
+      "color": "#5a5a5a",
+      "description": "Caucasus metamorphic basement",
+      "confidence": "low",
+      "source": "inferred",
+      "erosion_observed": 0.5
+    },
+    {
+      "lat": 41.5,
+      "lon": 41.5,
+      "region": "turkey_pontic",
+      "lithology_class": "sedimentary",
+      "resistance": 2.5,
+      "color": "#8b8b8b",
+      "description": "Coastal plain sediments",
+      "confidence": "low",
+      "source": "inferred",
+      "erosion_observed": 2.0
+    },
+    {
+      "lat": 41.2,
+      "lon": 41.0,
+      "region": "turkey_pontic",
+      "lithology_class": "volcanic_andesite",
+      "resistance": 6.5,
+      "color": "#4a4a4a",
+      "description": "Western Pontic volcanic rocks",
+      "confidence": "medium",
+      "source": "literature",
+      "erosion_observed": 0.4
+    },
+    {
+      "lat": 41.0,
+      "lon": 40.5,
+      "region": "turkey_pontic",
+      "lithology_class": "volcanic_dacite",
+      "resistance": 6.5,
+      "color": "#4a4a4a",
+      "description": "Late Cretaceous dacitic rocks",
+      "confidence": "medium",
+      "source": "literature",
+      "erosion_observed": 0.5
+    },
+    {
+      "lat": 41.3,
+      "lon": 40.0,
+      "region": "turkey_pontic",
+      "lithology_class": "volcanic_dacite",
+      "resistance": 6.8,
+      "color": "#4a4a4a",
+      "description": "Eastern Pontic dacitic formation",
+      "confidence": "medium",
+      "source": "literature",
+      "erosion_observed": 0.4
+    },
+    {
+      "lat": 41.5,
+      "lon": 39.5,
+      "region": "turkey_pontic",
+      "lithology_class": "metamorphic",
+      "resistance": 4.0,
+      "color": "#6b6b6b",
+      "description": "Paleozoic metamorphic rocks",
+      "confidence": "medium",
+      "source": "literature",
+      "erosion_observed": 0.8
+    },
+    {
+      "lat": 41.6,
+      "lon": 38.0,
+      "region": "turkey_pontic",
+      "lithology_class": "serpentinite",
+      "resistance": 9.0,
+      "color": "#2d2d2d",
+      "description": "Ultramafic serpentinite complex",
+      "confidence": "medium",
+      "source": "literature",
+      "erosion_observed": 0.2
+    },
+    {
+      "lat": 41.7,
+      "lon": 37.0,
+      "region": "turkey_pontic",
+      "lithology_class": "mélange",
+      "resistance": 5.5,
+      "color": "#5a5a5a",
+      "description": "Complex serpentinite-basalt-chert mélange",
+      "confidence": "medium",
+      "source": "literature",
+      "erosion_observed": 0.6
+    },
+    {
+      "lat": 42.0,
+      "lon": 36.0,
+      "region": "turkey_pontic",
+      "lithology_class": "sedimentary",
+      "resistance": 2.2,
+      "color": "#8b8b8b",
+      "description": "Coastal sedimentary formations",
+      "confidence": "low",
+      "source": "inferred",
+      "erosion_observed": 2.2
+    },
+    {
+      "lat": 42.5,
+      "lon": 35.0,
+      "region": "turkey_pontic",
+      "lithology_class": "sedimentary",
+      "resistance": 2.0,
+      "color": "#8b8b8b",
+      "description": "Western coastal sediments",
+      "confidence": "low",
+      "source": "inferred",
+      "erosion_observed": 2.5
+    },
+    {
+      "lat": 43.0,
+      "lon": 34.0,
+      "region": "turkey_pontic",
+      "lithology_class": "sedimentary",
+      "resistance": 2.3,
+      "color": "#8b8b8b",
+      "description": "Istanbul area sediments",
+      "confidence": "low",
+      "source": "inferred",
+      "erosion_observed": 2.0
+    },
+    {
+      "lat": 43.5,
+      "lon": 32.5,
+      "region": "bulgaria",
+      "lithology_class": "limestone",
+      "resistance": 4.2,
+      "color": "#6b6b6b",
+      "description": "Sarmatian limestone formations",
+      "confidence": "medium",
+      "source": "literature",
+      "erosion_observed": 1.0
+    },
+    {
+      "lat": 43.2,
+      "lon": 31.5,
+      "region": "bulgaria",
+      "lithology_class": "limestone",
+      "resistance": 4.0,
+      "color": "#6b6b6b",
+      "description": "Bulgarian limestone coast",
+      "confidence": "medium",
+      "source": "literature",
+      "erosion_observed": 1.2
+    },
+    {
+      "lat": 42.8,
+      "lon": 30.5,
+      "region": "bulgaria",
+      "lithology_class": "loess_limestone",
+      "resistance": 2.0,
+      "color": "#a8a8a8",
+      "description": "Quaternary loess over limestone",
+      "confidence": "medium",
+      "source": "literature",
+      "erosion_observed": 3.5
+    },
+    {
+      "lat": 42.5,
+      "lon": 29.5,
+      "region": "bulgaria",
+      "lithology_class": "clay_marl",
+      "resistance": 1.5,
+      "color": "#c4a484",
+      "description": "Clay-marl mixture",
+      "confidence": "medium",
+      "source": "literature",
+      "erosion_observed": 4.0
+    },
+    {
+      "lat": 43.8,
+      "lon": 29.0,
+      "region": "romania_danube",
+      "lithology_class": "loess_clay",
+      "resistance": 1.0,
+      "color": "#c4a484",
+      "description": "Red clays and loess",
+      "confidence": "medium",
+      "source": "literature",
+      "erosion_observed": 6.0
+    },
+    {
+      "lat": 44.2,
+      "lon": 29.0,
+      "region": "romania_danube",
+      "lithology_class": "clay_marl",
+      "resistance": 1.2,
+      "color": "#c4a484",
+      "description": "Romanian clay-marl shores",
+      "confidence": "medium",
+      "source": "literature",
+      "erosion_observed": 8.0
+    },
+    {
+      "lat": 45.0,
+      "lon": 29.5,
+      "region": "romania_danube",
+      "lithology_class": "deltaic_sediment",
+      "resistance": 0.8,
+      "color": "#d4a484",
+      "description": "Danube delta unconsolidated sediments",
+      "confidence": "high",
+      "source": "literature",
+      "erosion_observed": 10.4,
+      "note": "High erosion zone"
+    },
+    {
+      "lat": 45.2,
+      "lon": 29.7,
+      "region": "romania_danube",
+      "lithology_class": "gravel_beach",
+      "resistance": 4.0,
+      "color": "#9e9e9e",
+      "description": "Danube delta barrier beach",
+      "confidence": "high",
+      "source": "literature",
+      "erosion_observed": -2.3,
+      "note": "Accumulation zone",
+      "dynamic": true
+    },
+    {
+      "lat": 45.4,
+      "lon": 29.3,
+      "region": "romania_danube",
+      "lithology_class": "deltaic_sediment",
+      "resistance": 0.9,
+      "color": "#d4a484",
+      "description": "Delta front fine sediments",
+      "confidence": "high",
+      "source": "literature",
+      "erosion_observed": 5.0
+    },
+    {
+      "lat": 45.1,
+      "lon": 28.5,
+      "region": "romania_danube",
+      "lithology_class": "deltaic_sediment",
+      "resistance": 1.0,
+      "color": "#d4a484",
+      "description": "Southern delta sediments",
+      "confidence": "medium",
+      "source": "inferred",
+      "erosion_observed": 7.0
+    }
+  ],
+
+  "classes": {
+    "limestone": {
+      "resistance": 4.5,
+      "color": "#6b6b6b",
+      "description": "Sarmatian/Neogene limestone, well-cemented",
+      "erosion_range": [0.5, 2.0]
+    },
+    "sandstone": {
+      "resistance": 2.8,
+      "color": "#8b8b8b",
+      "description": "Cretaceous/consolidated sandstone",
+      "erosion_range": [1.0, 3.0]
+    },
+    "clay": {
+      "resistance": 1.2,
+      "color": "#c4a484",
+      "description": "Shales, clayey formations",
+      "erosion_range": [5.0, 8.0]
+    },
+    "clay_limestone": {
+      "resistance": 2.5,
+      "color": "#a8a8a8",
+      "description": "Mixed clay-limestone",
+      "erosion_range": [2.0, 4.0]
+    },
+    "loess_limestone": {
+      "resistance": 2.0,
+      "color": "#a8a8a8",
+      "description": "Quaternary loess over limestone",
+      "erosion_range": [3.0, 5.0]
+    },
+    "loess_clay": {
+      "resistance": 1.0,
+      "color": "#c4a484",
+      "description": "Red clays and loess",
+      "erosion_range": [6.0, 12.0]
+    },
+    "clay_marl": {
+      "resistance": 1.5,
+      "color": "#c4a484",
+      "description": "Clay-marl mixture",
+      "erosion_range": [4.0, 8.0]
+    },
+    "marl": {
+      "resistance": 1.8,
+      "color": "#a8a8a8",
+      "description": "Marlstone formations",
+      "erosion_range": [3.0, 6.0]
+    },
+    "conglomerate": {
+      "resistance": 3.5,
+      "color": "#7a7a7a",
+      "description": "Cretaceous conglomerates",
+      "erosion_range": [1.0, 2.0]
+    },
+    "metamorphic": {
+      "resistance": 4.5,
+      "color": "#6b6b6b",
+      "description": "Paleozoic metamorphic rocks",
+      "erosion_range": [0.5, 1.5]
+    },
+    "volcanic_basalt": {
+      "resistance": 7.0,
+      "color": "#4a4a4a",
+      "description": "Basalt and andesite",
+      "erosion_range": [0.3, 0.8]
+    },
+    "volcanic_dacite": {
+      "resistance": 6.5,
+      "color": "#4a4a4a",
+      "description": "Dacitic rocks",
+      "erosion_range": [0.4, 1.0]
+    },
+    "serpentinite": {
+      "resistance": 9.0,
+      "color": "#2d2d2d",
+      "description": "Ultramafic rocks",
+      "erosion_range": [0.2, 0.5]
+    },
+    "mélange": {
+      "resistance": 5.5,
+      "color": "#5a5a5a",
+      "description": "Complex rock mixture",
+      "erosion_range": [0.5, 1.2]
+    },
+    "lithic_sand": {
+      "resistance": 3.0,
+      "color": "#7a7a7a",
+      "description": "Lithic-rich sands",
+      "erosion_range": [1.0, 2.0]
+    },
+    "sedimentary": {
+      "resistance": 2.2,
+      "color": "#8b8b8b",
+      "description": "Marine/continental sediments",
+      "erosion_range": [2.0, 3.0]
+    },
+    "sediment_mixed": {
+      "resistance": 1.8,
+      "color": "#9e9e9e",
+      "description": "Mixed terrigenous-marine sediments",
+      "erosion_range": [1.5, 4.0]
+    },
+    "sediment_loose": {
+      "resistance": 1.0,
+      "color": "#c4a484",
+      "description": "Easily eroded loose sediments",
+      "erosion_range": [4.0, 8.0]
+    },
+    "sediment_consolidated": {
+      "resistance": 2.5,
+      "color": "#8b8b8b",
+      "description": "Consolidated coastal sediments",
+      "erosion_range": [1.5, 3.0]
+    },
+    "deltaic_sediment": {
+      "resistance": 0.9,
+      "color": "#d4a484",
+      "description": "Unconsolidated delta deposits",
+      "erosion_range": [5.0, 12.0]
+    },
+    "gravel_beach": {
+      "resistance": 4.0,
+      "color": "#9e9e9e",
+      "description": "Dynamic gravel beaches",
+      "erosion_range": [-3.0, 1.0],
+      "dynamic": true,
+      "note": "Auto-replenishing"
+    }
+  },
+
+  "erosion_baselines": {
+    "very_hard": {
+      "resistance_range": [8.0, 10.0],
+      "erosion_m_year": {"min": 0.1, "max": 0.5, "mean": 0.3},
+      "description": "Serpentinite, granite — very slow erosion"
+    },
+    "hard": {
+      "resistance_range": [6.0, 7.9],
+      "erosion_m_year": {"min": 0.3, "max": 1.0, "mean": 0.6},
+      "description": "Volcanic rocks — moderate erosion"
+    },
+    "medium_hard": {
+      "resistance_range": [4.0, 5.9],
+      "erosion_m_year": {"min": 0.5, "max": 2.0, "mean": 1.2},
+      "description": "Limestone, metamorphic — noticeable erosion"
+    },
+    "medium": {
+      "resistance_range": [2.5, 3.9],
+      "erosion_m_year": {"min": 1.0, "max": 3.0, "mean": 2.0},
+      "description": "Sandstone, conglomerate — significant erosion"
+    },
+    "soft": {
+      "resistance_range": [1.5, 2.4],
+      "erosion_m_year": {"min": 2.0, "max": 5.0, "mean": 3.5},
+      "description": "Marl, consolidated sediments — rapid erosion"
+    },
+    "very_soft": {
+      "resistance_range": [0.8, 1.4],
+      "erosion_m_year": {"min": 5.0, "max": 12.0, "mean": 7.5},
+      "description": "Clay, deltaic sediments — very rapid erosion"
+    },
+    "dynamic": {
+      "resistance_range": [3.0, 5.0],
+      "erosion_m_year": {"min": -3.0, "max": 1.0, "mean": -0.5},
+      "description": "Gravel beaches — accumulation possible",
+      "note": "Auto-replenishing, can grow"
+    }
+  },
+
+  "validation": {
+    "total_points": 35,
+    "high_confidence": 18,
+    "medium_confidence": 12,
+    "low_confidence": 5,
+    "regions_covered": 6,
+    "note": "To be validated with EMODnet data and field measurements"
+  },
+
+  "references": {
+    "crimea_lithology": "Hippolyte et al. 2018, HAL Science archives",
+    "turkey_pontic": "Tectonic development of Ankara-Erzincan suture, Tandfonline 2023",
+    "georgia_caucasus": "Tectonic Evolution of Eastern Black Sea, Lyell Collection",
+    "romanian_erosion": "ClimateChangePost Ukraine/Romania coastal erosion",
+    "danube_delta": "Frontiers Marine Science 2023, Danube sediment flux",
+    "emodnet_baselined": "EMODnet Geology WFS, seabed_substrate",
+    "usgs_shorelines": "USGS Romania shorelines 1984-2023"
+  }
+}

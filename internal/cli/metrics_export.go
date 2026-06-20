@@ -150,6 +150,13 @@ type erosionSeriesArtifactMetrics struct {
 	ModelSimplification simplificationMetrics      `json:"model_simplification"`
 	ErosionStrength     float64                    `json:"erosion_strength_meters,omitempty"`
 	ErosionSeed         int64                      `json:"erosion_seed,omitempty"`
+	WaveDirectionDeg    float64                    `json:"wave_direction_deg,omitempty"`
+	WindSpeedMS         float64                    `json:"wind_speed_mps,omitempty"`
+	FetchSpreadDeg      float64                    `json:"fetch_spread_deg,omitempty"`
+	FetchSamples        int                        `json:"fetch_samples,omitempty"`
+	MaxFetchKM          float64                    `json:"max_fetch_km,omitempty"`
+	DepthScaleMeters    float64                    `json:"depth_scale_meters,omitempty"`
+	ExposurePower       float64                    `json:"exposure_power,omitempty"`
 	Steps               []erosionStepMetrics       `json:"steps"`
 	Highlights          coastlineHighlightsMetrics `json:"highlights"`
 	Validation          validationMetrics          `json:"validation"`

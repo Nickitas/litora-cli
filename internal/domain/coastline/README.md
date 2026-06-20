@@ -897,4 +897,4 @@ go test ./internal/domain/coastline/...
 
 - [`../geometry`](../geometry) — `LatLon`, `Haversine`, `PolylineLength`, `Area`, `SimplifyPolyline`, `Erode`, `ErodeWithSeed`, `SimulateErosionWithSeed`
 - [`../render`](../render) — генерация SVG-отчётов с использованием валидации и подсветки
-- [`../../cmd/fraes`](../../cmd/fraes) — CLI-интерфейс, использующий все функции модуля
+- [`../../cmd/lito`](../../cmd/lito) — CLI-интерфейс, использующий все функции модуля

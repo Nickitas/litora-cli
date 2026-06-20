@@ -25,14 +25,16 @@ type fractalSeriesOptions struct {
 	ErosionStrength  float64
 	ErosionSeed      int64
 	IncludeDimension bool
-	TheoryByIter     map[int]koch.TheoryCheckSample
 	Builder          func([]geometry.LatLon, int) []geometry.LatLon
 }
 
-func writeCoastlineSVG(points, renderPoints []geometry.LatLon, output, defaultName string, ctx exportContext) error {
-	filename, err := resolveOutputPath(output, defaultName, ctx.Command)
-	if err != nil {
-		return err
+func writeCoastlineSVG(points, renderPoints []geometry.LatLon, output, defaultName string, ctx exportContext, outputPathManager *OutputPathManager) error {
+	filename := outputPathManager.SVGPath(defaultName)
+	if output != "" {
+		resolvedPath := outputPathManager.ResolveUserPath(output, "svg")
+		if resolvedPath != "" {
+			filename = resolvedPath
+		}
 	}
 
 	if len(renderPoints) == 0 {
@@ -72,7 +74,7 @@ func writeCoastlineSVG(points, renderPoints []geometry.LatLon, output, defaultNa
 		return err
 	}
 
-	metricsPath := metricsPathForSVG(filename)
+	metricsPath := outputPathManager.MetricsPath("coastline.metrics.json")
 	metrics := coastlineArtifactMetrics{
 		GeneratedAt:          nowTimestamp(),
 		Command:              canonicalCommandPath(ctx.Command),
@@ -94,30 +96,8 @@ func writeCoastlineSVG(points, renderPoints []geometry.LatLon, output, defaultNa
 	return nil
 }
 
-func writeKochSVGSeries(originalBase, modelBase []geometry.LatLon, iterations int, output string, erosionStrength float64, erosionSeed int64, ctx exportContext) error {
-	report := koch.CheckTheoryConsistency(modelBase, iterations)
-	theoryByIter := make(map[int]koch.TheoryCheckSample, len(report.Samples))
-	for _, sample := range report.Samples {
-		theoryByIter[sample.Iteration] = sample
-	}
 
-	return writeFractalSeries(fractalSeriesOptions{
-		Title:           "Классическая кривая Коха",
-		Prefix:          "koch_iter",
-		MetricsBaseName: "koch",
-		Iterations:      iterations,
-		OriginalBase:    originalBase,
-		ModelBase:       modelBase,
-		ErosionStrength: erosionStrength,
-		ErosionSeed:     erosionSeed,
-		TheoryByIter:    theoryByIter,
-		Builder: func(points []geometry.LatLon, iter int) []geometry.LatLon {
-			return koch.KochCurve(points, iter)
-		},
-	}, output, ctx)
-}
-
-func writeOrganicKochSVGSeries(originalBase, modelBase []geometry.LatLon, iterations int, output string, opts koch.OrganicOptions, erosionStrength float64, prefix, metricsBaseName string, includeDimension bool, ctx exportContext) error {
+func writeOrganicKochSVGSeries(originalBase, modelBase []geometry.LatLon, iterations int, output string, opts koch.OrganicOptions, erosionStrength float64, prefix, metricsBaseName string, includeDimension bool, ctx exportContext, outputPathManager *OutputPathManager) error {
 	title := "Органическая кривая Коха"
 	if includeDimension {
 		title = "Фрактальная размерность (органическая модель)"
@@ -136,14 +116,11 @@ func writeOrganicKochSVGSeries(originalBase, modelBase []geometry.LatLon, iterat
 		Builder: func(points []geometry.LatLon, iter int) []geometry.LatLon {
 			return koch.OrganicKochCurve(points, iter, opts)
 		},
-	}, output, ctx)
+	}, output, ctx, outputPathManager)
 }
 
-func writeErosionSVGSeries(originalBase, modelBase []geometry.LatLon, snapshots [][]geometry.LatLon, steps int, strength float64, seed int64, output string, ctx exportContext) error {
-	outputDir, err := resolveSeriesOutputDir(output)
-	if err != nil {
-		return err
-	}
+func writeErosionSVGSeries(originalBase, modelBase []geometry.LatLon, snapshots [][]geometry.LatLon, steps int, strength float64, seed int64, waveOptions geometry.WaveErosionOptions, output string, ctx exportContext, outputPathManager *OutputPathManager) error {
+	outputDir := outputPathManager.SVGDir()
 
 	if len(originalBase) == 0 {
 		originalBase = modelBase
@@ -185,7 +162,8 @@ func writeErosionSVGSeries(originalBase, modelBase []geometry.LatLon, snapshots 
 			fmt.Sprintf("Шаг %d: %.0f км, %d т. расчёт / %d т. SVG", step, lengths[step], len(snapshots[step]), len(renderSnapshots[step])),
 			fmt.Sprintf("Площадь: %.0f км²", areas[step]),
 		}
-		meta = append(meta, fmt.Sprintf("Эрозия: σ=%.0f м, seed=%d", strength, seed))
+		meta = append(meta, fmt.Sprintf("Эрозия: базовый отступ %.0f м, seed=%d", strength, seed))
+		meta = append(meta, fmt.Sprintf("Волны: %.0f° от севера, ветер %.1f м/с, сектор ±%.0f°, fetch <= %.0f км", waveOptions.WindSourceDirectionDeg, waveOptions.WindSpeedMetersPerSecond, waveOptions.FetchSpreadDeg, waveOptions.MaxFetchMeters/1000))
 
 		if err := svgrender.DrawDocument(svgrender.Document{
 			Title:     fmt.Sprintf("Эрозия — шаг %d", step),
@@ -209,19 +187,26 @@ func writeErosionSVGSeries(originalBase, modelBase []geometry.LatLon, snapshots 
 		fmt.Printf("SVG saved to %s\n", filename)
 	}
 
-	metricsPath := metricsPathForSeries(outputDir, "erosion")
+	metricsPath := outputPathManager.MetricsPath("erosion.metrics.json")
 	seriesMetrics := erosionSeriesArtifactMetrics{
 		GeneratedAt:         nowTimestamp(),
 		Command:             canonicalCommandPath(ctx.Command),
 		Dataset:             ctx.Dataset,
 		Source:              ctx.Source,
-		OutputDir:           outputDir,
+		OutputDir:           outputPathManager.BaseDir(),
 		ReferenceCoastline:  referenceSummary,
 		ReferenceRender:     referenceRenderSummary,
 		ModelBase:           modelSummary,
 		ModelSimplification: modelSimplification,
 		ErosionStrength:     strength,
 		ErosionSeed:         seed,
+		WaveDirectionDeg:    waveOptions.WindSourceDirectionDeg,
+		WindSpeedMS:         waveOptions.WindSpeedMetersPerSecond,
+		FetchSpreadDeg:      waveOptions.FetchSpreadDeg,
+		FetchSamples:        waveOptions.FetchSamples,
+		MaxFetchKM:          waveOptions.MaxFetchMeters / 1000,
+		DepthScaleMeters:    waveOptions.DepthScaleMeters,
+		ExposurePower:       waveOptions.ExposurePower,
 		Steps:               stepMetrics,
 		Highlights:          coastlineHighlightsMetricsFromHints(visualHints),
 		Validation:          validationMetricsFromData(ctx.Validation, validationSummary),
@@ -234,11 +219,8 @@ func writeErosionSVGSeries(originalBase, modelBase []geometry.LatLon, snapshots 
 	return nil
 }
 
-func writeFractalSeries(opts fractalSeriesOptions, output string, ctx exportContext) error {
-	outputDir, err := resolveSeriesOutputDir(output)
-	if err != nil {
-		return err
-	}
+func writeFractalSeries(opts fractalSeriesOptions, output string, ctx exportContext, outputPathManager *OutputPathManager) error {
+	outputDir := outputPathManager.SVGDir()
 
 	originalBase := opts.OriginalBase
 	if len(originalBase) == 0 {
@@ -300,7 +282,7 @@ func writeFractalSeries(opts fractalSeriesOptions, output string, ctx exportCont
 	for iter := 0; iter <= iterations; iter++ {
 		filename := filepath.Join(outputDir, fmt.Sprintf("%s_%d.svg", opts.Prefix, iter))
 		layers := makeFractalLayers(referenceRender, referenceSummary.LengthKM, renderCurves[:iter+1], lengths[:iter+1])
-		charts := makeSeriesCharts(iter, lengths[:iter+1], dimensions[:iter+1], opts.TheoryByIter)
+		charts := makeSeriesCharts(iter, lengths[:iter+1], dimensions[:iter+1])
 		meta := []string{
 			fmt.Sprintf("Реальная линия: %.0f км, %d т.", referenceSummary.LengthKM, referenceSummary.PointsCount),
 			fmt.Sprintf("База модели: %.0f км, %d т. (%+.1f%% к реальной)", modelSummary.LengthKM, modelSummary.PointsCount, modelSimplification.LengthDeltaPercent),
@@ -312,8 +294,6 @@ func writeFractalSeries(opts fractalSeriesOptions, output string, ctx exportCont
 			} else {
 				meta = append(meta, fmt.Sprintf("D: n/a, масштабов=%d", dimension.SampleCount))
 			}
-		} else if theory, ok := opts.TheoryByIter[iter]; ok {
-			meta = append(meta, fmt.Sprintf("Теория: %.0f км, ошибка %.2f%%", theory.TheoreticalKM, theory.ErrorPercent))
 		}
 		if opts.ErosionStrength > 0 {
 			meta = append(meta, fmt.Sprintf("Эрозия: σ=%.0f м, seed=%d", opts.ErosionStrength, opts.ErosionSeed))
@@ -346,26 +326,19 @@ func writeFractalSeries(opts fractalSeriesOptions, output string, ctx exportCont
 			RelativeToReference: safeRatio(lengths[iter], referenceSummary.LengthKM),
 			Dimension:           dimensions[iter],
 		}
-		if theory, ok := opts.TheoryByIter[iter]; ok {
-			iterationMetrics.Theory = &theoryMetrics{
-				ExpectedLengthKM: theory.TheoreticalKM,
-				ErrorKM:          theory.ErrorKM,
-				ErrorPercent:     theory.ErrorPercent,
-			}
-		}
 		iterationsMetrics = append(iterationsMetrics, iterationMetrics)
 
 		fmt.Printf("SVG saved to %s\n", filename)
 	}
 
-	metricsPath := metricsPathForSeries(outputDir, opts.MetricsBaseName)
+	metricsPath := outputPathManager.MetricsPath(opts.MetricsBaseName + ".metrics.json")
 	seriesMetrics := fractalSeriesArtifactMetrics{
 		GeneratedAt:         nowTimestamp(),
 		Command:             canonicalCommandPath(ctx.Command),
 		Dataset:             ctx.Dataset,
 		Source:              ctx.Source,
 		Title:               opts.Title,
-		OutputDir:           outputDir,
+		OutputDir:           outputPathManager.BaseDir(),
 		ReferenceCoastline:  referenceSummary,
 		ReferenceRender:     referenceRenderSummary,
 		ModelBase:           modelSummary,
@@ -585,9 +558,9 @@ func fixStatTone(count int) string {
 	return "#3f6b4b"
 }
 
-func makeSeriesCharts(currentIter int, lengths []float64, dimensions []*dimensionMetrics, theoryByIter map[int]koch.TheoryCheckSample) []svgrender.Chart {
+func makeSeriesCharts(currentIter int, lengths []float64, dimensions []*dimensionMetrics) []svgrender.Chart {
 	charts := []svgrender.Chart{
-		buildLengthChart(lengths, theoryByIter),
+		buildLengthChart(lengths),
 	}
 
 	dimensionChart := buildDimensionChart(dimensions)
@@ -601,7 +574,7 @@ func makeSeriesCharts(currentIter int, lengths []float64, dimensions []*dimensio
 	return charts
 }
 
-func buildLengthChart(lengths []float64, theoryByIter map[int]koch.TheoryCheckSample) svgrender.Chart {
+func buildLengthChart(lengths []float64) svgrender.Chart {
 	chart := svgrender.Chart{
 		Title: "Длина по итерациям",
 		Series: []svgrender.ChartSeries{
@@ -613,22 +586,6 @@ func buildLengthChart(lengths []float64, theoryByIter map[int]koch.TheoryCheckSa
 		},
 	}
 
-	if len(theoryByIter) > 0 {
-		theory := make([]float64, len(lengths))
-		for i := range theory {
-			if sample, ok := theoryByIter[i]; ok {
-				theory[i] = sample.TheoreticalKM
-				continue
-			}
-			theory[i] = math.NaN()
-		}
-		chart.Series = append(chart.Series, svgrender.ChartSeries{
-			Label:     "Теория",
-			Values:    theory,
-			Stroke:    "#c06c3f",
-			DashArray: "5 4",
-		})
-	}
 
 	return chart
 }
