@@ -28,10 +28,13 @@ type fractalSeriesOptions struct {
 	Builder          func([]geometry.LatLon, int) []geometry.LatLon
 }
 
-func writeCoastlineSVG(points, renderPoints []geometry.LatLon, output, defaultName string, ctx exportContext) error {
-	filename, err := resolveOutputPath(output, defaultName, ctx.Command)
-	if err != nil {
-		return err
+func writeCoastlineSVG(points, renderPoints []geometry.LatLon, output, defaultName string, ctx exportContext, outputPathManager *OutputPathManager) error {
+	filename := outputPathManager.SVGPath(defaultName)
+	if output != "" {
+		resolvedPath := outputPathManager.ResolveUserPath(output, "svg")
+		if resolvedPath != "" {
+			filename = resolvedPath
+		}
 	}
 
 	if len(renderPoints) == 0 {
@@ -71,7 +74,7 @@ func writeCoastlineSVG(points, renderPoints []geometry.LatLon, output, defaultNa
 		return err
 	}
 
-	metricsPath := metricsPathForSVG(filename)
+	metricsPath := outputPathManager.MetricsPath("coastline.metrics.json")
 	metrics := coastlineArtifactMetrics{
 		GeneratedAt:          nowTimestamp(),
 		Command:              canonicalCommandPath(ctx.Command),
@@ -94,7 +97,7 @@ func writeCoastlineSVG(points, renderPoints []geometry.LatLon, output, defaultNa
 }
 
 
-func writeOrganicKochSVGSeries(originalBase, modelBase []geometry.LatLon, iterations int, output string, opts koch.OrganicOptions, erosionStrength float64, prefix, metricsBaseName string, includeDimension bool, ctx exportContext) error {
+func writeOrganicKochSVGSeries(originalBase, modelBase []geometry.LatLon, iterations int, output string, opts koch.OrganicOptions, erosionStrength float64, prefix, metricsBaseName string, includeDimension bool, ctx exportContext, outputPathManager *OutputPathManager) error {
 	title := "Органическая кривая Коха"
 	if includeDimension {
 		title = "Фрактальная размерность (органическая модель)"
@@ -113,14 +116,11 @@ func writeOrganicKochSVGSeries(originalBase, modelBase []geometry.LatLon, iterat
 		Builder: func(points []geometry.LatLon, iter int) []geometry.LatLon {
 			return koch.OrganicKochCurve(points, iter, opts)
 		},
-	}, output, ctx)
+	}, output, ctx, outputPathManager)
 }
 
-func writeErosionSVGSeries(originalBase, modelBase []geometry.LatLon, snapshots [][]geometry.LatLon, steps int, strength float64, seed int64, waveOptions geometry.WaveErosionOptions, output string, ctx exportContext) error {
-	outputDir, err := resolveSeriesOutputDir(output)
-	if err != nil {
-		return err
-	}
+func writeErosionSVGSeries(originalBase, modelBase []geometry.LatLon, snapshots [][]geometry.LatLon, steps int, strength float64, seed int64, waveOptions geometry.WaveErosionOptions, output string, ctx exportContext, outputPathManager *OutputPathManager) error {
+	outputDir := outputPathManager.SVGDir()
 
 	if len(originalBase) == 0 {
 		originalBase = modelBase
@@ -187,13 +187,13 @@ func writeErosionSVGSeries(originalBase, modelBase []geometry.LatLon, snapshots 
 		fmt.Printf("SVG saved to %s\n", filename)
 	}
 
-	metricsPath := metricsPathForSeries(outputDir, "erosion")
+	metricsPath := outputPathManager.MetricsPath("erosion.metrics.json")
 	seriesMetrics := erosionSeriesArtifactMetrics{
 		GeneratedAt:         nowTimestamp(),
 		Command:             canonicalCommandPath(ctx.Command),
 		Dataset:             ctx.Dataset,
 		Source:              ctx.Source,
-		OutputDir:           outputDir,
+		OutputDir:           outputPathManager.BaseDir(),
 		ReferenceCoastline:  referenceSummary,
 		ReferenceRender:     referenceRenderSummary,
 		ModelBase:           modelSummary,
@@ -219,11 +219,8 @@ func writeErosionSVGSeries(originalBase, modelBase []geometry.LatLon, snapshots 
 	return nil
 }
 
-func writeFractalSeries(opts fractalSeriesOptions, output string, ctx exportContext) error {
-	outputDir, err := resolveSeriesOutputDir(output)
-	if err != nil {
-		return err
-	}
+func writeFractalSeries(opts fractalSeriesOptions, output string, ctx exportContext, outputPathManager *OutputPathManager) error {
+	outputDir := outputPathManager.SVGDir()
 
 	originalBase := opts.OriginalBase
 	if len(originalBase) == 0 {
@@ -334,14 +331,14 @@ func writeFractalSeries(opts fractalSeriesOptions, output string, ctx exportCont
 		fmt.Printf("SVG saved to %s\n", filename)
 	}
 
-	metricsPath := metricsPathForSeries(outputDir, opts.MetricsBaseName)
+	metricsPath := outputPathManager.MetricsPath(opts.MetricsBaseName + ".metrics.json")
 	seriesMetrics := fractalSeriesArtifactMetrics{
 		GeneratedAt:         nowTimestamp(),
 		Command:             canonicalCommandPath(ctx.Command),
 		Dataset:             ctx.Dataset,
 		Source:              ctx.Source,
 		Title:               opts.Title,
-		OutputDir:           outputDir,
+		OutputDir:           outputPathManager.BaseDir(),
 		ReferenceCoastline:  referenceSummary,
 		ReferenceRender:     referenceRenderSummary,
 		ModelBase:           modelSummary,

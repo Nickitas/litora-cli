@@ -30,20 +30,30 @@ clean:
 	rm -f data/*.nc
 	@echo "✓ Очищено"
 
-# Загрузка батиметрии (быстрая демо-версия)
+# Загрузка батиметрии
 bathymetry:
-	@echo "📊 Генерация батиметрии Чёрного моря..."
+	@echo "📊 Загрузка батиметрии GEBCO для Чёрного моря..."
 	@if [ -f "$(BATHYMETRY_FILE)" ]; then \
 		echo "⚠️  Файл уже существует: $(BATHYMETRY_FILE)"; \
 		read -p "Обновить? (y/N): " answer; \
 		[ "$$answer" = "y" ] || (echo "Пропуск."; exit 0); \
 	fi
-	@$(GO) run cmd/generate-demo-bathymetry/main.go
+	@$(GO) run cmd/bathymetry/main.go download
 
 # Загрузка батиметрии (через Python)
 bathymetry-python:
 	@echo "📊 Загрузка батиметрии через Python..."
-	@bash scripts/download_bathymetry.sh
+	@bash cmd/bathymetry/convert/download_bathymetry.sh
+
+# Конвертация батиметрии
+bathymetry-convert:
+	@echo "🔄 Конвертация батиметрических данных..."
+	@if [ -z "$(INPUT)" ] || [ -z "$(OUTPUT)" ]; then \
+		echo "❌ Укажите INPUT и OUTPUT"; \
+		echo "Пример: make bathymetry-convert INPUT=file.nc OUTPUT=data.json RESOLUTION=0.01 BOUNDS='40.5 46.5 27.5 42.5'"; \
+		exit 1; \
+	fi
+	@$(GO) run cmd/bathymetry/main.go convert --input "$(INPUT)" --output "$(OUTPUT)" --resolution "$(RESOLUTION)" --bounds $(BOUNDS)
 
 # Проверка батиметрии
 check-bathymetry:
@@ -89,16 +99,14 @@ erosion-with-bathymetry:
 demo: clean build bathymetry
 	@echo ""
 	@echo "🚀 Запуск полного сценария (all) с волновой эрозией и батиметрией..."
-	@./$(BINARY_NAME) all --iterations 3 --steps 3 --output ./output/demo
+	@./$(BINARY_NAME) all --iterations 3 --steps 5 --erosion-strength 30 --bathymetry $(BATHYMETRY_FILE) --output ./output/demo
 	@echo ""
 	@echo "🎉 Демо завершено!"
 	@echo "Результаты: ./output/demo/"
 	@echo ""
 	@echo "Созданные файлы:"
-	@echo "  - coastline.svg (исходная береговая линия)"
-	@echo "  - koch_iter_*.svg (классическая фрактальная аппроксимация)"
-	@echo "  - koch-organic_iter_*.svg (органическая фрактальная модель)"
-	@echo "  - dimension-organic_iter_*.svg (анализ фрактальной размерности)"
+	@echo "  - coastline.svg (валидация геометрии береговой линии)"
+	@echo "  - dimension_iter_*.svg (фрактальный анализ по итерациям)"
 	@echo "  - erosion_step_*.svg (волновая эрозия с батиметрией)"
 
 # Справка
@@ -113,8 +121,8 @@ help:
 	@echo "  make check-bathymetry     - Проверка наличия батиметрии"
 	@echo "  make erosion              - Эрозия без батиметрии"
 	@echo "  make erosion-with-bathymetry - Эрозия с батиметрией"
-	@echo "  make demo                 - Полный цикл (очистка→сборка→загрузка→эрозия)"
+	@echo "  make demo                 - Полный научный сценарий"
 	@echo ""
-	@echo "Примеры использования:"
+	@echo "Научные сценарии:"
 	@echo "  make build && make demo"
 	@echo "  make bathymetry && make erosion-with-bathymetry"

@@ -66,8 +66,15 @@ func runErosionCommand(app *App) error {
 		// Проверяем файл по умолчанию
 		if _, err := os.Stat(defaultBathymetryFile); err == nil {
 			bathymetryPath = defaultBathymetryFile
+			fmt.Printf("✓ Батиметрия загружена: %s\n", defaultBathymetryFile)
 		} else {
-			// Файл не найден - используем геометрический proxy
+			// Файл не найден - предлагаем скачать
+			fmt.Printf("⚠️  Батиметрия не найдена: %s\n", defaultBathymetryFile)
+			fmt.Println("Для загрузки выполните:")
+			fmt.Println("  make bathymetry")
+			fmt.Println("  # или напрямую:")
+			fmt.Println("  go run cmd/download-bathymetry/main.go")
+			fmt.Println("Используем геометрический proxy...\n")
 			bathymetryPath = ""
 		}
 	}
@@ -217,6 +224,22 @@ func runErosionCommand(app *App) error {
 		fmt.Println()
 	}
 
+	// Export CSV if requested
+	if app.Config.OutputCSV != "" {
+		var temporalResultPtr *geometry.TemporalResult
+		if useTemporalDynamics {
+			temporalResultPtr = &temporalResult
+		}
 
-	return writeErosionSVGSeries(app.Base, app.ModelBase, snapshots, steps, strength, seed, waveOptions, app.Config.OutputPath, newExportContext(app))
+		csvPath := app.OutputPaths.ResolveUserPath(app.Config.OutputCSV, "csv")
+		fmt.Printf("  📄 Экспорт CSV метрик: %s\n", csvPath)
+		if err := writeErosionCSV(snapshots, temporalResultPtr, app.Config.OutputCSV, app.Config.CSVFormat, app.OutputPaths); err != nil {
+			fmt.Printf("  ⚠️  Ошибка экспорта CSV: %v\n", err)
+		} else {
+			fmt.Printf("  ✓ CSV успешно экспортирован (формат: %s)\n", app.Config.CSVFormat)
+		}
+		fmt.Println()
+	}
+
+	return writeErosionSVGSeries(app.Base, app.ModelBase, snapshots, steps, strength, seed, waveOptions, app.Config.OutputPath, newExportContext(app), app.OutputPaths)
 }

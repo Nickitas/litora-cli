@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"fmt"
+
 	"coastal-geometry/internal/domain/coastline"
 	"coastal-geometry/internal/domain/geometry"
 )
@@ -16,11 +18,22 @@ type App struct {
 	LoadNotes        []string
 	ProcessNotes     []string
 	SourceInspection *coastline.SourceInspection
+	OutputPaths      *OutputPathManager
 }
 
 func NewApp(cfg config) (*App, error) {
 	app := &App{Config: cfg}
 	setCurrentConfig(cfg)
+
+	// Initialize output path manager
+	app.OutputPaths = NewOutputPathManager(cfg.OutputPath)
+
+	// Ensure output directories exist (except for source command)
+	if cfg.Command != cmdSource {
+		if err := app.OutputPaths.EnsureDirectories(); err != nil {
+			return nil, fmt.Errorf("create output directories: %w", err)
+		}
+	}
 
 	if cfg.Command == cmdSource {
 		inspection, err := coastline.InspectSource(coastline.InspectOptions{

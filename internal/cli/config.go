@@ -53,6 +53,9 @@ type config struct {
 	SeaLevelRise           float64
 	EnableSeasonality      bool
 	SeasonalPhase          float64
+	// CSV export parameters
+	OutputCSV              string
+	CSVFormat              string
 }
 
 func parseConfig(args []string, stdout, stderr io.Writer) (config, error) {
@@ -117,6 +120,9 @@ func parseConfig(args []string, stdout, stderr io.Writer) (config, error) {
 		fs.Float64Var(&cfg.SeaLevelRise, "sea-level-rise", 0, "sea level rise in meters per year")
 		fs.BoolVar(&cfg.EnableSeasonality, "enable-seasonality", false, "enable seasonal erosion variations")
 		fs.Float64Var(&cfg.SeasonalPhase, "seasonal-phase", 0, "seasonal phase offset in radians [0-2π]")
+		// CSV export flags
+		fs.StringVar(&cfg.OutputCSV, "output-csv", "erosion_metrics.csv", "path to CSV file for erosion metrics export (default: erosion_metrics.csv)")
+		fs.StringVar(&cfg.CSVFormat, "csv-format", "long", "CSV format: 'long' (one row per step) or 'wide' (one row with step columns)")
 		fs.Usage = func() { printCommandUsage(stdout, command) }
 	case cmdCoastline:
 		fs.StringVar(&cfg.InputPath, "input", coastline.DefaultCoastlineJSONPath, "path to local coastline JSON/GeoJSON fallback file")
@@ -168,6 +174,9 @@ func parseConfig(args []string, stdout, stderr io.Writer) (config, error) {
 		fs.Float64Var(&cfg.SeaLevelRise, "sea-level-rise", 0, "sea level rise in meters per year")
 		fs.BoolVar(&cfg.EnableSeasonality, "enable-seasonality", false, "enable seasonal erosion variations")
 		fs.Float64Var(&cfg.SeasonalPhase, "seasonal-phase", 0, "seasonal phase offset in radians [0-2π]")
+		// CSV export flags
+		fs.StringVar(&cfg.OutputCSV, "output-csv", "erosion_metrics.csv", "path to CSV file for erosion metrics export (default: erosion_metrics.csv)")
+		fs.StringVar(&cfg.CSVFormat, "csv-format", "long", "CSV format: 'long' (one row per step) or 'wide' (one row with step columns)")
 		fs.Usage = func() { printCommandUsage(stdout, command) }
 	}
 
@@ -220,6 +229,9 @@ func parseConfig(args []string, stdout, stderr io.Writer) (config, error) {
 	}
 	if cfg.ModelMaxPoints < 0 {
 		return config{}, fmt.Errorf("model-max-points must be non-negative")
+	}
+	if cfg.OutputCSV != "" && cfg.CSVFormat != "long" && cfg.CSVFormat != "wide" {
+		return config{}, fmt.Errorf("csv-format must be 'long' or 'wide'")
 	}
 
 	return cfg, nil

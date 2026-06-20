@@ -7,5 +7,5 @@ func runCoastlineCommand(app *App) error {
 	if sanity.Checked && !sanity.Valid {
 		printInvalidResult()
 	}
-	return writeCoastlineSVG(app.Base, app.RenderBase, app.Config.OutputPath, "coastline.svg", newExportContext(app))
+	return writeCoastlineSVG(app.Base, app.RenderBase, app.Config.OutputPath, "coastline.svg", newExportContext(app), app.OutputPaths)
 }

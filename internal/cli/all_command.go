@@ -12,7 +12,7 @@ func runAllCommand(app *App) error {
 	if sanity.Checked && !sanity.Valid {
 		invalid = true
 	}
-	if err := writeCoastlineSVG(app.Base, app.RenderBase, app.Config.OutputPath, "coastline.svg", newExportContext(app)); err != nil {
+	if err := writeCoastlineSVG(app.Base, app.RenderBase, app.Config.OutputPath, "coastline.svg", newExportContext(app), app.OutputPaths); err != nil {
 		return err
 	}
 
