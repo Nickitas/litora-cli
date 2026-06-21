@@ -1,9 +1,12 @@
-.PHONY: all build test clean bathymetry help erosion erosion-with-bathymetry
+.PHONY: all build test clean bathymetry help erosion erosion-with-bathymetry build-all build-release
 
 # Переменные
 BINARY_NAME=lito
 GO=go
 BATHYMETRY_FILE=data/black-sea-bathymetry.json
+VERSION=v1.2
+BUILD_DIR=build
+DIST_DIR=dist
 
 all: build
 
@@ -109,10 +112,60 @@ demo: clean build bathymetry
 	@echo "  - dimension_iter_*.svg (фрактальный анализ по итерациям)"
 	@echo "  - erosion_step_*.svg (волновая эрозия с батиметрией)"
 
+# Кросс-платформенная сборка
+build-all:
+	@echo "🔨 Сборка для всех платформ..."
+	@mkdir -p $(BUILD_DIR)
+
+	@echo "  📦 Linux (amd64)..."
+	@GOOS=linux GOARCH=amd64 $(GO) build -o $(BUILD_DIR)/$(BINARY_NAME)-linux-amd64 ./cmd/lito
+	@echo "    ✓ $(BUILD_DIR)/$(BINARY_NAME)-linux-amd64"
+
+	@echo "  📦 Windows (amd64)..."
+	@GOOS=windows GOARCH=amd64 $(GO) build -o $(BUILD_DIR)/$(BINARY_NAME)-windows-amd64.exe ./cmd/lito
+	@echo "    ✓ $(BUILD_DIR)/$(BINARY_NAME)-windows-amd64.exe"
+
+	@echo "  📦 macOS (Intel)..."
+	@GOOS=darwin GOARCH=amd64 $(GO) build -o $(BUILD_DIR)/$(BINARY_NAME)-darwin-amd64 ./cmd/lito
+	@echo "    ✓ $(BUILD_DIR)/$(BINARY_NAME)-darwin-amd64"
+
+	@echo "  📦 macOS (Apple Silicon)..."
+	@GOOS=darwin GOARCH=arm64 $(GO) build -o $(BUILD_DIR)/$(BINARY_NAME)-darwin-arm64 ./cmd/lito
+	@echo "    ✓ $(BUILD_DIR)/$(BINARY_NAME)-darwin-arm64"
+
+	@echo ""
+	@echo "✓ Все бинарники собраны в $(BUILD_DIR)/"
+
+# Создание release архивов
+build-release: build-all
+	@echo "📦 Создание release архивов..."
+	@mkdir -p $(DIST_DIR)
+
+	@echo "  🗜️  Linux..."
+	@zip -q -j $(DIST_DIR)/$(BINARY_NAME)-$(VERSION)-linux-amd64.zip $(BUILD_DIR)/$(BINARY_NAME)-linux-amd64
+	@echo "    ✓ $(DIST_DIR)/$(BINARY_NAME)-$(VERSION)-linux-amd64.zip"
+
+	@echo "  🗜️  Windows..."
+	@zip -q -j $(DIST_DIR)/$(BINARY_NAME)-$(VERSION)-windows-amd64.zip $(BUILD_DIR)/$(BINARY_NAME)-windows-amd64.exe
+	@echo "    ✓ $(DIST_DIR)/$(BINARY_NAME)-$(VERSION)-windows-amd64.zip"
+
+	@echo "  🗜️  macOS (Intel)..."
+	@zip -q -j $(DIST_DIR)/$(BINARY_NAME)-$(VERSION)-darwin-amd64.zip $(BUILD_DIR)/$(BINARY_NAME)-darwin-amd64
+	@echo "    ✓ $(DIST_DIR)/$(BINARY_NAME)-$(VERSION)-darwin-amd64.zip"
+
+	@echo "  🗜️  macOS (Apple Silicon)..."
+	@zip -q -j $(DIST_DIR)/$(BINARY_NAME)-$(VERSION)-darwin-arm64.zip $(BUILD_DIR)/$(BINARY_NAME)-darwin-arm64
+	@echo "    ✓ $(DIST_DIR)/$(BINARY_NAME)-$(VERSION)-darwin-arm64.zip"
+
+	@echo ""
+	@echo "✓ Release архивы созданы в $(DIST_DIR)/"
+
 # Справка
 help:
 	@echo "Доступные цели:"
-	@echo "  make build                - Сборка $(BINARY_NAME)"
+	@echo "  make build                - Сборка $(BINARY_NAME) для текущей платформы"
+	@echo "  make build-all            - Сборка для всех платформ"
+	@echo "  make build-release        - Создание release архивов"
 	@echo "  make test                 - Все тесты"
 	@echo "  make test-quick           - Быстрые тесты"
 	@echo "  make clean                - Очистка"

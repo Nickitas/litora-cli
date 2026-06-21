@@ -60,11 +60,13 @@ type config struct {
 
 func parseConfig(args []string, stdout, stderr io.Writer) (config, error) {
 	if len(args) == 0 {
+		printBanner(stdout)
 		printRootUsage(stdout)
 		return config{}, flag.ErrHelp
 	}
 
 	if isHelpToken(args[0]) {
+		printBanner(stdout)
 		printRootUsage(stdout)
 		return config{}, flag.ErrHelp
 	}
@@ -87,7 +89,7 @@ func parseConfig(args []string, stdout, stderr io.Writer) (config, error) {
 		fs.StringVar(&cfg.SourceURL, "source-url", coastline.DefaultCoastlineGeoJSONURL, "remote GeoJSON URL for coastline data; empty string disables HTTP loading")
 		fs.BoolVar(&cfg.Refresh, "refresh", false, "force refresh of the remote GeoJSON cache before saving a snapshot")
 		fs.StringVar(&cfg.OutputPath, "output", "", "snapshot file or directory (default: ./data/snapshots)")
-		fs.Usage = func() { printCommandUsage(stdout, command) }
+		fs.Usage = func() { printBanner(stdout); printCommandUsage(stdout, command) }
 	case cmdAll:
 		fs.StringVar(&cfg.InputPath, "input", coastline.DefaultCoastlineJSONPath, "path to local coastline JSON/GeoJSON fallback file")
 		fs.StringVar(&cfg.SourceURL, "source-url", coastline.DefaultCoastlineGeoJSONURL, "remote GeoJSON URL for coastline data; empty string disables HTTP loading")
@@ -123,13 +125,13 @@ func parseConfig(args []string, stdout, stderr io.Writer) (config, error) {
 		// CSV export flags
 		fs.StringVar(&cfg.OutputCSV, "output-csv", "erosion_metrics.csv", "path to CSV file for erosion metrics export (default: erosion_metrics.csv)")
 		fs.StringVar(&cfg.CSVFormat, "csv-format", "long", "CSV format: 'long' (one row per step) or 'wide' (one row with step columns)")
-		fs.Usage = func() { printCommandUsage(stdout, command) }
+		fs.Usage = func() { printBanner(stdout); printCommandUsage(stdout, command) }
 	case cmdCoastline:
 		fs.StringVar(&cfg.InputPath, "input", coastline.DefaultCoastlineJSONPath, "path to local coastline JSON/GeoJSON fallback file")
 		fs.StringVar(&cfg.SourceURL, "source-url", coastline.DefaultCoastlineGeoJSONURL, "remote GeoJSON URL for coastline data; empty string disables HTTP loading")
 		fs.BoolVar(&cfg.Refresh, "refresh", false, "force refresh of the remote GeoJSON cache before running")
 		fs.StringVar(&cfg.OutputPath, "output", "", "output SVG path or directory (default: ./output)")
-		fs.Usage = func() { printCommandUsage(stdout, command) }
+		fs.Usage = func() { printBanner(stdout); printCommandUsage(stdout, command) }
 		fs.Float64Var(&cfg.HeightJitter, "height-jitter", 0.25, "maximum random height deviation as a ratio")
 		fs.Float64Var(&cfg.ErosionStrength, "erosion-strength", 0, "Gaussian erosion strength in meters; applied after fractal growth (0 disables)")
 		fs.IntVar(&cfg.ModelMaxPoints, "model-max-points", 0, "max points for model base (0 keeps default budget); higher preserves details")
@@ -147,7 +149,7 @@ func parseConfig(args []string, stdout, stderr io.Writer) (config, error) {
 		fs.Float64Var(&cfg.ErosionStrength, "erosion-strength", 0, "Gaussian erosion strength in meters; applied after fractal growth (0 disables)")
 		fs.IntVar(&cfg.ModelMaxPoints, "model-max-points", 0, "max points for model base (0 keeps default budget); higher preserves details")
 		fs.BoolVar(&cfg.DisableSimplify, "no-model-simplify", false, "disable model base simplification before fractal growth")
-		fs.Usage = func() { printCommandUsage(stdout, command) }
+		fs.Usage = func() { printBanner(stdout); printCommandUsage(stdout, command) }
 	case cmdErosion:
 		fs.StringVar(&cfg.InputPath, "input", coastline.DefaultCoastlineJSONPath, "path to local coastline JSON/GeoJSON fallback file")
 		fs.StringVar(&cfg.SourceURL, "source-url", coastline.DefaultCoastlineGeoJSONURL, "remote GeoJSON URL for coastline data; empty string disables HTTP loading")
@@ -177,7 +179,7 @@ func parseConfig(args []string, stdout, stderr io.Writer) (config, error) {
 		// CSV export flags
 		fs.StringVar(&cfg.OutputCSV, "output-csv", "erosion_metrics.csv", "path to CSV file for erosion metrics export (default: erosion_metrics.csv)")
 		fs.StringVar(&cfg.CSVFormat, "csv-format", "long", "CSV format: 'long' (one row per step) or 'wide' (one row with step columns)")
-		fs.Usage = func() { printCommandUsage(stdout, command) }
+		fs.Usage = func() { printBanner(stdout); printCommandUsage(stdout, command) }
 	}
 
 	if err := fs.Parse(commandArgs); err != nil {
@@ -275,6 +277,7 @@ func resolveCommand(args []string, stdout, stderr io.Writer) (string, []string, 
 
 func resolveGroupedCommand(group string, args []string, stdout, stderr io.Writer) (string, []string, error) {
 	if len(args) == 0 || isHelpToken(args[0]) {
+		printBanner(stdout)
 		printGroupUsage(stdout, group)
 		return "", nil, flag.ErrHelp
 	}
