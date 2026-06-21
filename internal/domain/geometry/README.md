@@ -26,10 +26,28 @@
   - [Fetch и экспозиция берега](#fetch-и-экспозиция-берега)
   - [Батиметрия и физическая глубина](#батиметрия-и-физическая-глубина)
   - [Параметры волновой эрозии](#параметры-волновой-эрозии)
-- [Батиметрический модуль](#батиметрический-модуль)
+- [Временная динамика эрозии](#временная-динамика-эрозии)
+  - [Модель временных параметров](#модель-временных-параметров)
+  - [Штормовые события](#штормовые-события)
+  - [Сезонность](#сезонность)
+  - [Подъём уровня моря](#подъём-уровня-моря)
+  - [Интеграция с волновой эрозией](#интеграция-с-волновой-эрозией)
+- [Транспорт наносов](#транспорт-наносов)
+  - [Модель баланса массы](#модель-баланса-массы)
+  - [Longshore drift](#longshore-drift)
+  - [Аккумуляция и эрозия](#аккумуляция-и-эрозия)
+  - [Интеграция с волновой эрозией](#интеграция-с-волновой-эрозией-1)
+- [Литологический модуль](#литологический-модуль)
   - [Структура данных](#структура-данных)
-  - [Загрузка и интерполяция](#загрузка-и-интерполяция)
+  - [IDW интерполяция](#idw-интерполяция)
+  - [Загрузка профиля](#загрузка-профиля)
+  - [Интеграция с эрозией](#интеграция-с-эрозией)
   - [Формат данных](#формат-данных)
+  - [Дефолтный профиль](#дефолтный-профиль)
+- [Батиметрический модуль](#батиметрический-модуль)
+  - [Структура данных](#структура-данных-1)
+  - [Загрузка и интерполяция](#загрузка-и-интерполяция-1)
+  - [Формат данных](#формат-данных-1)
 - [Эрозия](#эрозия)
   - [Модель Гауссовского сдвига](#модель-гауссовского-сдвига)
   - [Параллельное выполнение](#параллельное-выполнение)
@@ -53,8 +71,11 @@ internal/domain/geometry/
 ├── area.go         # Площадь полигона (shoelace)
 ├── simplify.go     # Упрощение (Ramer-Douglas-Peucker)
 ├── erosion.go      # Стохастическая и волновая эрозия
+├── temporal.go     # Временная динамика эрозии
+├── sediment.go     # Транспорт наносов и аккумуляция
 ├── bathymetry.go   # Батиметрический модуль
-└── simplify_test.go # Тесты упрощения
+├── lithology.go    # Литологический модуль
+└── *_test.go       # Тесты всех модулей
 ```
 
 Зависимости: **отсутствуют** (модуль самодостаточен)
@@ -468,6 +489,284 @@ retreat ×= clamp(0.55 + protrusion - 0.35 × bayShelter, 0.1, 1.75)
 
 // 6. Сглаживание
 smoothedRetreat = retreat + shapeCorrection × smoothAlpha
+```
+
+---
+
+## Временная динамика эрозии
+
+### Модель временных параметров
+
+Модуль реализует временную динамику эрозии, позволяя моделировать изменение береговой линии на протяжении длительных периодов (десятилетия) с учётом нестационарных факторов: штормов, сезонности, подъёма уровня моря.
+
+```go
+type TemporalParameters struct {
+    YearsPerStep          float64  // Лет за один шаг модели
+    StormProbability     float64  // Вероятность шторма [0-1]
+    StormIntensityMult   float64  // Множитель силы шторма [1.0-5.0]
+    SeaLevelRise         float64  // Подъём уровня моря (м/год)
+    Seasonality          bool     // Учитывать сезонность
+    SeasonalPhase        float64  // Фаза сезонности (радианы)
+    MinYearsPerStep      float64  // Минимальное значение для валидации
+    MaxYearsPerStep      float64  // Максимальное значение для валидации
+}
+
+type TemporalState struct {
+    Step            int       // Номер шага
+    Year            float64   // Текущий год
+    IsStorm         bool      // Штормовое событие
+    StormIntensity  float64   // Интенсивность шторма [1.0+]
+    SeasonalFactor  float64   // Сезонный множитель [0.5-1.5]
+    SeaLevelOffset  float64   // Смещение уровня моря (м)
+    EffectiveYears  float64   // Эффективное число лет для шага
+}
+```
+
+### Штормовые события
+
+**Вероятностная модель:** на каждом шаге моделирования проверяется вероятность шторма:
+
+```go
+if rng.Float64() < StormProbability:
+    IsStorm = true
+    StormIntensity = StormIntensityMult + variation
+```
+
+**Интенсивность шторма:** базовый множитель + случайная вариация (±50%).
+
+| Вероятность | Частота штормов | Пример климата |
+|-------------|-----------------|-----------------|
+| 0.0 | Никогда | Идеально спокойный |
+| 0.05 | 1 раз в 20 лет | Умеренный |
+| 0.1 | 1 раз в 10 лет | Штормовой |
+| 0.2+ | Частые штормы | Экстремальный |
+
+### Сезонность
+
+Модель учитывает годовые колебания волновой активности:
+
+```go
+seasonalFactor = 1.0 + 0.5 × sin(2π × year + phase)
+```
+
+**Интерпретация:**
+- `seasonalFactor = 1.5` — пик активности (зимние штормы)
+- `seasonalFactor = 0.5` — минимум активности (летний штиль)
+- `phase` — сдвиг фазы (позволяет двигать пик)
+
+**Типичные значения:**
+- `phase = 0` — пик в начале года
+- `phase = π` — пик в середине года
+- `phase = 3π/2` — пик зимой (северное полушарие)
+
+### Подъём уровня моря
+
+**Линейная модель:** уровень моря растёт с постоянной скоростью:
+
+```go
+seaLevelOffset = year × SeaLevelRise
+```
+
+**Модуляция эрозии:** чем выше уровень моря, тем сильнее эрозия:
+
+```go
+seaLevelFactor = 1.0 + 0.1 × ln(1 + seaLevelOffset)
+modulatedErosion = baseErosion × seaLevelFactor
+```
+
+Логарифмическая зависимость отражает убывающую эффективность: каждые дополнительные 10 м подъёма дают меньший эффект.
+
+**Типичные значения (IPCC сценариии):**
+| Сценарий | Подъём (м/год) | Через 50 лет |
+|----------|----------------|--------------|
+| RCP2.6 | 0.003 | +0.15 м |
+| RCP4.5 | 0.006 | +0.30 м |
+| RCP8.5 | 0.010 | +0.50 м |
+
+### Интеграция с волновой эрозией
+
+Временная динамика модулирует параметры волновой эрозии на каждом шаге:
+
+```go
+func SimulateErosionWithDurationSeed(
+    points []LatLon,
+    targetYears int,
+    temporalParams TemporalParameters,
+    waveOptions WaveErosionOptions,
+    seed int64,
+) TemporalResult:
+```
+
+**Алгоритм:**
+1. Рассчитать число шагов = `ceil(targetYears / YearsPerStep)`
+2. Для каждого шага:
+   - Рассчитать `TemporalState` (шторм, сезонность, подъём уровня)
+   - Модулировать силу эрозии: `strength × StormIntensity × SeasonalFactor × SeaLevelFactor`
+   - Применить волновую эрозию с модулированной силой
+3. Вернуть снапшоты и временные состояния
+
+**Результат:**
+
+```go
+type TemporalResult struct {
+    Snapshots           [][]LatLon       // Состояния береговой линии по шагам
+    TemporalStates      []TemporalState  // Временные состояния по шагам
+    TotalYears          float64          // Общее число промоделированных лет
+    StormCount          int              // Число штормовых событий
+    AccumulatedErosion  float64          // Накопленная эрозия (м)
+    FinalSeaLevelRise   float64          // Итоговый подъём уровня моря (м)
+}
+```
+
+### Метрики эрозии по шагам
+
+```go
+type ErosionMetrics struct {
+    Step                 int      // Номер шага
+    Year                 float64  // Год
+    LengthKm             float64  // Длина береговой линии (км)
+    AreaKm2              float64  // Площадь (км²)
+    ErodedM3             float64  // Объём эрозии (м³)
+    DepositedM3          float64  // Объём депозиции (м³)
+    NetChangeM3          float64  // Баланс (м³)
+    FractalDimension     float64  // Фрактальная размерность
+    MeanRetreatMeters    float64  // Среднее отступание (м)
+    MaxRetreatMeters     float64  // Максимальное отступание (м)
+    IsStorm              bool     // Штормовое событие
+    SeasonalFactor       float64  // Сезонный множитель
+}
+```
+
+---
+
+## Транспорт наносов
+
+### Модель баланса массы
+
+Модуль моделирует транспорт наносов (sediment transport) вдоль береговой линии, учитывая:
+- Эрозию источника материала
+- Longshore drift (транспорт вдоль берега)
+- Депозицию в защитных зонах
+- Баланс массы
+
+```go
+type SedimentBudget struct {
+    ErodedVolume    float64  // Объём размытого материала (м³/м)
+    TransportVolume float64  // Объём в транзите (longshore drift)
+    DepositedVolume float64  // Объём отложенного материала
+    NetChange       float64  // Баланс (eroded - deposited)
+    ErosionPoints    int      // Число точек с эрозией
+    DepositionPoints int     // Число точек с аккумуляцией
+}
+
+type SedimentState struct {
+    PointIndex     int
+    LocalBudget    SedimentBudget
+    InTransitFrom  []float64  // Объём от соседей (incoming)
+    InTransitTo    []float64  // Объём к соседям (outgoing)
+    IsAccumulating bool       // Режим аккумуляции
+    IsEroding      bool       // Режим эрозии
+}
+```
+
+### Longshore drift
+
+**Longshore drift** — транспорт наносов вдоль берега под действием волн.
+
+```go
+type SedimentTransportParameters struct {
+    TransportCoefficient      float64  // [0-1] часть в транспорт
+    DepositionRate            float64  // [0-1] скорость отложения
+    MinimumFlowVelocity      float64  // Минимальная скорость для транспорта (м/с)
+    CapacityFactor           float64  // [0-2] ёмкость аккумуляции
+    LongshoreDriftCoefficient float64  // [0-1] alongshore транспорт
+}
+```
+
+**Алгоритм расчёта:**
+
+```go
+// 1. Alongshore направление (от prev к next)
+alongshoreVector = (next - prev) / |next - prev|
+
+// 2. Wave direction
+waveDir = (sin(Direction), cos(Direction))
+
+// 3. Alongshore компонента
+alongshoreComponent = |alongshoreVector · waveDir|
+
+// 4. Drift распределение
+driftFraction = LongshoreDriftCoefficient × alongshoreComponent × waveEnergy
+
+toPrev = transportVolume × 0.5 × driftFraction
+toNext  = transportVolume × 0.5 × driftFraction
+```
+
+**Направление drift:** зависит от cross product между alongshore и wave direction.
+
+### Аккумуляция и эрозия
+
+```go
+type WaveEnergyData struct {
+    Energy    []float64  // Волновая энергия [0-1] по точкам
+    Direction float64     // Главное направление (град от севера)
+    Incidence []float64  // Угол падения на берег [0-1]
+    Fetch     []float64  // Fetch distance (м)
+}
+```
+
+**Логика аккумуляции:**
+
+```go
+incomingTotal = sum(InTransitFrom)
+localCapacity = CapacityFactor × waveEnergy
+
+if incomingTotal > localCapacity OR waveEnergy < 0.3:
+    excess = incomingTotal - localCapacity
+    deposition = excess × DepositionRate
+    IsAccumulating = true
+else:
+    IsEroding = true
+
+NetChange = ErodedVolume - DepositedVolume
+```
+
+**Интерпретация:**
+- Защищённые бухты (`waveEnergy < 0.3`) → аккумуляция независимо от incoming
+- Высокая энергия волн → низкая ёмкость → эрозия
+- Избыток наносов → отложение (accretion)
+
+### Интеграция с волновой эрозией
+
+```go
+func CalculateSedimentTransport(
+    points []LatLon,
+    erosionRates []float64,
+    waveData WaveEnergyData,
+    lithology []LithologyState,
+    params SedimentTransportParameters,
+) SedimentTransportResult
+```
+
+**Результат:**
+
+```go
+type SedimentTransportResult struct {
+    States          []SedimentState
+    TotalBudget     SedimentBudget
+    MassBalance     float64  // Должен быть ≈ 0
+    IsValid         bool     // Проверка баланса массы
+    Warnings        []string
+    BaselineErosion []float64  // Базовая эрозия (м)
+    ModifiedErosion []float64  // Модифицированная эрозия (м)
+}
+```
+
+**Валидация:** баланс массы должен сохраняться (допуск 15%).
+
+```go
+ApplySedimentModification(points, baseErosion, sedimentResult) → []float64
+// В точках аккумуляции: erosion -= depositedVolume
 ```
 
 ---
@@ -922,6 +1221,24 @@ metersPerDegLat = 2π × R / 360 ≈ 111194.9 м
 | `(profile).GetStatistics()` | Статистика профиля | `map[string]interface{}` |
 | `CreateDefaultBlackSeaProfile()` | Дефолтный профиль Чёрного моря | `*LithologyProfile` |
 
+### Временная динамика
+
+| Функция | Описание | Возвращает |
+|---------|----------|------------|
+| `SimulateErosionWithDuration(points, years, temporalParams, waveOptions)` | Эрозия с временными параметрами (случайный seed) | `TemporalResult` |
+| `SimulateErosionWithDurationSeed(points, years, temporalParams, waveOptions, seed)` | Эрозия с временными параметрами (детерминированная) | `TemporalResult` |
+| `CalculateErosionMetrics(result)` | Метрики эрозии по шагам | `[]ErosionMetrics` |
+| `GetTemporalSummary(result)` | Сводка временной динамики | `map[string]interface{}` |
+| `ValidateTemporalParameters(params)` | Валидация параметров | `[]string` (warnings) |
+
+### Транспорт наносов
+
+| Функция | Описание | Возвращает |
+|---------|----------|------------|
+| `CalculateSedimentTransport(points, erosionRates, waveData, lithology, params)` | Расчёт транспорта наносов | `SedimentTransportResult` |
+| `ApplySedimentModification(points, baseErosion, result)` | Коррекция эрозии с учётом аккумуляции | `[]float64` |
+| `GetSedimentStatistics(result)` | Статистика транспорта | `map[string]interface{}` |
+
 ### Эрозия
 
 | Функция | Описание | Возвращает |
@@ -1128,6 +1445,105 @@ func main() {
     
     snapshots := geometry.SimulateWaveErosion(coast, 5, options)
     // ... обработка результатов
+}
+```
+
+### Временная динамика с учётом климатических факторов
+
+```go
+func main() {
+    coast := loadCoastline()
+
+    // Временные параметры
+    temporalParams := geometry.TemporalParameters{
+        YearsPerStep:          1.0,  // 1 год за шаг
+        StormProbability:     0.1,  // 10% шанс шторма в год
+        StormIntensityMult:   2.5,  // Шторм в 2.5 раз сильнее
+        SeaLevelRise:         0.006, // 6 мм/год (RCP4.5)
+        Seasonality:          true,  // Учитывать сезонность
+        SeasonalPhase:        3.5,   // Пик штормов зимой
+    }
+
+    // Волновая эрозия
+    waveOptions := geometry.WaveErosionOptions{
+        StrengthMeters:         50,
+        WindSourceDirectionDeg: 0,
+        WindSpeedMetersPerSecond: 12,
+        // ... другие параметры
+    }
+
+    // Моделирование на 50 лет
+    result := geometry.SimulateErosionWithDurationSeed(
+        coast, 50, temporalParams, waveOptions, 42,
+    )
+
+    fmt.Printf("Промоделировано лет: %.0f\n", result.TotalYears)
+    fmt.Printf("Штормовых событий: %d\n", result.StormCount)
+    fmt.Printf("Накопленная эрозия: %.0f м\n", result.AccumulatedErosion)
+    fmt.Printf("Подъём уровня моря: %.2f м\n", result.FinalSeaLevelRise)
+
+    // Метрики по шагам
+    metrics := geometry.CalculateErosionMetrics(result)
+    for _, m := range metrics {
+        if m.IsStorm {
+            fmt.Printf("Шаг %d (шторм): длина=%.0f км\n", m.Step, m.LengthKm)
+        }
+    }
+}
+```
+
+### Транспорт наносов и аккумуляция
+
+```go
+func main() {
+    coast := loadCoastline()
+
+    // Загрузка литологии
+    lithData := loadFile("black-sea-lithology.json")
+    lithProfile, _ := geometry.LoadLithologyProfile(lithData)
+
+    // Получить литологию для всех точек
+    lithology := make([]geometry.LithologyState, len(coast))
+    for i, point := range coast {
+        lithology[i] = lithProfile.GetLithologyAt(point.Lat, point.Lon)
+    }
+
+    // Базовая эрозия от волн (м/шаг)
+    erosionRates := []float64{5.0, 4.5, 6.0, 3.5, 2.0} // пример
+
+    // Волновые данные
+    waveData := geometry.WaveEnergyData{
+        Energy:    []float64{0.7, 0.8, 0.6, 0.9, 0.5},
+        Direction: 45.0, // Волны с северо-востока
+    }
+
+    // Параметры транспорта
+    params := geometry.SedimentTransportParameters{
+        TransportCoefficient:      0.7,  // 70% идёт в транспорт
+        DepositionRate:            0.5,  // 50% избытка откладывается
+        CapacityFactor:            1.2,  // Ёмкость аккумуляции
+        LongshoreDriftCoefficient: 0.8, // Сильный alongshore drift
+    }
+
+    // Расчёт транспорта
+    result := geometry.CalculateSedimentTransport(
+        coast, erosionRates, waveData, lithology, params,
+    )
+
+    fmt.Printf("Баланс массы: %.2f м³\n", result.TotalBudget.NetChange)
+    fmt.Printf("Эрозия точек: %d\n", result.TotalBudget.ErosionPoints)
+    fmt.Printf("Аккумуляция точек: %d\n", result.TotalBudget.DepositionPoints)
+
+    // Модифицированная эрозия с учётом аккумуляции
+    modifiedErosion := geometry.ApplySedimentModification(
+        coast, erosionRates, result,
+    )
+
+    for i, modified := range modifiedErosion {
+        if modified < erosionRates[i] {
+            fmt.Printf("Точка %d: аккумуляция %.2f м\n", i, erosionRates[i]-modified)
+        }
+    }
 }
 ```
 
