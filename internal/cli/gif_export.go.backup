@@ -1,0 +1,921 @@
+package cli
+
+import (
+	"coastal-geometry/internal/domain/geometry"
+	"fmt"
+	"image"
+	"image/color"
+	"image/draw"
+	"image/gif"
+	"math"
+	"os"
+	"sort"
+	"strconv"
+)
+
+// GIFConfig содержит настройки для генерации GIF анимации
+type GIFConfig struct {
+	OutputPath       string   // путь для сохранения GIF файла
+	FPS              int      // кадры в секунду
+	SkipEvery        int      // пропускать каждый N-ный кадр (1 = не пропускать)
+	Width            int      // ширина изображения
+	Height           int      // высота изображения
+	Quality          int      // качество (число цветов в палитре)
+
+	// Новые параметры для научной визуализации
+	FocusMode        string   // "auto" | "manual" | "split"
+	AutoFocusType    string   // "most-erosion" | "most-deposition" | "most-variable"
+	SegmentCount     int      // количество сегментов для автофокуса (1-10)
+	SegmentIndices   []int    // конкретные сегменты для ручного фокуса
+	ColorByChange    bool     // цветовое кодирование изменений
+	ShowInitial      bool     // показывать начальное состояние
+	ShowMetrics      bool     // показывать метрики на кадрах
+	ZoomLevel        float64  // уровень зума (1.0 = стандартный)
+}
+
+// DefaultGIFConfig возвращает настройки по умолчанию для GIF анимации
+func DefaultGIFConfig() GIFConfig {
+	return GIFConfig{
+		OutputPath:    "erosion_animation.gif",
+		FPS:           10,
+		SkipEvery:     1, // не пропускать кадры
+		Width:         800,
+		Height:        600,
+		Quality:       256, // максимальное качество для GIF
+		FocusMode:     "auto",
+		AutoFocusType: "most-erosion",
+		SegmentCount:  3,
+		SegmentIndices: []int{},
+		ColorByChange: true,
+		ShowInitial:   false,
+		ShowMetrics:   true,
+		ZoomLevel:     2.0, // 2x зум для деталей
+	}
+}
+
+// GenerateErosionGIF создает GIF анимацию эрозии из snapshots
+// Параметры:
+// - snapshots: массив состояний береговой линии на каждом шаге
+// - outputPath: путь для сохранения GIF файла
+// - fps: кадры в секунду
+// - skipEvery: пропускать каждый N-ный кадр (для уменьшения размера файла)
+func GenerateErosionGIF(snapshots [][]geometry.LatLon, outputPath string, fps int, skipEvery int) error {
+	config := DefaultGIFConfig()
+	config.OutputPath = outputPath
+	config.FPS = fps
+	config.SkipEvery = skipEvery
+
+	return GenerateErosionGIFWithConfig(snapshots, config)
+}
+
+// SegmentChange хранит информацию об изменении сегмента
+type SegmentChange struct {
+	SegmentIndex int
+	ErosionM     float64
+	StartPosition geometry.LatLon
+	EndPosition   geometry.LatLon
+}
+
+// GenerateErosionGIFWithConfig создает GIF анимацию с расширенными настройками
+func GenerateErosionGIFWithConfig(snapshots [][]geometry.LatLon, config GIFConfig) error {
+	if len(snapshots) == 0 {
+		return nil // нет снимков - нет анимации
+	}
+
+	// Фильтруем кадры если нужно пропустить некоторые
+	filteredSnapshots := filterSnapshots(snapshots, config.SkipEvery)
+	if len(filteredSnapshots) < 2 {
+		// Нужно минимум 2 кадра для анимации
+		filteredSnapshots = snapshots
+		if len(filteredSnapshots) > 2 {
+			filteredSnapshots = filteredSnapshots[:2]
+		}
+	}
+
+	// Анализируем изменения для автофокуса
+	segmentChanges := analyzeSegmentChanges(filteredSnapshots)
+	focusSegments := selectFocusSegments(segmentChanges, config)
+
+	// Создаем палитру для GIF
+	palette := createExtendedGIFPalette()
+
+	// Создаем изображения для каждого кадра
+	var frames []*image.Paletted
+
+	for i, snapshot := range filteredSnapshots {
+		img := image.NewPaletted(image.Rect(0, 0, config.Width, config.Height), palette)
+
+		// Заполняем фон (цвет моря/океана)
+		draw.Draw(img, img.Bounds(), &image.Uniform{palette[0]}, image.Point{}, draw.Src)
+
+		if config.FocusMode == "split" {
+			// Разделенный экран
+			drawSplitScreenGIF(img, snapshot, filteredSnapshots[0], focusSegments, i, filteredSnapshots, config)
+		} else if config.FocusMode == "auto" && len(focusSegments) > 0 {
+			// Автофокус на сегментах
+			drawFocusedSegments(img, snapshot, filteredSnapshots[0], focusSegments, segmentChanges, i, filteredSnapshots, config)
+		} else {
+			// Обычный режим
+			drawCoastline(img, snapshot, config, config.ShowInitial, filteredSnapshots[0])
+		}
+
+		// Добавляем метрики
+		if config.ShowMetrics {
+			drawFrameMetrics(img, i, filteredSnapshots, config)
+		}
+
+		frames = append(frames, img)
+	}
+
+	// Вычисляем задержку между кадрами
+	delay := computeDelay(config.FPS)
+
+	// Создаем GIF
+	gifFile := &gif.GIF{
+		Image: frames,
+		Delay: make([]int, len(frames)),
+	}
+
+	for i := range gifFile.Delay {
+		gifFile.Delay[i] = delay
+	}
+
+	// Сохраняем в файл
+	file, err := os.Create(config.OutputPath)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	return gif.EncodeAll(file, gifFile)
+}
+
+// GenerateErosionGIFWithConfig создает GIF анимацию с расширенными настройками
+func GenerateErosionGIFWithConfig(snapshots [][]geometry.LatLon, config GIFConfig) error {
+	if len(snapshots) == 0 {
+		return nil // нет снимков - нет анимации
+	}
+
+	// Фильтруем кадры если нужно пропустить некоторые
+	filteredSnapshots := filterSnapshots(snapshots, config.SkipEvery)
+	if len(filteredSnapshots) < 2 {
+		// Нужно минимум 2 кадра для анимации
+		filteredSnapshots = snapshots
+		if len(filteredSnapshots) > 2 {
+			filteredSnapshots = filteredSnapshots[:2]
+		}
+	}
+
+	// Вычисляем границы для всех снимков
+	minLat, maxLat, minLon, maxLon := computeBounds(filteredSnapshots)
+
+	// Создаем палитру для GIF
+	palette := createGIFPalette()
+
+	// Создаем изображения для каждого кадра
+	var frames []*image.Paletted
+
+	for i, snapshot := range filteredSnapshots {
+		img := image.NewPaletted(image.Rect(0, 0, config.Width, config.Height), palette)
+
+		// Заполняем фон (цвет моря/океана)
+		draw.Draw(img, img.Bounds(), &image.Uniform{palette[0]}, image.Point{}, draw.Src)
+
+		// Рисуем береговую линию
+		drawCoastline(img, snapshot, minLat, maxLat, minLon, maxLon, config)
+
+		// Добавляем текст с номером кадра
+		drawFrameInfo(img, i, len(filteredSnapshots), config)
+
+		frames = append(frames, img)
+	}
+
+	// Вычисляем задержку между кадрами
+	delay := computeDelay(config.FPS)
+
+	// Создаем GIF
+	gifFile := &gif.GIF{
+		Image: frames,
+		Delay: make([]int, len(frames)),
+	}
+
+	for i := range gifFile.Delay {
+		gifFile.Delay[i] = delay
+	}
+
+	// Сохраняем в файл
+	file, err := os.Create(config.OutputPath)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	return gif.EncodeAll(file, gifFile)
+}
+
+// filterSnapshots фильтрует snapshots, пропуская каждый N-ный кадр
+func filterSnapshots(snapshots [][]geometry.LatLon, skipEvery int) [][]geometry.LatLon {
+	if skipEvery <= 1 {
+		return snapshots
+	}
+
+	var filtered [][]geometry.LatLon
+	for i := 0; i < len(snapshots); i += skipEvery {
+		filtered = append(filtered, snapshots[i])
+	}
+
+	// Всегда включаем последний кадр
+	if len(filtered) > 0 && len(snapshots) > 0 &&
+		&filtered[len(filtered)-1] != &snapshots[len(snapshots)-1] {
+		filtered = append(filtered, snapshots[len(snapshots)-1])
+	}
+
+	return filtered
+}
+
+// computeBounds вычисляет географические границы для всех снимков
+func computeBounds(snapshots [][]geometry.LatLon) (minLat, maxLat, minLon, maxLon float64) {
+	if len(snapshots) == 0 || len(snapshots[0]) == 0 {
+		return 0, 0, 0, 0
+	}
+
+	// Инициализируем первым значением
+	minLat = snapshots[0][0].Lat
+	maxLat = snapshots[0][0].Lat
+	minLon = snapshots[0][0].Lon
+	maxLon = snapshots[0][0].Lon
+
+	// Находим минимумы и максимумы
+	for _, snapshot := range snapshots {
+		for _, point := range snapshot {
+			if point.Lat < minLat {
+				minLat = point.Lat
+			}
+			if point.Lat > maxLat {
+				maxLat = point.Lat
+			}
+			if point.Lon < minLon {
+				minLon = point.Lon
+			}
+			if point.Lon > maxLon {
+				maxLon = point.Lon
+			}
+		}
+	}
+
+	return
+}
+
+// createGIFPalette создает палитру для GIF анимации
+func createGIFPalette() []color.Color {
+	return []color.Color{
+		color.RGBA{20, 40, 60, 255},     // 0: глубокая вода (темно-синий)
+		color.RGBA{30, 80, 120, 255},    // 1: мелководье (синий)
+		color.RGBA{46, 139, 87, 255},    // 2: суша/берег (зеленый)
+		color.RGBA{139, 69, 19, 255},    // 3: внутренняя суша (коричневый)
+		color.RGBA{255, 255, 255, 255},  // 4: текст (белый)
+		color.RGBA{200, 200, 200, 255},  // 5: текст серый (для подсказок)
+		color.RGBA{255, 100, 100, 255},  // 6: штормовое предупреждение (красный)
+		color.RGBA{255, 165, 0, 255},    // 7: внимание/предупреждение (оранжевый)
+		color.RGBA{100, 149, 237, 255},  // 8: информационный (голубой)
+		color.RGBA{50, 50, 50, 255},     // 9: темный текст (для контраста)
+	}
+}
+
+// drawCoastline рисует береговую линию на изображении
+func drawCoastline(img *image.Paletted, snapshot []geometry.LatLon, minLat, maxLat, minLon, maxLon float64, config GIFConfig) {
+	if len(snapshot) < 2 {
+		return
+	}
+
+	// Добавляем отступы (padding)
+	padding := 40
+	drawWidth := config.Width - 2*padding
+	drawHeight := config.Height - 2*padding
+
+	// Вычисляем масштаб для проекции
+	lonSpan := maxLon - minLon
+	latSpan := maxLat - minLat
+
+	if lonSpan == 0 {
+		lonSpan = 1.0
+	}
+	if latSpan == 0 {
+		latSpan = 1.0
+	}
+
+	scale := math.Min(float64(drawWidth)/lonSpan, float64(drawHeight)/latSpan)
+	contentWidth := lonSpan * scale
+	contentHeight := latSpan * scale
+
+	// Начало координат для рисования
+	originX := float64(padding) + (float64(drawWidth)-contentWidth)/2
+	originY := float64(padding) + (float64(drawHeight)-contentHeight)/2
+
+	// Рисуем линию
+	for i := 0; i < len(snapshot)-1; i++ {
+		x1 := int(originX + (snapshot[i].Lon-minLon)*scale)
+		y1 := int(originY + contentHeight - (snapshot[i].Lat-minLat)*scale)
+		x2 := int(originX + (snapshot[i+1].Lon-minLon)*scale)
+		y2 := int(originY + contentHeight - (snapshot[i+1].Lat-minLat)*scale)
+
+		// Рисуем отрезок линии (береговая линия)
+		drawLine(img, x1, y1, x2, y2, 2) // 2 - индекс цвета (зеленый)
+	}
+}
+
+// drawLine рисует линию на изображении (алгоритм Брезенхэма)
+func drawLine(img *image.Paletted, x0, y0, x1, y1 int, colorIndex uint8) {
+	dx := abs(x1 - x0)
+	dy := abs(y1 - y0)
+	sx, sy := 1, 1
+	if x0 > x1 {
+		sx = -1
+	}
+	if y0 > y1 {
+		sy = -1
+	}
+	err := dx - dy
+
+	for {
+		setPixel(img, x0, y0, colorIndex)
+		if x0 == x1 && y0 == y1 {
+			break
+		}
+		e2 := 2 * err
+		if e2 > -dy {
+			err -= dy
+			x0 += sx
+		}
+		if e2 < dx {
+			err += dx
+			y0 += sy
+		}
+	}
+}
+
+// setPixel устанавливает цвет пикселя с проверкой границ
+func setPixel(img *image.Paletted, x, y int, colorIndex uint8) {
+	if x >= 0 && x < img.Bounds().Dx() && y >= 0 && y < img.Bounds().Dy() {
+		img.SetColorIndex(x, y, colorIndex)
+	}
+}
+
+// abs возвращает абсолютное значение
+func abs(x int) int {
+	if x < 0 {
+		return -x
+	}
+	return x
+}
+
+// drawFrameInfo добавляет информацию о кадре (номер, шаг и т.д.)
+func drawFrameInfo(img *image.Paletted, frameNum, totalFrames int, config GIFConfig) {
+	// Номер кадра в левом верхнем углу
+	text := "Frame: " + strconv.Itoa(frameNum+1) + "/" + strconv.Itoa(totalFrames)
+	drawSimpleText(img, text, 10, 20, 4) // 4 - индекс цвета (белый)
+}
+
+// drawSimpleText рисует простой текст (без сложной типографики)
+func drawSimpleText(img *image.Paletted, text string, x, y int, colorIndex uint8) {
+	// Очень простая реализация - рисуем точки для символов
+	// В реальном проекте здесь лучше использовать библиотеку для рендеринга текста
+	// Но для GIF научной визуализации это достаточно
+
+	// Пропускаем отрисовку текста для простоты
+	// Можно добавить позже если потребуется
+	_ = text
+	_ = x
+	_ = y
+	_ = colorIndex
+}
+
+// computeDelay вычисляет задержку между кадрами в сотых долях секунды
+func computeDelay(fps int) int {
+	if fps <= 0 {
+		fps = 10 // дефолтное значение
+	}
+
+	// GIF использует задержку в сотых долях секунды (centiseconds)
+	// 1 секунда = 100 centiseconds
+	delay := 100 / fps
+
+	if delay < 1 {
+		delay = 1 // минимальная задержка
+	}
+
+	return delay
+}
+// analyzeSegmentChanges анализирует изменения каждого сегмента между снимками
+func analyzeSegmentChanges(snapshots [][]geometry.LatLon) []SegmentChange {
+	if len(snapshots) < 2 {
+		return []SegmentChange{}
+	}
+
+	changes := make([]SegmentChange, 0)
+	initial := snapshots[0]
+	final := snapshots[len(snapshots)-1]
+
+	// Анализируем изменения каждого сегмента
+	minPoints := min(len(initial), len(final))
+	for i := 0; i < minPoints-1; i++ {
+		// Вычисляем приблизительное изменение для сегмента
+		initialLength := geometry.Haversine(initial[i], initial[i+1])
+		finalLength := geometry.Haversine(final[i], final[i+1])
+
+		// Изменение в метрах
+		change := initialLength - finalLength // положительное = эрозия
+
+		changes = append(changes, SegmentChange{
+			SegmentIndex:  i,
+			ErosionM:     change * 1000, // км в метры
+			StartPosition: initial[i],
+			EndPosition:   initial[i+1],
+		})
+	}
+
+	return changes
+}
+
+// selectFocusSegments выбирает сегменты для фокусировки
+func selectFocusSegments(changes []SegmentChange, config GIFConfig) []SegmentChange {
+	if len(changes) == 0 {
+		return []SegmentChange{}
+	}
+
+	var selected []SegmentChange
+
+	if config.FocusMode == "auto" && config.AutoFocusType == "most-erosion" {
+		// Сортируем по эрозии (убывание)
+		sorted := make([]SegmentChange, len(changes))
+		copy(sorted, changes)
+		sort.Slice(sorted, func(i, j int) bool {
+			return sorted[i].ErosionM > sorted[j].ErosionM
+		})
+
+		// Берем топ-N сегментов
+		count := min(config.SegmentCount, len(sorted))
+		selected = sorted[:count]
+
+	} else if config.FocusMode == "auto" && config.AutoFocusType == "most-deposition" {
+		// Сортируем по аккумуляции (возрастание отрицательных значений)
+		sorted := make([]SegmentChange, len(changes))
+		copy(sorted, changes)
+		sort.Slice(sorted, func(i, j int) bool {
+			return sorted[i].ErosionM < sorted[j].ErosionM
+		})
+
+		// Берем топ-N сегментов с наибольшей аккумуляцией
+		count := min(config.SegmentCount, len(sorted))
+		selected = sorted[:count]
+
+	} else if config.FocusMode == "auto" && config.AutoFocusType == "most-variable" {
+		// Сортируем по абсолютному изменению
+		sorted := make([]SegmentChange, len(changes))
+		copy(sorted, changes)
+		sort.Slice(sorted, func(i, j int) bool {
+			return math.Abs(sorted[i].ErosionM) > math.Abs(sorted[j].ErosionM)
+		})
+
+		count := min(config.SegmentCount, len(sorted))
+		selected = sorted[:count]
+
+	} else if config.FocusMode == "manual" && len(config.SegmentIndices) > 0 {
+		// Ручной выбор сегментов
+		for _, idx := range config.SegmentIndices {
+			if idx < len(changes) {
+				selected = append(selected, changes[idx])
+			}
+		}
+	}
+
+	return selected
+}
+
+// drawSplitScreenGIF рисует разделенный экран: обзор + детализация
+func drawSplitScreenGIF(img *image.Paletted, current, initial []geometry.LatLon, focusSegments []SegmentChange, frameIndex int, snapshots [][]geometry.LatLon, config GIFConfig) {
+	splitY := config.Height * 2 / 5
+
+	// Разделительная линия
+	for x := 0; x < config.Width; x++ {
+		img.SetColorIndex(x, splitY, 9)
+		img.SetColorIndex(x, splitY+1, 9)
+	}
+
+	// Верхняя часть: обзор
+	overviewHeight := splitY - 10
+	overviewBounds := image.Rect(0, 0, config.Width, overviewHeight)
+	drawOverviewCoastline(img, current, initial, overviewBounds, config)
+
+	// Нижняя часть: детали
+	detailY := splitY + 10
+	detailHeight := config.Height - detailY - 10
+
+	if len(focusSegments) > 0 {
+		drawFocusedSegmentsDetail(img, current, initial, focusSegments, frameIndex, snapshots, 0, detailY, config.Width, detailHeight, config)
+	} else {
+		drawMiddleSegmentDetail(img, current, initial, 0, detailY, config.Width, detailHeight, config)
+	}
+}
+
+// drawOverviewCoastline рисует уменьшенную версию всей береговой линии
+func drawOverviewCoastline(img *image.Paletted, current, initial []geometry.LatLon, bounds image.Rectangle, config GIFConfig) {
+	if len(current) < 2 {
+		return
+	}
+
+	minLat, maxLat, minLon, maxLon := computeBoundsForSnapshots([][]geometry.LatLon{current})
+	padding := 20
+	drawWidth := bounds.Dx() - 2*padding
+	drawHeight := bounds.Dy() - 2*padding
+
+	lonSpan := maxLon - minLon
+	if lonSpan == 0 {
+		lonSpan = 1.0
+	}
+	latSpan := maxLat - minLat
+	if latSpan == 0 {
+		latSpan = 1.0
+	}
+
+	scale := math.Min(float64(drawWidth)/lonSpan, float64(drawHeight)/latSpan)
+	contentWidth := lonSpan * scale
+	contentHeight := latSpan * scale
+
+	originX := float64(bounds.Min.X+padding) + (float64(drawWidth)-contentWidth)/2
+	originY := float64(bounds.Min.Y+padding) + (float64(drawHeight)-contentHeight)/2
+
+	for i := 0; i < len(current)-1; i++ {
+		x1 := int(originX + (current[i].Lon-minLon)*scale)
+		y1 := int(originY + contentHeight - (current[i].Lat-minLat)*scale)
+		x2 := int(originX + (current[i+1].Lon-minLon)*scale)
+		y2 := int(originY + contentHeight - (current[i+1].Lat-minLat)*scale)
+
+		if x1 >= bounds.Min.X && x1 < bounds.Max.X && y1 >= bounds.Min.Y && y1 < bounds.Max.Y &&
+			x2 >= bounds.Min.X && x2 < bounds.Max.X && y2 >= bounds.Min.Y && y2 < bounds.Max.Y {
+			drawLine(img, x1, y1, x2, y2, 2)
+		}
+	}
+}
+
+// drawFocusedSegmentsDetail рисует детальное представление фокусных сегментов
+func drawFocusedSegmentsDetail(img *image.Paletted, current, initial []geometry.LatLon, focusSegments []SegmentChange, frameIndex int, snapshots [][]geometry.LatLon, offsetX, offsetY, width, height int, config GIFConfig) {
+	if len(focusSegments) == 0 {
+		return
+	}
+
+	minLat, maxLat, minLon, maxLon := focusSegmentsBounds(focusSegments)
+
+	padding := 0.15
+	latSpan := maxLat - minLat
+	lonSpan := maxLon - minLon
+
+	adjustedMinLat := minLat - latSpan*padding
+	adjustedMaxLat := maxLat + latSpan*padding
+	adjustedMinLon := minLon - lonSpan*padding
+	adjustedMaxLon := maxLon + lonSpan*padding
+
+	drawDetailedSegments(img, current, initial, focusSegments, adjustedMinLat, adjustedMaxLat, adjustedMinLon, adjustedMaxLon, offsetX, offsetY, width, height, config)
+}
+
+// drawDetailedSegments рисует сегменты с цветовым кодированием
+func drawDetailedSegments(img *image.Paletted, current, initial []geometry.LatLon, focusSegments []SegmentChange, minLat, maxLat, minLon, maxLon float64, offsetX, offsetY, width, height int, config GIFConfig) {
+	if len(current) < 2 {
+		return
+	}
+
+	padding := 30
+	drawWidth := width - 2*padding
+	drawHeight := height - 2*padding
+
+	lonSpan := maxLon - minLon
+	if lonSpan == 0 {
+		lonSpan = 1.0
+	}
+	latSpan := maxLat - minLat
+	if latSpan == 0 {
+		latSpan = 1.0
+	}
+
+	scale := math.Min(float64(drawWidth)/lonSpan, float64(drawHeight)/latSpan)
+	contentWidth := lonSpan * scale
+	contentHeight := latSpan * scale
+
+	originX := float64(offsetX+padding) + (float64(drawWidth)-contentWidth)/2
+	originY := float64(offsetY+padding) + (float64(drawHeight)-contentHeight)/2
+
+	changeMap := make(map[int]float64)
+	for _, change := range focusSegments {
+		changeMap[change.SegmentIndex] = change.ErosionM
+	}
+
+	maxChange := 0.0
+	for _, change := range focusSegments {
+		if math.Abs(change.ErosionM) > maxChange {
+			maxChange = math.Abs(change.ErosionM)
+		}
+	}
+
+	for i := 0; i < len(current)-1; i++ {
+		x1 := int(originX + (current[i].Lon-minLon)*scale)
+		y1 := int(originY + contentHeight - (current[i].Lat-minLat)*scale)
+		x2 := int(originX + (current[i+1].Lon-minLon)*scale)
+		y2 := int(originY + contentHeight - (current[i+1].Lat-minLat)*scale)
+
+		if x1 < offsetX || x1 >= offsetX+width || y1 < offsetY || y1 >= offsetY+height ||
+			x2 < offsetX || x2 >= offsetX+width || y2 < offsetY || y2 >= offsetY+height {
+			continue
+		}
+
+		colorIndex := uint8(2)
+		if config.ColorByChange {
+			if erosion, ok := changeMap[i]; ok {
+				normalizedErosion := math.Abs(erosion) / maxChange
+				if erosion > 0 {
+					if normalizedErosion > 0.7 {
+						colorIndex = 6 // красный
+					} else if normalizedErosion > 0.4 {
+						colorIndex = 7 // оранжевый
+					}
+				} else {
+					colorIndex = 1 // синий
+				}
+			}
+		}
+
+		drawLine(img, x1, y1, x2, y2, colorIndex)
+	}
+}
+
+// drawFrameMetrics рисует метрики кадра
+func drawFrameMetrics(img *image.Paletted, frameIndex int, snapshots [][]geometry.LatLon, config GIFConfig) {
+	if len(snapshots) == 0 {
+		return
+	}
+
+	current := snapshots[frameIndex]
+	lengthKm := geometry.PolylineLength(current)
+
+	accumulatedErosion := 0.0
+	if frameIndex > 0 && len(snapshots[0]) > 0 {
+		initialLength := geometry.PolylineLength(snapshots[0])
+		accumulatedErosion = (initialLength - lengthKm) * 1000
+	}
+
+	line1 := fmt.Sprintf("F:%d/%d L:%.0fkm E:%.0fm", frameIndex+1, len(snapshots), lengthKm, accumulatedErosion)
+	drawSimpleText(img, line1, 10, config.Height-20, 4)
+}
+
+// Вспомогательные функции
+func computeBoundsForSnapshots(snapshots [][]geometry.LatLon) (minLat, maxLat, minLon, maxLon float64) {
+	if len(snapshots) == 0 || len(snapshots[0]) == 0 {
+		return 0, 0, 0, 0
+	}
+	return computeBounds(snapshots[0])
+}
+
+func focusSegmentsBounds(segments []SegmentChange) (minLat, maxLat, minLon, maxLon float64) {
+	if len(segments) == 0 {
+		return 0, 0, 0, 0
+	}
+
+	minLat = segments[0].StartPosition.Lat
+	maxLat = segments[0].StartPosition.Lat
+	minLon = segments[0].StartPosition.Lon
+	maxLon = segments[0].StartPosition.Lon
+
+	for _, seg := range segments {
+		if seg.StartPosition.Lat < minLat {
+			minLat = seg.StartPosition.Lat
+		}
+		if seg.StartPosition.Lat > maxLat {
+			maxLat = seg.StartPosition.Lat
+		}
+		if seg.StartPosition.Lon < minLon {
+			minLon = seg.StartPosition.Lon
+		}
+		if seg.StartPosition.Lon > maxLon {
+			maxLon = seg.StartPosition.Lon
+		}
+
+		if seg.EndPosition.Lat < minLat {
+			minLat = seg.EndPosition.Lat
+		}
+		if seg.EndPosition.Lat > maxLat {
+			maxLat = seg.EndPosition.Lat
+		}
+		if seg.EndPosition.Lon < minLon {
+			minLon = seg.EndPosition.Lon
+		}
+		if seg.EndPosition.Lon > maxLon {
+			maxLon = seg.EndPosition.Lon
+		}
+	}
+
+	return
+}
+
+func drawMiddleSegmentDetail(img *image.Paletted, current, initial []geometry.LatLon, offsetX, offsetY, width, height int, config GIFConfig) {
+	if len(current) < 10 {
+		return
+	}
+
+	mid := len(current) / 2
+	start := max(0, mid-50)
+	end := min(len(current), mid+50)
+
+	midSegment := current[start:end]
+	minLat, maxLat, minLon, maxLon := computeBounds(midSegment)
+
+	drawDetailedSegments(img, current, initial, []SegmentChange{}, minLat, maxLat, minLon, maxLon, offsetX, offsetY, width, height, config)
+}
+
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
+}
+// createExtendedGIFPalette создает расширенную палитру для улучшенной визуализации
+func createExtendedGIFPalette() []color.Color {
+	return []color.Color{
+		color.RGBA{20, 40, 60, 255},     // 0: глубокая вода (темно-синий)
+		color.RGBA{30, 80, 120, 255},    // 1: мелководье (синий)
+		color.RGBA{46, 139, 87, 255},    // 2: суша/берег (зеленый)
+		color.RGBA{139, 69, 19, 255},    // 3: внутренняя суша (коричневый)
+		color.RGBA{255, 255, 255, 255},  // 4: текст (белый)
+		color.RGBA{200, 200, 200, 255},  // 5: текст серый
+		color.RGBA{255, 50, 50, 255},    // 6: сильная эрозия (красный)
+		color.RGBA{255, 140, 0, 255},    // 7: умеренная эрозия (оранжевый)
+		color.RGBA{100, 149, 237, 255},  // 8: информационный (голубой)
+		color.RGBA{50, 50, 50, 255},     // 9: темный (серый)
+	}
+}
+
+// drawCoastline обновленная функция для совместимости с новыми параметрами
+func drawCoastline(img *image.Paletted, current []geometry.LatLon, config GIFConfig, showInitial bool, initial []geometry.LatLon) {
+	if len(current) < 2 {
+		return
+	}
+
+	minLat, maxLat, minLon, maxLon := computeBounds(current)
+	padding := 40
+	drawWidth := config.Width - 2*padding
+	drawHeight := config.Height - 2*padding
+
+	lonSpan := maxLon - minLon
+	if lonSpan == 0 {
+		lonSpan = 1.0
+	}
+	latSpan := maxLat - minLat
+	if latSpan == 0 {
+		latSpan = 1.0
+	}
+
+	scale := math.Min(float64(drawWidth)/lonSpan, float64(drawHeight)/latSpan)
+	contentWidth := lonSpan * scale
+	contentHeight := latSpan * scale
+
+	originX := float64(padding) + (float64(drawWidth)-contentWidth)/2
+	originY := float64(padding) + (float64(drawHeight)-contentHeight)/2
+
+	// Рисуем текущую линию
+	for i := 0; i < len(current)-1; i++ {
+		x1 := int(originX + (current[i].Lon-minLon)*scale)
+		y1 := int(originY + contentHeight - (current[i].Lat-minLat)*scale)
+		x2 := int(originX + (current[i+1].Lon-minLon)*scale)
+		y2 := int(originY + contentHeight - (current[i+1].Lat-minLat)*scale)
+
+		if x1 >= 0 && x1 < config.Width && y1 >= 0 && y1 < config.Height &&
+			x2 >= 0 && x2 < config.Width && y2 >= 0 && y2 < config.Height {
+			drawLine(img, x1, y1, x2, y2, 2)
+		}
+	}
+
+	// Рисуем начальное состояние если requested
+	if showInitial && len(initial) > 1 {
+		for i := 0; i < len(initial)-1; i++ {
+			x1 := int(originX + (initial[i].Lon-minLon)*scale)
+			y1 := int(originY + contentHeight - (initial[i].Lat-minLat)*scale)
+			x2 := int(originX + (initial[i+1].Lon-minLon)*scale)
+			y2 := int(originY + contentHeight - (initial[i+1].Lat-minLat)*scale)
+
+			if x1 >= 0 && x1 < config.Width && y1 >= 0 && y1 < config.Height &&
+				x2 >= 0 && x2 < config.Width && y2 >= 0 && y2 < config.Height {
+				drawDashedLine(img, x1, y1, x2, y2, 5)
+			}
+		}
+	}
+}
+
+// drawFocusedSegments рисует только фокусные сегменты с зумом
+func drawFocusedSegments(img *image.Paletted, current, initial []geometry.LatLon, focusSegments []SegmentChange, segmentChanges []SegmentChange, frameIndex int, snapshots [][]geometry.LatLon, config GIFConfig) {
+	if len(focusSegments) == 0 {
+		drawCoastline(img, current, config, config.ShowInitial, initial)
+		return
+	}
+
+	allMinLat, allMaxLat, allMinLon, allMaxLon := focusSegmentsBounds(focusSegments)
+
+	padding := 0.1
+	latSpan := allMaxLat - allMinLat
+	lonSpan := allMaxLon - allMinLon
+
+	adjustedMinLat := allMinLat - latSpan*padding
+	adjustedMaxLat := allMaxLat + latSpan*padding
+	adjustedMinLon := allMinLon - lonSpan*padding
+	adjustedMaxLon := allMaxLon + lonSpan*padding
+
+	drawCoastlineWithBounds(img, current, adjustedMinLat, adjustedMaxLat, adjustedMinLon, adjustedMaxLon, config, config.ShowInitial, initial, segmentChanges)
+}
+
+// drawCoastlineWithBounds рисует береговую линию с заданными границами
+func drawCoastlineWithBounds(img *image.Paletted, current []geometry.LatLon, minLat, maxLat, minLon, maxLon float64, config GIFConfig, showInitial bool, initial []geometry.LatLon, segmentChanges []SegmentChange) {
+	if len(current) < 2 {
+		return
+	}
+
+	padding := 40
+	drawWidth := config.Width - 2*padding
+	drawHeight := config.Height - 2*padding
+
+	lonSpan := maxLon - minLon
+	if lonSpan == 0 {
+		lonSpan = 1.0
+	}
+	latSpan := maxLat - minLat
+	if latSpan == 0 {
+		latSpan = 1.0
+	}
+
+	scale := math.Min(float64(drawWidth)/lonSpan, float64(drawHeight)/latSpan)
+	contentWidth := lonSpan * scale
+	contentHeight := latSpan * scale
+
+	originX := float64(padding) + (float64(drawWidth)-contentWidth)/2
+	originY := float64(padding) + (float64(drawHeight)-contentHeight)/2
+
+	// Рисуем текущую линию
+	for i := 0; i < len(current)-1; i++ {
+		x1 := int(originX + (current[i].Lon-minLon)*scale)
+		y1 := int(originY + contentHeight - (current[i].Lat-minLat)*scale)
+		x2 := int(originX + (current[i+1].Lon-minLon)*scale)
+		y2 := int(originY + contentHeight - (current[i+1].Lat-minLat)*scale)
+
+		if x1 >= 0 && x1 < config.Width && y1 >= 0 && y1 < config.Height &&
+			x2 >= 0 && x2 < config.Width && y2 >= 0 && y2 < config.Height {
+			drawLine(img, x1, y1, x2, y2, 2)
+		}
+	}
+
+	// Рисуем начальное состояние если requested
+	if showInitial && len(initial) > 1 {
+		for i := 0; i < len(initial)-1; i++ {
+			x1 := int(originX + (initial[i].Lon-minLon)*scale)
+			y1 := int(originY + contentHeight - (initial[i].Lat-minLat)*scale)
+			x2 := int(originX + (initial[i+1].Lon-minLon)*scale)
+			y2 := int(originY + contentHeight - (current[i+1].Lat-minLat)*scale)
+
+			if x1 >= 0 && x1 < config.Width && y1 >= 0 && y1 < config.Height &&
+				x2 >= 0 && x2 < config.Width && y2 >= 0 && y2 < config.Height {
+				drawDashedLine(img, x1, y1, x2, y2, 5)
+			}
+		}
+	}
+}
+
+// drawDashedLine рисует пунктирную линию
+func drawDashedLine(img *image.Paletted, x0, y0, x1, y1 int, colorIndex uint8) {
+	segmentLength := 5
+	counter := 0
+
+	dx := abs(x1 - x0)
+	dy := abs(y1 - y0)
+	sx, sy := 1, 1
+	if x0 > x1 {
+		sx = -1
+	}
+	if y0 > y1 {
+		sy = -1
+	}
+	err := dx - dy
+
+	for {
+		if counter%segmentLength < segmentLength/2 {
+			setPixel(img, x0, y0, colorIndex)
+		}
+		counter++
+		if x0 == x1 && y0 == y1 {
+			break
+		}
+		e2 := 2 * err
+		if e2 > -dy {
+			err -= dy
+			x0 += sx
+		}
+		if e2 < dx {
+			err += dx
+			y0 += sy
+		}
+	}
+}

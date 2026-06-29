@@ -241,5 +241,44 @@ func runErosionCommand(app *App) error {
 		fmt.Println()
 	}
 
-	return writeErosionSVGSeries(app.Base, app.ModelBase, snapshots, steps, strength, seed, waveOptions, app.Config.OutputPath, newExportContext(app), app.OutputPaths)
+		// Export GIF animation if requested
+		if app.Config.OutputGIF != "" {
+			gifPath := app.OutputPaths.ResolveUserPath(app.Config.OutputGIF, "gif")
+			fmt.Printf("  🎬 Генерация GIF анимации: %s\n", gifPath)
+
+			// Создаем конфигурацию GIF с новыми параметрами
+			gifConfig := DefaultGIFConfig()
+			gifConfig.OutputPath = gifPath
+			gifConfig.FPS = app.Config.GIFFPS
+			gifConfig.SkipEvery = app.Config.GIFSkip
+			gifConfig.ColorByChange = app.Config.GIFColorByChange
+			gifConfig.ShowInitial = app.Config.GIFShowInitial
+			gifConfig.ShowMetrics = app.Config.GIFShowMetrics
+				gifConfig.ScaleBarKM = app.Config.GIFScaleBarKM
+				gifConfig.ShowColorLegend = app.Config.GIFShowColorLegend
+				gifConfig.ColorLegendPos = app.Config.GIFColorLegendPos
+
+				gifConfig.GeoLabels = app.Config.GIFGeoLabels
+				gifConfig.ShowTimeStamp = app.Config.GIFShowTimeStamp
+				gifConfig.Width = app.Config.GIFWidth
+				gifConfig.Height = app.Config.GIFHeight
+				if useTemporalDynamics {
+				gifConfig.Colors = app.Config.GIFColors
+				gifConfig.Compression = app.Config.GIFCompression
+					gifConfig.TemporalStates = temporalResult.TemporalStates
+				}
+			if err := GenerateErosionGIFWithConfig(snapshots, gifConfig); err != nil {
+				fmt.Printf("  ⚠️  Ошибка генерации GIF: %v\n", err)
+			} else {
+				colorMode := "цвет"
+				if !app.Config.GIFColorByChange {
+					colorMode = "монохром"
+				}
+				fmt.Printf("  ✓ GIF анимация успешно создана (%d FPS, %dx, %s)\n",
+					app.Config.GIFFPS, app.Config.GIFSkip, colorMode)
+			}
+			fmt.Println()
+		}
+
+		return writeErosionSVGSeries(app.Base, app.ModelBase, snapshots, steps, strength, seed, waveOptions, app.Config.OutputPath, newExportContext(app), app.OutputPaths)
 }

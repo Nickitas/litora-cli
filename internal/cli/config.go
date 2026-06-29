@@ -56,6 +56,23 @@ type config struct {
 	// CSV export parameters
 	OutputCSV              string
 	CSVFormat              string
+	// GIF animation parameters
+	OutputGIF              string
+	GIFFPS                 int
+	GIFSkip                int
+	GIFColorByChange       bool
+	GIFShowInitial         bool
+	GIFShowMetrics         bool
+	GIFShowScaleBar        bool
+	GIFShowColorLegend     bool
+	GIFScaleBarKM          float64
+	GIFColorLegendPos      string
+	GIFGeoLabels           string
+	GIFShowTimeStamp      bool     // показывать временные метки на кадрах
+	GIFWidth             int      // ширина GIF в пикселях (0 = auto 1200)
+	GIFHeight            int      // высота GIF в пикселях (0 = auto 800)
+	GIFColors           int      // количество цветов в палитре (0 = auto 16)
+	GIFCompression      string   // уровень сжатия (low|medium|high)
 }
 
 func parseConfig(args []string, stdout, stderr io.Writer) (config, error) {
@@ -125,6 +142,22 @@ func parseConfig(args []string, stdout, stderr io.Writer) (config, error) {
 		// CSV export flags
 		fs.StringVar(&cfg.OutputCSV, "output-csv", "erosion_metrics.csv", "path to CSV file for erosion metrics export (default: erosion_metrics.csv)")
 		fs.StringVar(&cfg.CSVFormat, "csv-format", "long", "CSV format: 'long' (one row per step) or 'wide' (one row with step columns)")
+		// GIF animation flags
+		fs.StringVar(&cfg.OutputGIF, "output-gif", "", "path to GIF file for erosion animation (empty disables GIF export)")
+		fs.IntVar(&cfg.GIFFPS, "gif-fps", 10, "GIF animation frames per second (1-30)")
+		fs.IntVar(&cfg.GIFSkip, "gif-skip", 1, "skip every N frames to reduce GIF size (1 = don't skip)")
+		fs.BoolVar(&cfg.GIFColorByChange, "gif-color-change", true, "enable color coding by erosion/deposition intensity")
+		fs.BoolVar(&cfg.GIFShowInitial, "gif-show-initial", true, "show initial coastline state (gray line)")
+			fs.BoolVar(&cfg.GIFShowScaleBar, "gif-show-scalebar", true, "show scale bar on GIF (important for scientific publications)")
+		fs.Float64Var(&cfg.GIFScaleBarKM, "gif-scalebar-km", 0, "scale bar length in km (0 = auto-detect)" )
+			fs.StringVar(&cfg.GIFColorLegendPos, "gif-colorlegend-pos", "right", "color legend position (right|bottom|none)")
+			fs.IntVar(&cfg.GIFColors, "gif-colors", 0, "number of palette colors (0 = auto 16, 4-256)")
+			fs.StringVar(&cfg.GIFCompression, "gif-compression", "medium", "compression level (low|medium|high)")
+			fs.IntVar(&cfg.GIFWidth, "gif-width", 1200, "GIF width in pixels (0 = auto 1200)")
+			fs.IntVar(&cfg.GIFHeight, "gif-height", 800, "GIF height in pixels (0 = auto 800)")
+			fs.BoolVar(&cfg.GIFShowTimeStamp, "gif-show-timestamp", true, "show time stamps (years, storms) on GIF frames")
+			fs.StringVar(&cfg.GIFGeoLabels, "gif-geo-labels", "major", "geographic labels (none|major|all)")
+		fs.BoolVar(&cfg.GIFShowMetrics, "gif-show-metrics", true, "show frame metrics (length, erosion)")
 		fs.Usage = func() { printBanner(stdout); printCommandUsage(stdout, command) }
 	case cmdCoastline:
 		fs.StringVar(&cfg.InputPath, "input", coastline.DefaultCoastlineJSONPath, "path to local coastline JSON/GeoJSON fallback file")
@@ -179,6 +212,23 @@ func parseConfig(args []string, stdout, stderr io.Writer) (config, error) {
 		// CSV export flags
 		fs.StringVar(&cfg.OutputCSV, "output-csv", "erosion_metrics.csv", "path to CSV file for erosion metrics export (default: erosion_metrics.csv)")
 		fs.StringVar(&cfg.CSVFormat, "csv-format", "long", "CSV format: 'long' (one row per step) or 'wide' (one row with step columns)")
+		// GIF animation flags
+		fs.StringVar(&cfg.OutputGIF, "output-gif", "", "path to GIF file for erosion animation (empty disables GIF export)")
+		fs.BoolVar(&cfg.GIFShowColorLegend, "gif-show-colorlegend", true, "show color legend on GIF")
+			fs.StringVar(&cfg.GIFColorLegendPos, "gif-colorlegend-pos", "right", "color legend position (right|bottom|none)")
+			fs.StringVar(&cfg.GIFGeoLabels, "gif-geo-labels", "major", "geographic labels (none|major|all)")
+			fs.BoolVar(&cfg.GIFShowScaleBar, "gif-show-scalebar", true, "show scale bar on GIF (important for scientific publications)")
+		fs.IntVar(&cfg.GIFFPS, "gif-fps", 10, "GIF animation frames per second (1-30)")
+		fs.IntVar(&cfg.GIFSkip, "gif-skip", 1, "skip every N frames to reduce GIF size (1 = don't skip)")
+		fs.Float64Var(&cfg.GIFScaleBarKM, "gif-scalebar-km", 0, "scale bar length in km (0 = auto-detect)")
+		fs.BoolVar(&cfg.GIFColorByChange, "gif-color-change", true, "enable color coding by erosion/deposition intensity")
+		fs.BoolVar(&cfg.GIFShowInitial, "gif-show-initial", true, "show initial coastline state (gray line)")
+		fs.IntVar(&cfg.GIFColors, "gif-colors", 0, "number of palette colors (0 = auto 16, 4-256)")
+		fs.StringVar(&cfg.GIFCompression, "gif-compression", "medium", "compression level (low|medium|high)")
+		fs.BoolVar(&cfg.GIFShowMetrics, "gif-show-metrics", true, "show frame metrics (length, erosion)")
+		fs.BoolVar(&cfg.GIFShowTimeStamp, "gif-show-timestamp", true, "show time stamps (years, storms) on GIF frames")
+		fs.IntVar(&cfg.GIFWidth, "gif-width", 1200, "GIF width in pixels (0 = auto 1200)")
+		fs.IntVar(&cfg.GIFHeight, "gif-height", 800, "GIF height in pixels (0 = auto 800)")
 		fs.Usage = func() { printBanner(stdout); printCommandUsage(stdout, command) }
 	}
 
@@ -234,6 +284,18 @@ func parseConfig(args []string, stdout, stderr io.Writer) (config, error) {
 	}
 	if cfg.OutputCSV != "" && cfg.CSVFormat != "long" && cfg.CSVFormat != "wide" {
 		return config{}, fmt.Errorf("csv-format must be 'long' or 'wide'")
+	}
+	if cfg.GIFFPS < 0 || cfg.GIFFPS > 30 {
+		return config{}, fmt.Errorf("gif-fps must be between 0 and 30")
+	}
+	if cfg.GIFSkip < 1 {
+		return config{}, fmt.Errorf("gif-skip must be >= 1")
+	}
+	if cfg.GIFColors != 0 && (cfg.GIFColors < 4 || cfg.GIFColors > 256) {
+		return config{}, fmt.Errorf("gif-colors must be between 4 and 256 (0 for auto)")
+	}
+	if cfg.GIFCompression != "low" && cfg.GIFCompression != "medium" && cfg.GIFCompression != "high" {
+		return config{}, fmt.Errorf("gif-compression must be low, medium, or high")
 	}
 
 	return cfg, nil

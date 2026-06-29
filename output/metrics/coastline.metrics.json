@@ -1,12 +1,12 @@
 {
-  "generated_at": "2026-06-20T18:30:41Z",
+  "generated_at": "2026-06-25T20:59:42Z",
   "command": "all",
   "dataset": "Black Sea",
-  "source": "data/cache/black-sea.geojson (cached copy of https://geo.vliz.be/geoserver/MarineRegions/wfs?cql_filter=mrgid%3D3319\u0026outputFormat=application%2Fjson\u0026request=GetFeature\u0026service=WFS\u0026typeName=iho\u0026version=1.0.0)",
-  "svg_file": "output/svg/output",
+  "source": "data\\cache\\black-sea.geojson (cached copy of https://geo.vliz.be/geoserver/MarineRegions/wfs?cql_filter=mrgid%3D3319\u0026outputFormat=application%2Fjson\u0026request=GetFeature\u0026service=WFS\u0026typeName=iho\u0026version=1.0.0)",
+  "svg_file": "output\\svg\\coastline.svg",
   "real": {
     "points_count": 9635,
-    "length_km": 6391.057193562526
+    "length_km": 6391.057193562525
   },
   "render": {
     "points_count": 3199,
@@ -16,10 +16,10 @@
     "applied": true,
     "points_before": 9635,
     "points_after": 3199,
-    "length_before_km": 6391.057193562526,
+    "length_before_km": 6391.057193562525,
     "length_after_km": 6147.317252361425,
-    "length_delta_km": -243.73994120110092,
-    "length_delta_percent": -3.8137656074586705
+    "length_delta_km": -243.7399412011,
+    "length_delta_percent": -3.8137656074586563
   },
   "highlights": {
     "long_segments": []
