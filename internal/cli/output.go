@@ -46,7 +46,8 @@ func writeCoastlineSVG(points, renderPoints []geometry.LatLon, output, defaultNa
 	visualHints := coastline.BuildVisualizationHints(points)
 	validationSummary := coastline.BuildValidationSummary(points)
 
-	if err := svgrender.DrawDocument(svgrender.Document{
+	// Build base document
+	doc := svgrender.Document{
 		Title:    "Береговая линия",
 		Subtitle: "Реальные загруженные данные: исходная географическая полилиния; SVG использует упрощённую копию только для рендера",
 		Layers: []svgrender.Layer{
@@ -70,8 +71,19 @@ func writeCoastlineSVG(points, renderPoints []geometry.LatLon, output, defaultNa
 			fmt.Sprintf("Подсвечено длинных сегментов: %d", len(visualHints.LongSegments)),
 			fmt.Sprintf("Валидация: %d исправлений, %d предупреждений", len(ctx.Validation.Fixes), len(ctx.Validation.Warnings)),
 		},
-	}, filename); err != nil {
-		return err
+	}
+
+	// Wrap with enhanced options if enabled
+	enhancedDoc := wrapDocumentForEnhanced(doc, ctx.Config, points, 0)
+
+	if ctx.Config.EnableEnhanced {
+		if err := svgrender.DrawEnhancedSVG(enhancedDoc, filename); err != nil {
+			return err
+		}
+	} else {
+		if err := svgrender.DrawDocument(doc, filename); err != nil {
+			return err
+		}
 	}
 
 	metricsPath := outputPathManager.MetricsPath("coastline.metrics.json")
@@ -165,15 +177,26 @@ func writeErosionSVGSeries(originalBase, modelBase []geometry.LatLon, snapshots 
 		meta = append(meta, fmt.Sprintf("Эрозия: базовый отступ %.0f м, seed=%d", strength, seed))
 		meta = append(meta, fmt.Sprintf("Волны: %.0f° от севера, ветер %.1f м/с, сектор ±%.0f°, fetch <= %.0f км", waveOptions.WindSourceDirectionDeg, waveOptions.WindSpeedMetersPerSecond, waveOptions.FetchSpreadDeg, waveOptions.MaxFetchMeters/1000))
 
-		if err := svgrender.DrawDocument(svgrender.Document{
-			Title:     fmt.Sprintf("Эрозия — шаг %d", step),
-			Subtitle:  "Серая пунктирная линия показывает реальную загруженную береговую линию; цветные слои — результаты пошаговой эрозии",
-			Layers:    layers,
-			StatCards: makeValidationStatCards(ctx.Validation, validationSummary),
-			Meta:      meta,
-		}, filename); err != nil {
-			return err
-		}
+			// Build document and apply enhanced options if enabled
+			doc := svgrender.Document{
+				Title:     fmt.Sprintf("Эрозия — шаг %d", step),
+				Subtitle:  "Серая пунктирная линия показывает реальную загруженную береговую линию; цветные слои — результаты пошаговой эрозии",
+				Layers:    layers,
+				StatCards: makeValidationStatCards(ctx.Validation, validationSummary),
+				Meta:      meta,
+			}
+
+			if ctx.Config.EnableEnhanced {
+				// Use enhanced options with current step's reference points
+				enhancedDoc := wrapDocumentForEnhanced(doc, ctx.Config, referenceRender, waveOptions.WindSourceDirectionDeg)
+				if err := svgrender.DrawEnhancedSVG(enhancedDoc, filename); err != nil {
+					return err
+				}
+			} else {
+				if err := svgrender.DrawDocument(doc, filename); err != nil {
+					return err
+				}
+			}
 
 		stepMetrics = append(stepMetrics, erosionStepMetrics{
 			Step:         step,
@@ -305,16 +328,27 @@ func writeFractalSeries(opts fractalSeriesOptions, output string, ctx exportCont
 				opts.OrganicOptions.Seed, opts.OrganicOptions.AngleJitterDeg, opts.OrganicOptions.HeightJitterPct*100)
 		}
 
-		if err := svgrender.DrawDocument(svgrender.Document{
-			Title:     fmt.Sprintf("%s — итерация %d", opts.Title, iter),
-			Subtitle:  subtitle,
-			Layers:    layers,
-			StatCards: makeValidationStatCards(ctx.Validation, validationSummary),
-			Charts:    charts,
-			Meta:      meta,
-		}, filename); err != nil {
-			return err
-		}
+			// Build document and apply enhanced options if enabled
+			doc := svgrender.Document{
+				Title:     fmt.Sprintf("%s — итерация %d", opts.Title, iter),
+				Subtitle:  subtitle,
+				Layers:    layers,
+				StatCards: makeValidationStatCards(ctx.Validation, validationSummary),
+				Charts:    charts,
+				Meta:      meta,
+			}
+
+			if ctx.Config.EnableEnhanced {
+				// Use enhanced options - fractal usually doesn't have wind direction, use 0
+				enhancedDoc := wrapDocumentForEnhanced(doc, ctx.Config, referenceRender, 0)
+				if err := svgrender.DrawEnhancedSVG(enhancedDoc, filename); err != nil {
+					return err
+				}
+			} else {
+				if err := svgrender.DrawDocument(doc, filename); err != nil {
+					return err
+				}
+			}
 
 		iterationMetrics := fractalIterationMetrics{
 			Iteration:           iter,

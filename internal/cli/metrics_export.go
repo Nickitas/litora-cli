@@ -17,6 +17,7 @@ type exportContext struct {
 	Dataset    string
 	Source     string
 	Validation coastline.ValidationReport
+	Config     config
 }
 
 type polylineMetrics struct {
@@ -172,6 +173,7 @@ func newExportContext(app *App) exportContext {
 		Dataset:    app.Dataset,
 		Source:     app.DataSource,
 		Validation: app.Validation,
+		Config:     app.Config,
 	}
 }
 
