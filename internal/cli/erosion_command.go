@@ -280,12 +280,17 @@ func runErosionCommand(app *App) error {
 			fmt.Println()
 		}
 
-		// 5. Выводим метрики качества модели
+		// 5. Рассчитываем sediment transport для валидации
+		sedimentResult := calculateSedimentTransportForValidation(
+			snapshots, bathymetryGrid, lithologyProfile, waveOptions,
+		)
+
+		// 6. Выводим метрики качества модели
 		var temporalResultPtr *geometry.TemporalResult
 		if useTemporalDynamics {
 			temporalResultPtr = &temporalResult
 		}
-		if err := printModelQualityMetrics(snapshots, nil, temporalResultPtr); err != nil {
+		if err := printModelQualityMetrics(snapshots, sedimentResult, temporalResultPtr); err != nil {
 			fmt.Printf("  ⚠️  Ошибка расчёта метрик качества: %v\n", err)
 		}
 

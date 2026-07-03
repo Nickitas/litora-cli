@@ -18,6 +18,12 @@ type ModelQualityMetrics struct {
 	SpatialCorrelation float64 // корреляция Moran's I
 	IsValidModel      bool     // флаг валидности модели
 	Warnings         []string // предупреждения
+
+	// Расширенные метрики (Extended Metrics v2.0)
+	SedimentTransportRate  float64 // объем наносов в транспорте (m³/шаг)
+	AccumulationIndex      float64 // процент точек с аккумуляцией (0-1)
+	ErosionHotspots        int     // число кластеров высокой эрозии
+	ShorelineChangeRate    float64 // скорость изменения береговой линии (м/шаг)
 }
 
 // ValidationMetricsTimeSeries временной ряд метрик для анализа сходимости
@@ -60,6 +66,12 @@ func CalculateModelQualityMetrics(
 	metrics.DimensionVariance = calculateDimensionVariance(erosionMetrics)
 	metrics.MassBalanceTrend = calculateMassBalanceTrend(erosionMetrics)
 	metrics.SpatialCorrelation = calculateMoransI(erosionMetrics)
+
+	// Расширенные метрики (Extended Metrics v2.0)
+	metrics.SedimentTransportRate = calculateSedimentTransportRate(sedimentResult)
+	metrics.AccumulationIndex = calculateAccumulationIndex(sedimentResult)
+	metrics.ErosionHotspots = calculateErosionHotspots(erosionMetrics, sedimentResult)
+	metrics.ShorelineChangeRate = calculateShorelineChangeRate(erosionMetrics)
 
 	// Валидация модели
 	metrics.IsValidModel = validateModelQuality(metrics)
@@ -356,6 +368,109 @@ func calculateLinearTrend(values []float64) float64 {
 	return slope
 }
 
+// calculateSedimentTransportRate рассчитывает объем наносов в транспорте
+func calculateSedimentTransportRate(sedimentResult SedimentTransportResult) float64 {
+	// Объем наносов в транспорте (m³/шаг)
+	return sedimentResult.TotalBudget.TransportVolume
+}
+
+// calculateAccumulationIndex рассчитывает процент точек с аккумуляцией
+func calculateAccumulationIndex(sedimentResult SedimentTransportResult) float64 {
+	if len(sedimentResult.States) == 0 {
+		return 0
+	}
+
+	// Подсчитываем точки с аккумуляцией
+	accumulatingPoints := 0
+	for _, state := range sedimentResult.States {
+		if state.IsAccumulating {
+			accumulatingPoints++
+		}
+	}
+
+	// Индекс аккумуляции (0-1)
+	accumulationIndex := float64(accumulatingPoints) / float64(len(sedimentResult.States))
+	return accumulationIndex
+}
+
+// calculateErosionHotspots выявляет кластеры высокой эрозии
+func calculateErosionHotspots(erosionMetrics []ErosionMetrics, sedimentResult SedimentTransportResult) int {
+	if len(sedimentResult.States) == 0 {
+		return 0
+	}
+
+	// Порог высокой эрозии: 95-й перцентиль (строгий критерий)
+	retreats := make([]float64, 0)
+	for _, state := range sedimentResult.States {
+		if state.IsEroding && state.LocalBudget.ErodedVolume > 0 {
+			retreats = append(retreats, state.LocalBudget.ErodedVolume)
+		}
+	}
+
+	if len(retreats) == 0 {
+		return 0
+	}
+
+	// Сортируем для нахождения перцентиля
+	for i := 0; i < len(retreats); i++ {
+		for j := i + 1; j < len(retreats); j++ {
+			if retreats[i] < retreats[j] {
+				retreats[i], retreats[j] = retreats[j], retreats[i]
+			}
+		}
+	}
+
+	// 95-й перцентиль (только 5% наиболее эродирующих точек)
+	percentile95 := retreats[len(retreats)*19/20]
+	if percentile95 <= 0 {
+		return 0
+	}
+
+	// Подсчитываем hotspots (точки выше 95-го перцентиля)
+	hotspots := 0
+	for _, state := range sedimentResult.States {
+		if state.IsEroding && state.LocalBudget.ErodedVolume > percentile95 {
+			hotspots++
+		}
+	}
+
+	// Дополнительно: ограничиваем число hotspots до 5% от общего числа точек
+	maxHotspots := len(sedimentResult.States) * 5 / 100
+	if hotspots > maxHotspots {
+		hotspots = maxHotspots
+	}
+
+	return hotspots
+}
+
+// calculateShorelineChangeRate рассчитывает скорость изменения береговой линии
+func calculateShorelineChangeRate(erosionMetrics []ErosionMetrics) float64 {
+	if len(erosionMetrics) < 2 {
+		return 0
+	}
+
+	// Используем средний retreat вместо изменения длины
+	// Это более реалистично для береговой линии
+	totalRetreat := 0.0
+	count := 0
+
+	for _, m := range erosionMetrics {
+		if m.MeanRetreatMeters > 0 {
+			totalRetreat += m.MeanRetreatMeters
+			count++
+		}
+	}
+
+	if count == 0 {
+		return 0
+	}
+
+	// Средний retreat (м/шаг)
+	meanRetreatRate := totalRetreat / float64(count)
+
+	return meanRetreatRate
+}
+
 // validateModelQuality валидирует качество модели
 func validateModelQuality(metrics ModelQualityMetrics) bool {
 	// Критерии валидности:
@@ -431,6 +546,37 @@ func generateValidationWarnings(metrics ModelQualityMetrics) []string {
 				metrics.MassBalanceTrend))
 	}
 
+	// Предупреждения для расширенных метрик
+		if metrics.SedimentTransportRate < 10.0 {
+			warnings = append(warnings,
+				fmt.Sprintf("Low sediment transport: %.2f m³/step (insufficient transport)",
+					metrics.SedimentTransportRate))
+		}
+
+		if metrics.AccumulationIndex < 0.1 {
+			warnings = append(warnings,
+				fmt.Sprintf("Low accumulation index: %.2f (excessive erosion)",
+					metrics.AccumulationIndex))
+		}
+
+		if metrics.AccumulationIndex > 0.8 {
+			warnings = append(warnings,
+				fmt.Sprintf("High accumulation index: %.2f (excessive deposition)",
+					metrics.AccumulationIndex))
+		}
+
+		if metrics.ErosionHotspots > 100 {
+			warnings = append(warnings,
+				fmt.Sprintf("Many erosion hotspots: %d (potential instability)",
+					metrics.ErosionHotspots))
+		}
+
+		if math.Abs(metrics.ShorelineChangeRate) > 100.0 {
+			warnings = append(warnings,
+				fmt.Sprintf("High shoreline change rate: %.2f m/step (rapid change)",
+					metrics.ShorelineChangeRate))
+		}
+
 	return warnings
 }
 
@@ -447,6 +593,12 @@ func GetQualityMetricsSummary(metrics ModelQualityMetrics) map[string]interface{
 	summary["spatial_correlation_morans_i"] = metrics.SpatialCorrelation
 	summary["is_valid_model"] = metrics.IsValidModel
 	summary["warnings"] = metrics.Warnings
+
+	// Расширенные метрики (Extended Metrics v2.0)
+	summary["sediment_transport_rate"] = metrics.SedimentTransportRate
+	summary["accumulation_index"] = metrics.AccumulationIndex
+	summary["erosion_hotspots"] = metrics.ErosionHotspots
+	summary["shoreline_change_rate"] = metrics.ShorelineChangeRate
 
 	return summary
 }

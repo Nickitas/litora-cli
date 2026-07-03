@@ -8,7 +8,7 @@ import (
 )
 
 // printModelQualityMetrics рассчитывает и выводит метрики качества модели
-func printModelQualityMetrics(snapshots [][]geometry.LatLon, erosionRates []float64, temporalResult *geometry.TemporalResult) error {
+func printModelQualityMetrics(snapshots [][]geometry.LatLon, sedimentResult *geometry.SedimentTransportResult, temporalResult *geometry.TemporalResult) error {
 	if len(snapshots) < 2 {
 		fmt.Println("\n  ⚠️  Недостаточно данных для расчёта метрик качества (нужно ≥ 2 snapshots)")
 		return nil
@@ -70,48 +70,54 @@ func printModelQualityMetrics(snapshots [][]geometry.LatLon, erosionRates []floa
 		}
 	}
 
-	// 3. Создаём упрощённый sediment result (без реального транспорта наносов)
-	// Примечание: для корректной валидации нужен CalculateSedimentTransport
-	totalEroded := 0.0
-	totalDeposited := 0.0
-	for _, m := range erosionMetrics {
-		if m.ErodedM3 > 0 {
-			totalEroded += m.ErodedM3
-		}
-		if m.DepositedM3 > 0 {
-			totalDeposited += m.DepositedM3
-		}
-	}
-
-	// Рассчитываем MassBalance правильно (с учетом transport)
-	// Формула: |eroded - (deposited + transport)| / eroded
-	// В упрощенном случае transport = 0
-	var massBalance float64
-	if totalEroded > 0 {
-		totalAccountedFor := totalDeposited // transport = 0 в упрощенном случае
-		massBalance = math.Abs(totalEroded-totalAccountedFor) / totalEroded
+	// 3. Если sedimentResult не предоставлен, создаём упрощённый вариант
+	var finalSedimentResult *geometry.SedimentTransportResult
+	if sedimentResult != nil {
+		finalSedimentResult = sedimentResult
 	} else {
-		massBalance = 0
-	}
+		// Создаём упрощённый sediment result (без реального транспорта наносов)
+		// Примечание: для корректной валидации нужен CalculateSedimentTransport
+		totalEroded := 0.0
+		totalDeposited := 0.0
+		for _, m := range erosionMetrics {
+			if m.ErodedM3 > 0 {
+				totalEroded += m.ErodedM3
+			}
+			if m.DepositedM3 > 0 {
+				totalDeposited += m.DepositedM3
+			}
+		}
 
-	// Валидность: допуск 15%
-	isValid := massBalance < 0.15
+		// Рассчитываем MassBalance правильно (с учетом transport)
+		// Формула: |eroded - (deposited + transport)| / eroded
+		// В упрощенном случае transport = 0
+		var massBalance float64
+		if totalEroded > 0 {
+			totalAccountedFor := totalDeposited // transport = 0 в упрощенном случае
+			massBalance = math.Abs(totalEroded-totalAccountedFor) / totalEroded
+		} else {
+			massBalance = 0
+		}
 
-	sedimentResult := geometry.SedimentTransportResult{
-		TotalBudget: geometry.SedimentBudget{
-			ErodedVolume:    totalEroded,
-			DepositedVolume: totalDeposited,
-			TransportVolume: 0, // не считается в упрощенном случае
-			NetChange:       totalEroded - totalDeposited,
-		},
-		MassBalance: massBalance,
-		IsValid:     isValid,
+		// Валидность: допуск 15%
+		isValid := massBalance < 0.15
+
+		finalSedimentResult = &geometry.SedimentTransportResult{
+			TotalBudget: geometry.SedimentBudget{
+				ErodedVolume:    totalEroded,
+				DepositedVolume: totalDeposited,
+				TransportVolume: 0, // не считается в упрощенном случае
+				NetChange:       totalEroded - totalDeposited,
+			},
+			MassBalance: massBalance,
+			IsValid:     isValid,
+		}
 	}
 
 	// 4. Рассчитываем метрики качества модели
-	qualityMetrics := geometry.CalculateModelQualityMetrics(erosionMetrics, sedimentResult)
+	qualityMetrics := geometry.CalculateModelQualityMetrics(erosionMetrics, *finalSedimentResult)
 
-	// 5. Выводим метрики
+	// 5. Выводим базовые метрики
 	printQualityMetric("Dimension Stability", qualityMetrics.DimensionStability, 0.7, true,
 		map[bool]string{true: "стабильная геометрия", false: "нестабильная геометрия"})
 	printQualityMetric("Mass Balance", qualityMetrics.MassBalance, 0.15, false,
@@ -120,6 +126,18 @@ func printModelQualityMetrics(snapshots [][]geometry.LatLon, erosionRates []floa
 		map[bool]string{true: "нормальный паттерн", false: "аномальный паттерн"})
 	printQualityMetric("Convergence Rate", qualityMetrics.ConvergenceRate, 0.5, true,
 		map[bool]string{true: "модель сходится", false: "модель не сходится"})
+
+	fmt.Println()
+
+	// 5.1. Выводим расширенные метрики (Extended Metrics v2.0)
+	fmt.Println("  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+	fmt.Println("  РАСШИРЕННЫЕ МЕТРИКИ (v2.0)")
+	fmt.Println("  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+
+	fmt.Printf("  Sediment Transport Rate: %.2f m³/step\n", qualityMetrics.SedimentTransportRate)
+	fmt.Printf("  Accumulation Index: %.2f%%\n", qualityMetrics.AccumulationIndex*100)
+	fmt.Printf("  Erosion Hotspots: %d\n", qualityMetrics.ErosionHotspots)
+	fmt.Printf("  Shoreline Change Rate: %.2f m/step\n", qualityMetrics.ShorelineChangeRate)
 
 	fmt.Println()
 
