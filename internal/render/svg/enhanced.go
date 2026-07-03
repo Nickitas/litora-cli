@@ -338,7 +338,7 @@ func buildCompass(opts CompassOptions, originX, originY, contentWidth, contentHe
 	// Set defaults - smaller size for bottom-right placement
 	size := opts.Size
 	if size <= 0 {
-		size = 32  // Reduced to 32 for more compact display
+		size = 45  // Slightly larger for better proportions
 	}
 
 	// Auto position: bottom-right corner, below the plot area to avoid overlap
@@ -349,7 +349,7 @@ func buildCompass(opts CompassOptions, originX, originY, contentWidth, contentHe
 	y := opts.Y
 	if y <= 0 {
 		// Position below the plot area, well below to avoid overlap
-		y = originY + contentHeight + size + 30
+		y = originY + contentHeight + size + 70
 	}
 
 	style := opts.Style

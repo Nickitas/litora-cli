@@ -304,17 +304,19 @@ func parseConfig(args []string, stdout, stderr io.Writer) (config, error) {
 	if cfg.OutputCSV != "" && cfg.CSVFormat != "long" && cfg.CSVFormat != "wide" {
 		return config{}, fmt.Errorf("csv-format must be 'long' or 'wide'")
 	}
-	if cfg.GIFFPS < 0 || cfg.GIFFPS > 30 {
-		return config{}, fmt.Errorf("gif-fps must be between 0 and 30")
-	}
-	if cfg.GIFSkip < 1 {
-		return config{}, fmt.Errorf("gif-skip must be >= 1")
-	}
-	if cfg.GIFColors != 0 && (cfg.GIFColors < 4 || cfg.GIFColors > 256) {
-		return config{}, fmt.Errorf("gif-colors must be between 4 and 256 (0 for auto)")
-	}
-	if cfg.GIFCompression != "low" && cfg.GIFCompression != "medium" && cfg.GIFCompression != "high" {
-		return config{}, fmt.Errorf("gif-compression must be low, medium, or high")
+	if cfg.OutputGIF != "" {
+		if cfg.GIFFPS < 0 || cfg.GIFFPS > 30 {
+			return config{}, fmt.Errorf("gif-fps must be between 0 and 30")
+		}
+		if cfg.GIFSkip < 1 {
+			return config{}, fmt.Errorf("gif-skip must be >= 1")
+		}
+		if cfg.GIFColors != 0 && (cfg.GIFColors < 4 || cfg.GIFColors > 256) {
+			return config{}, fmt.Errorf("gif-colors must be between 4 and 256 (0 for auto)")
+		}
+		if cfg.GIFCompression != "low" && cfg.GIFCompression != "medium" && cfg.GIFCompression != "high" {
+			return config{}, fmt.Errorf("gif-compression must be low, medium, or high")
+		}
 	}
 
 	return cfg, nil

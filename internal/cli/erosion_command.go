@@ -280,5 +280,14 @@ func runErosionCommand(app *App) error {
 			fmt.Println()
 		}
 
+		// 5. Выводим метрики качества модели
+		var temporalResultPtr *geometry.TemporalResult
+		if useTemporalDynamics {
+			temporalResultPtr = &temporalResult
+		}
+		if err := printModelQualityMetrics(snapshots, nil, temporalResultPtr); err != nil {
+			fmt.Printf("  ⚠️  Ошибка расчёта метрик качества: %v\n", err)
+		}
+
 		return writeErosionSVGSeries(app.Base, app.ModelBase, snapshots, steps, strength, seed, waveOptions, app.Config.OutputPath, newExportContext(app), app.OutputPaths)
 }

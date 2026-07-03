@@ -22,6 +22,7 @@
   - [SVG-отчёты](#svg-отчёты)
   - [Метрики JSON](#-метрики-json)
   - [CSV-отчёты](#csv-отчёты)
+  - [GIF-анимация](#gif-анимация)
 - [Методы аппроксимации и интерполяции](#-методы-аппроксимации-и-интерполяции)
 - [Научные задачи](#-научные-задачи)
 - [Области применения](#-области-применения)
@@ -43,6 +44,7 @@
    - литологического состава пород
    - транспорт наносов и баланса массы
    - временной динамики (штормы, сезонность, климатические сценарии)
+5. Визуализация результатов с автоматическим созданием GIF-анимаций эрозионных процессов
 
 ---
 
@@ -64,6 +66,149 @@
 - **Литологический модуль:** IDW-интерполяция сопротивления пород
 - **Транспорт наносов:** баланс массы, longshore drift, аккумуляция
 - **Временная динамика:** штормовые события, сезонность, климатические сценарии (RCP4.5, RCP8.5)
+
+### Визуализация и экспорт
+- **GIF-анимация:** автоматическое создание анимированной визуализации эрозионных процессов
+- **Научные элементы:** масштабная линейка, временные метки, метрики кадра, географические метки
+- **Цветовая кодировка:** дифференциация эрозии, аккумуляции и стабильных зон
+- **Настройка качества:** баланс между размером файла и качеством изображения
+
+### Метрики качества модели
+
+**Научная валидация результатов моделирования**
+
+Для обеспечения научной достоверности результатов система автоматически рассчитывает метрики качества модели на каждом шаге симуляции:
+
+#### Основные метрики
+
+**ModelQualityMetrics** - комплексная оценка качества модели:
+
+```go
+type ModelQualityMetrics struct {
+    DimensionStability float64  // стабильность фрактальной размерности D во времени [0-1]
+    MassBalance        float64  // баланс массы (eroded - deposited) с допуском 15%
+    SpatialAutocorr    float64  // пространственная автокорреляция [-1, 1]
+    ConvergenceRate    float64  // скорость сходимости модели [0-1]
+}
+```
+
+#### Критерии валидности
+
+Модель считается **научно валидной**, если выполняются все условия:
+
+1. **DimensionStability > 0.7** — фрактальная размерность стабильна во времени
+2. **|MassBalance| < 0.15** — баланс массы сохраняется (допуск 15%)
+3. **-0.3 ≤ SpatialAutocorr ≤ 0.8** — разумные пространственные паттерны
+4. **ConvergenceRate > 0.5** — модель сходится (изменения замедляются)
+
+#### Интерпретация метрик
+
+**DimensionStability** — стабильность фрактальной размерности D:
+- `1.0` — идеальная стабильность (размерность не меняется)
+- `0.7+` — хорошая стабильность (допустимые вариации)
+- `0.5-0.7` — умеренная стабильность (требует внимания)
+- `< 0.5` — низкая стабильность (нестабильная геометрия)
+
+**MassBalance** — баланс массы (фундаментальный закон сохранения):
+- `0.0` — идеальный баланс массы
+- `< 0.15` — допустимый баланс (15% допуск)
+- `≥ 0.15` — нарушение баланса массы (ошибки в алгоритме)
+
+**SpatialAutocorr** — пространственная автокорреляция (Moran's I):
+- `0.8-1.0` — сильная кластеризация (однородные участки)
+- `0.3-0.8` — умеренная корреляция (нормальный паттерн)
+- `-0.3-0.3` — слабая корреляция (случайные значения)
+- `-1.0 - -0.3` — чередование (structured pattern)
+
+**ConvergenceRate** — скорость сходимости модели:
+- `1.0` — полная сходимость (изменения прекратились)
+- `0.7+` — хорошая сходимость (изменения замедляются)
+- `0.5-0.7` — умеренная сходимость
+- `< 0.5` — отсутствие сходимости (модель diverges)
+
+#### Использование в CLI
+
+Метрики качества рассчитываются **автоматически** при выполнении команд `model erosion` и `all`:
+
+```bash
+# Метрики качества выводятся автоматически
+./lito model erosion --steps 10 --erosion-strength 50
+```
+
+**Пример вывода:**
+
+```
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  МЕТРИКИ КАЧЕСТВА МОДЕЛИ
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  ✓ Dimension Stability: 0.87 (стабильная геометрия)
+  ✓ Mass Balance: 0.03 (сохранение массы)
+  ✓ Spatial Autocorr: 0.42 (нормальный паттерн)
+  ✓ Convergence Rate: 0.73 (модель сходится)
+
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  ИТОГОВАЯ ОЦЕНКА: МОДЕЛЬ НАУЧНО ВАЛИДНА ✓
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
+**При проблемах с качеством:**
+
+```
+  ⚠️  МЕТРИКИ КАЧЕСТВА МОДЕЛИ
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  ✗ Dimension Stability: 0.52 (нестабильная геометрия)
+  ⚠️  Mass Balance: 0.18 (нарушение баланса массы)
+  ✓ Spatial Autocorr: 0.45 (нормальный паттерн)
+  ✗ Convergence Rate: 0.31 (модель не сходится)
+
+  ПРЕДУПРЕЖДЕНИЯ:
+  • Low dimension stability: 0.52 (expected > 0.7)
+  • Poor mass balance: 0.1800 (expected |balance| < 0.15)
+  • Low convergence rate: 0.31 (model may not converge)
+
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  ИТОГОВАЯ ОЦЕНКА: МОДЕЛЬ ТРЕБУЕТ ДОРАБОТКИ ✗
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
+#### Экспорт метрик качества
+
+Метрики качества автоматически включаются в JSON-отчёты:
+
+```json
+{
+  "model_quality": {
+    "dimension_stability": 0.87,
+    "mass_balance": 0.03,
+    "spatial_autocorr": 0.42,
+    "convergence_rate": 0.73,
+    "dimension_variance": 0.01,
+    "mass_balance_trend": 0.1,
+    "spatial_correlation_morans_i": 0.3,
+    "is_valid_model": true,
+    "warnings": []
+  }
+}
+```
+
+#### Научная значимость
+
+Метрики качества обеспечивают:
+
+- **Верификацию модели** — проверка соответствия физическим законам
+- **Статистическую устойчивость** — достоверность численных результатов
+- **Прогностическую способность** — надёжность будущих проекций
+- **Сравнимость сценариев** — объективная оценка различных моделей
+
+#### References
+
+- Mandelbrot, B.B. (1982): *The Fractal Geometry of Nature*
+- CERC (1984): *Shore Protection Manual*
+- Komar, P.D. (1998): *Beach Processes and Sedimentation*
+
+---
 
 ### Методы аппроксимации
 - **IDW (Inverse Distance Weighting):** интерполяция литологических данных
@@ -95,8 +240,12 @@ lito all                       # валидация + фрактальный а�
 **Основные флаги для моделей:**
 
 ```bash
+# Базовые параметры
+--output PATH                # директория для выходных файлов
+--iterations N               # число итераций organic Koch (0-10)
+--steps N                   # число шагов эрозии
+
 # Фрактальный анализ
---iterations N                # число итераций organic Koch (0-10)
 --seed INT                   # seed для воспроизводимости
 --angle-jitter FLOAT         # максимальное отклонение угла (градусы)
 --height-jitter FLOAT        # максимальное отклонение высоты (доля)
@@ -123,6 +272,23 @@ lito all                       # валидация + фрактальный а�
 # CSV экспорт
 --output-csv PATH            # путь к CSV файлу (по умолчанию: erosion_metrics.csv)
 --csv-format FORMAT          # формат: 'long' (одна строка на шаг) или 'wide' (матрица)
+
+# GIF анимация
+--output-gif PATH            # путь к GIF файлу (пустая строка отключает экспорт)
+--gif-fps INT                # кадров в секунду (1-30, по умолчанию: 10)
+--gif-skip INT               # пропуск каждого N-го кадра (1 = не пропускать)
+--gif-color-change           # цветовая кодировка по интенсивности изменений
+--gif-show-initial           # показывать начальное состояние (серая линия)
+--gif-show-scalebar          # показывать масштабную линейку
+--gif-scalebar-km FLOAT      # длина масштабной линейки в км (0 = авто)
+--gif-colorlegend-pos STRING # позиция легенды цветов: 'right', 'bottom', 'none'
+--gif-colors INT             # количество цветов палитры (0 = авто 16, диапазон: 4-256)
+--gif-compression STRING     # уровень сжатия: 'low', 'medium', 'high'
+--gif-width INT              # ширина GIF в пикселях (0 = авто 1200)
+--gif-height INT             # высота GIF в пикселях (0 = авто 800)
+--gif-show-timestamp         # показывать временные метки (годы, штормы)
+--gif-show-metrics           # показывать метрики кадра (длина, эрозия)
+--gif-geo-labels STRING      # географические метки: 'none', 'major', 'all'
 ```
 
 ---
@@ -201,6 +367,16 @@ go run cmd/download-bathymetry/main.go
 # Простая эрозия с геометрическим proxy
 ./lito model erosion --steps 10 --erosion-strength 50 --wave-direction 0
 # Автоматически создаёт output/csv/erosion_metrics.csv
+
+# С GIF-анимацией результатов
+./lito model erosion \
+  --steps 10 \
+  --erosion-strength 50 \
+  --wave-direction 0 \
+  --output-gif erosion_basic.gif \
+  --gif-fps 12 \
+  --gif-show-scalebar
+# → erosion_basic.gif + output/csv/erosion_metrics.csv
 ```
 
 #### 3.2 С учётом батиметрии
@@ -215,8 +391,11 @@ make bathymetry
   --erosion-strength 50 \
   --bathymetry data/black-sea-bathymetry.json \
   --wave-direction 45 \
-  --wind-speed 14
-# → output/csv/erosion_metrics.csv
+  --wind-speed 14 \
+  --output-gif erosion_bathymetry.gif \
+  --gif-show-timestamp \
+  --gif-geo-labels major
+# → erosion_bathymetry.gif + output/csv/erosion_metrics.csv
 ```
 
 #### 3.3 С учётом литологии
@@ -314,7 +493,7 @@ make bathymetry
 ./lito all --output ./output
 # Автоматически создаёт output/csv/erosion_metrics.csv
 
-# С временными параметрами
+# С временными параметрами и GIF
 ./lito all \
   --iterations 4 \
   --steps 10 \
@@ -322,9 +501,14 @@ make bathymetry
   --years-per-step 2 \
   --storm-probability 0.15 \
   --enable-seasonality \
+  --output-gif full_analysis.gif \
+  --gif-fps 10 \
+  --gif-show-scalebar \
+  --gif-show-timestamp \
+  --gif-geo-labels major \
   --output ./output
 
-# С кастомным CSV экспортом
+# С кастомным CSV экспортом и оптимизированным GIF
 ./lito all \
   --steps 10 \
   --target-years 30 \
@@ -332,7 +516,13 @@ make bathymetry
   --storm-probability 0.2 \
   --sea-level-rise 0.01 \
   --output-csv climate_analysis.csv \
-  --csv-format long
+  --csv-format long \
+  --output-gif climate_optimized.gif \
+  --gif-fps 8 \
+  --gif-skip 2 \
+  --gif-colors 12 \
+  --gif-compression high
+# → climate_analysis.csv + climate_optimized.gif
 ```
 
 ---
@@ -346,6 +536,9 @@ make bathymetry
 - `output/svg/coastline.svg` — исходная береговая линия с диагностикой геометрии
 - `output/svg/dimension_iter_0.svg ... dimension_iter_N.svg` — фрактальный анализ по итерациям
 - `output/svg/erosion_step_0.svg ... erosion_step_N.svg` — динамика эрозии во времени
+
+**GIF-анимация:**
+- `custom_name.gif` — анимированная визуализация эрозионных процессов (указывается через `--output-gif`)
 
 **Информация в SVG:**
 - Карта береговой линии с цветовой кодировкой
@@ -474,6 +667,146 @@ sea_level_m,0.0000,0.0300,0.0600,0.0900,0.1200
 - генерация отчетов
 
 Детальное описание представлено в [scripts](scripts/README.md)
+
+### GIF-анимация
+
+**Автоматическое создание анимированной визуализации эрозионных процессов**
+
+GIF-файлы создаются автоматически при указании параметра `--output-gif` для команд `all` и `model erosion`. Анимация показывает динамику изменения береговой линии во времени с цветовой кодировкой эрозионных и аккумулятивных процессов.
+
+```bash
+# Базовое создание GIF
+./lito model erosion --steps 10 --output-gif erosion_animation.gif
+# → erosion_animation.gif
+
+# Настройка качества и размера
+./lito model erosion \
+  --steps 15 \
+  --output-gif high_quality.gif \
+  --gif-fps 15 \
+  --gif-width 1600 \
+  --gif-height 900 \
+  --gif-compression high
+# → high_quality.gif (высокое качество)
+
+# Оптимизация размера файла
+./lito model erosion \
+  --steps 20 \
+  --output-gif optimized.gif \
+  --gif-skip 2 \
+  --gif-fps 8 \
+  --gif-colors 8 \
+  --gif-compression high
+# → optimized.gif (маленький размер)
+
+# Научная визуализация с масштабом
+./lito model erosion \
+  --steps 12 \
+  --output-gif scientific.gif \
+  --gif-show-scalebar \
+  --gif-scalebar-km 100 \
+  --gif-show-timestamp \
+  --gif-show-metrics \
+  --gif-geo-labels major
+# → scientific.gif (с научными элементами)
+```
+
+#### Параметры визуализации
+
+**Цветовая кодировка:**
+- 🔴 **Красный** — эрозия (отступ берега)
+- 🟢 **Зелёный** — аккумуляция (наносы)
+- ⚪ **Серый** — начальная береговая линия
+- 🔵 **Синий** — вода
+
+**Элементы визуализации:**
+- **Масштабная линейка** — реальный масштаб в километрах
+- **Временные метки** — текущий год, индикаторы штормов (⛈️)
+- **Метрики кадра** — длина берега, объём эрозии
+- **Географические метки** — названия городов и ориентиров
+- **Легенда цветов** — пояснение цветовой кодировки
+
+#### Настройка качества и размера
+
+**Баланс качества и размера файла:**
+
+| Параметр | Маленький размер | Высокое качество |
+|----------|------------------|------------------|
+| `--gif-fps` | 8 | 15-30 |
+| `--gif-skip` | 2-3 | 1 |
+| `--gif-colors` | 8-16 | 32-64 |
+| `--gif-compression` | high | low/medium |
+| `--gif-width` | 800-1200 | 1600-2400 |
+
+**Примеры оптимальных настроек:**
+
+```bash
+# Для презентаций (средний размер, хорошее качество)
+--gif-fps 12 --gif-skip 1 --gif-colors 16 --gif-compression medium
+
+# для веб-публикации (маленький размер)
+--gif-fps 8 --gif-skip 2 --gif-colors 8 --gif-compression high
+
+# Для научных публикаций (максимальное качество)
+--gif-fps 15 --gif-skip 1 --gif-colors 32 --gif-compression low --gif-width 1920
+```
+
+#### Примеры использования в научных сценариях
+
+**Временная динамика с GIF-визуализацией:**
+
+```bash
+# 50-летняя проекция с климатическими сценариями
+./lito model erosion \
+  --target-years 50 \
+  --years-per-step 5 \
+  --steps 10 \
+  --storm-probability 0.2 \
+  --storm-intensity 2.5 \
+  --sea-level-rise 0.01 \
+  --enable-seasonality \
+  --bathymetry data/black-sea-bathymetry.json \
+  --lithology data/black-sea-lithology.json \
+  --enable-lithology \
+  --output-gif climate_projection_50yr.gif \
+  --gif-fps 10 \
+  --gif-show-scalebar \
+  --gif-show-timestamp \
+  --gif-geo-labels major \
+  --output-csv climate_50yr.csv
+# → climate_projection_50yr.gif + climate_50yr.csv
+```
+
+**Сравнение сценариев:**
+
+```bash
+# Сценарий 1: умеренная эрозия
+./lito model erosion \
+  --steps 8 \
+  --erosion-strength 30 \
+  --wave-direction 45 \
+  --output-gif scenario1_moderate.gif \
+  --gif-width 1400 \
+  --gif-compression medium
+
+# Сценарий 2: интенсивная эрозия
+./lito model erosion \
+  --steps 8 \
+  --erosion-strength 80 \
+  --wave-direction 0 \
+  --output-gif scenario2_intense.gif \
+  --gif-width 1400 \
+  --gif-compression medium
+
+# Сценарий 3: с защитными мерами (низкая эрозия)
+./lito model erosion \
+  --steps 8 \
+  --erosion-strength 15 \
+  --wave-direction 90 \
+  --output-gif scenario3_protected.gif \
+  --gif-width 1400 \
+  --gif-compression medium
+```
 
 ---
 

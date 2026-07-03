@@ -1,31 +1,33 @@
 {
-  "generated_at": "2026-07-02T14:38:46Z",
-  "command": "all",
-  "dataset": "Black Sea",
-  "source": "data\\cache\\black-sea.geojson (cached copy of https://geo.vliz.be/geoserver/MarineRegions/wfs?cql_filter=mrgid%3D3319\u0026outputFormat=application%2Fjson\u0026request=GetFeature\u0026service=WFS\u0026typeName=iho\u0026version=1.0.0)",
+  "generated_at": "2026-07-03T09:16:48Z",
+  "command": "real coastline",
+  "dataset": "black-sea.json",
+  "source": "data/black-sea.json",
   "svg_file": "output\\svg\\coastline.svg",
   "real": {
-    "points_count": 9635,
-    "length_km": 6391.057193562525
+    "points_count": 15,
+    "length_km": 2104.2046624572604
   },
   "render": {
-    "points_count": 3199,
-    "length_km": 6147.317252361425
+    "points_count": 15,
+    "length_km": 2104.2046624572604
   },
   "render_simplification": {
-    "applied": true,
-    "points_before": 9635,
-    "points_after": 3199,
-    "length_before_km": 6391.057193562525,
-    "length_after_km": 6147.317252361425,
-    "length_delta_km": -243.7399412011,
-    "length_delta_percent": -3.8137656074586563
+    "applied": false,
+    "points_before": 15,
+    "points_after": 15,
+    "length_before_km": 2104.2046624572604,
+    "length_after_km": 2104.2046624572604,
+    "length_delta_km": 0,
+    "length_delta_percent": 0
   },
   "highlights": {
     "long_segments": []
   },
   "validation": {
-    "fixes": [],
+    "fixes": [
+      "точки автоматически переупорядочены по обходу контура"
+    ],
     "warnings": [],
     "summary": [
       {
