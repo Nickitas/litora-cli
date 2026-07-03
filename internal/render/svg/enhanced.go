@@ -1,6 +1,7 @@
 package svg
 
 import (
+	"coastal-geometry/internal/domain/geometry"
 	"fmt"
 	"math"
 	"os"
@@ -10,10 +11,11 @@ import (
 // EnhancedDocument extends Document with additional map elements
 type EnhancedDocument struct {
 	Document
-	GridOptions      *GridOptions
-	CompassOptions   *CompassOptions
-	MarkerOptions    *MarkerOptions
-	IsolineOptions   *IsolineOptions
+	GridOptions              *GridOptions
+	CompassOptions           *CompassOptions
+	MarkerOptions            *MarkerOptions
+	IsolineOptions           *IsolineOptions
+	SedimentTransportOptions *SedimentTransportOptions
 }
 
 // GridOptions configures coordinate grid display
@@ -74,6 +76,21 @@ type IsolineOptions struct {
 	LineWidth      float64
 	Opacity        float64
 	LabelInterval  int      // label every N lines
+}
+
+// SedimentTransportOptions configures sediment transport visualization
+type SedimentTransportOptions struct {
+	Show                bool
+	Points              []geometry.LatLon
+	SedimentStates      []geometry.SedimentState
+	ShowAccumulation    bool  // show accumulation points
+	ShowErosion         bool  // show erosion points
+	ShowTransportVectors bool // show longshore drift vectors
+	AccumulationColor   string
+	ErosionColor        string
+	VectorColor         string
+	VectorScale         float64 // scale factor for vector length
+	MarkerSize         float64
 }
 
 // Isoline represents a contour line
@@ -160,7 +177,7 @@ func DrawEnhancedSVG(doc EnhancedDocument, filename string) error {
 	}
 
 	// Build additional elements
-	var gridElements, compassElements, markerElements, isolineElements string
+	var gridElements, compassElements, markerElements, isolineElements, sedimentElements string
 
 	if doc.GridOptions != nil && doc.GridOptions.Show {
 		gridElements = buildCoordinateGrid(*doc.GridOptions, minLat, maxLat, minLon, maxLon, originX, originY, contentWidth, contentHeight, scale)
@@ -176,6 +193,10 @@ func DrawEnhancedSVG(doc EnhancedDocument, filename string) error {
 
 	if doc.IsolineOptions != nil && doc.IsolineOptions.Show {
 		isolineElements = buildIsolines(*doc.IsolineOptions, minLat, minLon, originX, originY, contentHeight, scale)
+	}
+
+	if doc.SedimentTransportOptions != nil && doc.SedimentTransportOptions.Show {
+		sedimentElements = buildSedimentTransportVisualization(*doc.SedimentTransportOptions, minLat, minLon, originX, originY, contentHeight, scale)
 	}
 
 	sidebarX := padding + plotWidth + 28
@@ -227,6 +248,8 @@ func DrawEnhancedSVG(doc EnhancedDocument, filename string) error {
 %s  </g>
   <g>
 %s  </g>
+  <g>
+%s  </g>
 </svg>
 `, canvasWidth, documentHeight, canvasWidth, documentHeight,
 		canvasWidth-40, documentHeight-40,
@@ -237,6 +260,7 @@ func DrawEnhancedSVG(doc EnhancedDocument, filename string) error {
 		layers.String(),
 		highlights.String(),
 		markerElements,
+		sedimentElements,
 		legend,
 		statCards,
 		charts,
@@ -437,8 +461,8 @@ func buildModernCompass(size float64, windDirection float64, showWindArrow bool,
 	// Optional label
 	if label != "" {
 		out.WriteString(fmt.Sprintf(
-			`      <text x="0" y="%.1f" font-family="Helvetica, Arial, sans-serif" font-size="10" fill="#4f6d7a" text-anchor="middle" transform="rotate(-45, %.0f, %.0f)">%s</text>`+"\n",
-			radius+14, label,
+			`      <text x="0" y="%.1f" font-family="Helvetica, Arial, sans-serif" font-size="10" fill="#4f6d7a" text-anchor="middle">%s</text>`+"\n",
+			radius+14, escapeText(label),
 		))
 	}
 
@@ -520,7 +544,7 @@ func buildClassicCompass(size float64, windDirection float64, showWindArrow bool
 	if label != "" {
 		out.WriteString(fmt.Sprintf(
 			`      <text x="0" y="%.1f" font-family="Georgia, serif" font-size="10" fill="#4f6d7a" text-anchor="middle" font-style="italic">%s</text>`+"\n",
-			radius+14, label,
+			radius+14, escapeText(label),
 		))
 	}
 
@@ -781,4 +805,178 @@ func formatCoordinate(value float64, coordType string) string {
 // Helper function to write SVG to file
 func writeToFile(filename string, data []byte) error {
 	return os.WriteFile(filename, data, 0o644)
+}
+
+// buildSedimentTransportVisualization creates sediment transport visualization
+func buildSedimentTransportVisualization(opts SedimentTransportOptions, minLat, minLon, originX, originY, contentHeight, scale float64) string {
+	var out strings.Builder
+
+	// Set defaults
+	accumulationColor := opts.AccumulationColor
+	if accumulationColor == "" {
+		accumulationColor = "#2d6a4f" // green for accumulation
+	}
+
+	erosionColor := opts.ErosionColor
+	if erosionColor == "" {
+		erosionColor = "#c2410c" // red for erosion
+	}
+
+	vectorColor := opts.VectorColor
+	if vectorColor == "" {
+		vectorColor = "#1f6f8b" // blue for transport vectors
+	}
+
+	markerSize := opts.MarkerSize
+	if markerSize <= 0 {
+		markerSize = 6
+	}
+
+	vectorScale := opts.VectorScale
+	if vectorScale <= 0 {
+		vectorScale = 1000 // sensible default
+	}
+
+	n := len(opts.Points)
+	if n == 0 || len(opts.SedimentStates) == 0 {
+		fmt.Printf("❌ buildSedimentTransportVisualization: n=%d, states=%d -> return empty\n",
+			n, len(opts.SedimentStates))
+		return ""
+	}
+
+	fmt.Printf("🔧 buildSedimentTransportVisualization: n=%d points, %d states\n",
+		n, len(opts.SedimentStates))
+
+	// Draw accumulation and erosion points
+	for i, state := range opts.SedimentStates {
+		if i >= n {
+			break
+		}
+
+		point := opts.Points[i]
+		x := originX + (point.Lon-minLon)*scale
+		y := originY + contentHeight - (point.Lat-minLat)*scale
+
+		// Accumulation point
+		if opts.ShowAccumulation && state.IsAccumulating {
+			out.WriteString(fmt.Sprintf(
+				`    <circle cx="%.2f" cy="%.2f" r="%.1f" fill="%s" fill-opacity="0.7" stroke="#fff" stroke-width="1.5"/>`+"\n",
+				x, y, markerSize, accumulationColor,
+			))
+		}
+
+		// Erosion point
+		if opts.ShowErosion && state.IsEroding {
+			out.WriteString(fmt.Sprintf(
+				`    <circle cx="%.2f" cy="%.2f" r="%.1f" fill="%s" fill-opacity="0.7" stroke="#fff" stroke-width="1.5"/>`+"\n",
+				x, y, markerSize, erosionColor,
+			))
+		}
+
+		// Transport vectors (longshore drift)
+		if opts.ShowTransportVectors && len(state.InTransitTo) >= 2 {
+			// Draw vectors to neighbors
+			// state.InTransitTo[0] = to prev, [1] = to next
+			toPrev := state.InTransitTo[0]
+			toNext := state.InTransitTo[1]
+
+			// Find neighbor points
+			prevIdx := (i - 1 + n) % n
+			nextIdx := (i + 1) % n
+
+			if prevIdx < n && toPrev > 1e-6 { // only significant flows
+				prevPoint := opts.Points[prevIdx]
+				prevX := originX + (prevPoint.Lon-minLon)*scale
+				prevY := originY + contentHeight - (prevPoint.Lat-minLat)*scale
+
+				// Calculate vector length based on sediment volume
+				vectorLen := math.Sqrt(toPrev) * vectorScale * 0.05
+
+				// Direction towards previous point
+				dirX := prevX - x
+				dirY := prevY - y
+				length := math.Hypot(dirX, dirY)
+
+				if length > 1e-6 {
+					// Normalize and scale
+					dirX /= length
+					dirY /= length
+
+					endX := x + dirX*vectorLen
+					endY := y + dirY*vectorLen
+
+					// Draw vector arrow
+					out.WriteString(fmt.Sprintf(
+						`    <line x1="%.2f" y1="%.2f" x2="%.2f" y2="%.2f" stroke="%s" stroke-width="1.5" stroke-opacity="0.6"/>`+"\n",
+						x, y, endX, endY, vectorColor,
+					))
+
+					// Arrow head
+					arrowSize := 3.0
+					angle := math.Atan2(dirY, dirX)
+					leftWingX := endX - arrowSize*math.Cos(angle-0.5)
+					leftWingY := endY - arrowSize*math.Sin(angle-0.5)
+					rightWingX := endX - arrowSize*math.Cos(angle+0.5)
+					rightWingY := endY - arrowSize*math.Sin(angle+0.5)
+
+					out.WriteString(fmt.Sprintf(
+						`    <polygon points="%.2f,%.2f %.2f,%.2f %.2f,%.2f" fill="%s" fill-opacity="0.6"/>`+"\n",
+						endX, endY, leftWingX, leftWingY, rightWingX, rightWingY, vectorColor,
+					))
+				}
+			}
+
+			if nextIdx < n && toNext > 1e-6 { // only significant flows
+				nextPoint := opts.Points[nextIdx]
+				nextX := originX + (nextPoint.Lon-minLon)*scale
+				nextY := originY + contentHeight - (nextPoint.Lat-minLat)*scale
+
+				// Calculate vector length based on sediment volume
+				vectorLen := math.Sqrt(toNext) * vectorScale * 0.05
+
+				// Direction towards next point
+				dirX := nextX - x
+				dirY := nextY - y
+				length := math.Hypot(dirX, dirY)
+
+				if length > 1e-6 {
+					// Normalize and scale
+					dirX /= length
+					dirY /= length
+
+					endX := x + dirX*vectorLen
+					endY := y + dirY*vectorLen
+
+					// Draw vector arrow
+					out.WriteString(fmt.Sprintf(
+						`    <line x1="%.2f" y1="%.2f" x2="%.2f" y2="%.2f" stroke="%s" stroke-width="1.5" stroke-opacity="0.6"/>`+"\n",
+						x, y, endX, endY, vectorColor,
+					))
+
+					// Arrow head
+					arrowSize := 3.0
+					angle := math.Atan2(dirY, dirX)
+					leftWingX := endX - arrowSize*math.Cos(angle-0.5)
+					leftWingY := endY - arrowSize*math.Sin(angle-0.5)
+					rightWingX := endX - arrowSize*math.Cos(angle+0.5)
+					rightWingY := endY - arrowSize*math.Sin(angle+0.5)
+
+					out.WriteString(fmt.Sprintf(
+						`    <polygon points="%.2f,%.2f %.2f,%.2f %.2f,%.2f" fill="%s" fill-opacity="0.6"/>`+"\n",
+						endX, endY, leftWingX, leftWingY, rightWingX, rightWingY, vectorColor,
+					))
+				}
+			}
+		}
+	}
+
+	result := out.String()
+	erosionCircles := strings.Count(result, `fill="`+erosionColor+`"`)
+	accumCircles := strings.Count(result, `fill="`+accumulationColor+`"`)
+	vectorLines := strings.Count(result, `stroke="`+vectorColor+`"`)
+
+	fmt.Printf("📊 Generated sediment SVG: %d erosion circles, %d accum circles, %d vector elements\n",
+		erosionCircles, accumCircles, vectorLines)
+
+	return result
 }

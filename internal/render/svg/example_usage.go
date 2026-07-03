@@ -173,5 +173,83 @@ func ExampleMarkerShapes() {
 
 		fmt.Printf("Marker: %s, color: %s, size: %.0f\n",
 			marker.Shape, marker.Color, marker.Size)
+		}
 	}
-}
+
+	// ExampleSedimentTransportVisualization demonstrates sediment transport visualization
+	func ExampleSedimentTransportVisualization() {
+		// Sample coastline points
+		points := []geometry.LatLon{
+			{Lat: 43.5, Lon: 28.5}, {Lat: 43.6, Lon: 28.7},
+			{Lat: 43.7, Lon: 29.0}, {Lat: 43.5, Lon: 29.3},
+			{Lat: 43.3, Lon: 29.5}, {Lat: 43.2, Lon: 29.2},
+			{Lat: 43.1, Lon: 28.8}, {Lat: 43.3, Lon: 28.5},
+		}
+
+		// Sample sediment states (for demonstration)
+		sedimentStates := []geometry.SedimentState{
+			{PointIndex: 0, IsAccumulating: true, IsEroding: false, InTransitTo: []float64{0.5, 1.2}},
+			{PointIndex: 1, IsAccumulating: false, IsEroding: true, InTransitTo: []float64{0.3, 0.8}},
+			{PointIndex: 2, IsAccumulating: true, IsEroding: false, InTransitTo: []float64{0.7, 0.4}},
+			{PointIndex: 3, IsAccumulating: false, IsEroding: false, InTransitTo: []float64{0.2, 0.2}},
+			{PointIndex: 4, IsAccumulating: true, IsEroding: false, InTransitTo: []float64{1.0, 0.6}},
+			{PointIndex: 5, IsAccumulating: false, IsEroding: true, InTransitTo: []float64{0.4, 0.9}},
+			{PointIndex: 6, IsAccumulating: true, IsEroding: false, InTransitTo: []float64{0.8, 1.1}},
+			{PointIndex: 7, IsAccumulating: false, IsEroding: true, InTransitTo: []float64{0.6, 0.5}},
+		}
+
+		// Create enhanced document with sediment transport visualization
+		doc := EnhancedDocument{
+			Document: Document{
+				Title:    "Sediment Transport Analysis",
+				Subtitle: "Accumulation zones and longshore drift vectors",
+				Layers: []Layer{
+					{
+						Label:       "Coastline",
+						Points:      points,
+						LengthKM:    geometry.PolylineLength(points),
+						Stroke:      "#1f6f8b",
+						StrokeWidth: 3,
+						Opacity:     1.0,
+					},
+				},
+				StatCards: []StatCard{
+					{
+						Title: "Sediment Budget",
+						Items: []StatItem{
+							{Label: "Accumulation Points", Value: "3", Tone: "#2d6a4f"},
+							{Label: "Erosion Points", Value: "3", Tone: "#c2410c"},
+							{Label: "Transport Volume", Value: "8.4 m³", Tone: "#16324f"},
+						},
+					},
+				},
+			},
+			SedimentTransportOptions: &SedimentTransportOptions{
+				Show:                true,
+				Points:              points,
+				SedimentStates:      sedimentStates,
+				ShowAccumulation:    true,
+				ShowErosion:         true,
+				ShowTransportVectors: true,
+				AccumulationColor:   "#2d6a4f", // green
+				ErosionColor:        "#c2410c", // red
+				VectorColor:         "#1f6f8b", // blue
+				VectorScale:         800,
+				MarkerSize:          8,
+			},
+		}
+
+		fmt.Printf("Sediment Transport Visualization:\n")
+		fmt.Printf("  Points: %d\n", len(points))
+		fmt.Printf("  Accumulation points: green circles\n")
+		fmt.Printf("  Erosion points: red circles\n")
+		fmt.Printf("  Transport vectors: blue arrows\n")
+
+		// This would create the actual SVG file:
+		// err := DrawEnhancedSVG(doc, "sediment_transport.svg")
+		// if err != nil {
+		//     fmt.Printf("Error: %v\n", err)
+		// }
+
+		_ = doc // Prevent unused variable error
+	}

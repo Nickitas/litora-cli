@@ -74,7 +74,7 @@ func writeCoastlineSVG(points, renderPoints []geometry.LatLon, output, defaultNa
 	}
 
 	// Wrap with enhanced options if enabled
-	enhancedDoc := wrapDocumentForEnhanced(doc, ctx.Config, points, 0)
+			enhancedDoc := wrapDocumentForEnhanced(doc, ctx.Config, points, 0, nil, nil)
 
 	if ctx.Config.EnableEnhanced {
 		if err := svgrender.DrawEnhancedSVG(enhancedDoc, filename); err != nil {
@@ -131,7 +131,7 @@ func writeOrganicKochSVGSeries(originalBase, modelBase []geometry.LatLon, iterat
 	}, output, ctx, outputPathManager)
 }
 
-func writeErosionSVGSeries(originalBase, modelBase []geometry.LatLon, snapshots [][]geometry.LatLon, steps int, strength float64, seed int64, waveOptions geometry.WaveErosionOptions, output string, ctx exportContext, outputPathManager *OutputPathManager) error {
+func writeErosionSVGSeries(originalBase, modelBase []geometry.LatLon, snapshots [][]geometry.LatLon, steps int, strength float64, seed int64, waveOptions geometry.WaveErosionOptions, output string, ctx exportContext, outputPathManager *OutputPathManager, sedimentResult *geometry.SedimentTransportResult) error {
 	outputDir := outputPathManager.SVGDir()
 
 	if len(originalBase) == 0 {
@@ -188,7 +188,7 @@ func writeErosionSVGSeries(originalBase, modelBase []geometry.LatLon, snapshots 
 
 			if ctx.Config.EnableEnhanced {
 				// Use enhanced options with current step's reference points
-				enhancedDoc := wrapDocumentForEnhanced(doc, ctx.Config, referenceRender, waveOptions.WindSourceDirectionDeg)
+				enhancedDoc := wrapDocumentForEnhanced(doc, ctx.Config, referenceRender, waveOptions.WindSourceDirectionDeg, sedimentResult, renderSnapshots[step])
 				if err := svgrender.DrawEnhancedSVG(enhancedDoc, filename); err != nil {
 					return err
 				}
@@ -340,7 +340,7 @@ func writeFractalSeries(opts fractalSeriesOptions, output string, ctx exportCont
 
 			if ctx.Config.EnableEnhanced {
 				// Use enhanced options - fractal usually doesn't have wind direction, use 0
-				enhancedDoc := wrapDocumentForEnhanced(doc, ctx.Config, referenceRender, 0)
+					enhancedDoc := wrapDocumentForEnhanced(doc, ctx.Config, referenceRender, 0, nil, nil)
 				if err := svgrender.DrawEnhancedSVG(enhancedDoc, filename); err != nil {
 					return err
 				}

@@ -294,5 +294,5 @@ func runErosionCommand(app *App) error {
 			fmt.Printf("  ⚠️  Ошибка расчёта метрик качества: %v\n", err)
 		}
 
-		return writeErosionSVGSeries(app.Base, app.ModelBase, snapshots, steps, strength, seed, waveOptions, app.Config.OutputPath, newExportContext(app), app.OutputPaths)
+		return writeErosionSVGSeries(app.Base, app.ModelBase, snapshots, steps, strength, seed, waveOptions, app.Config.OutputPath, newExportContext(app), app.OutputPaths, sedimentResult)
 }

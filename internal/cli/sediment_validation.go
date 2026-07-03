@@ -51,13 +51,13 @@ func calculateSedimentTransportForValidation(
 	// Подготавливаем LithologyState для каждой точки
 	lithology := prepareLithologyStates(currentPoints, lithologyProfile)
 
-	// Параметры sediment transport (реалистичные значения)
+	// Параметры sediment transport (калиброванные для лучшего баланса)
 	params := geometry.SedimentTransportParameters{
-		TransportCoefficient:     0.5, // 50% эродированного материала идет в транспорт (уменьшен для большего deposotion)
-		DepositionRate:            0.7, // 70% избытка откладывается (увеличен для большей аккумуляции)
-		MinimumFlowVelocity:      0.3, // минимальная скорость потока
-		CapacityFactor:           2.0, // ёмкость берега для аккумуляции (увеличена)
-		LongshoreDriftCoefficient: 0.6, // сила alongshore транспорта (уменьшена)
+		TransportCoefficient:     0.8, // 80% эродированного материала идёт в транспорт (увеличен)
+		DepositionRate:            0.5, // 50% избытка откладывается (сбалансировано)
+		MinimumFlowVelocity:      0.2, // минимальная скорость потока (снижена)
+		CapacityFactor:           1.2, // ёмкость берега для аккумуляции (уменьшена для реализма)
+		LongshoreDriftCoefficient: 0.9, // сила alongshore транспорта (увеличена)
 	}
 
 	// Рассчитываем sediment transport
@@ -111,10 +111,71 @@ func prepareWaveEnergyData(
 			waveData.Energy[i] = depthFactor * fetchFactor * windSpeedFactor
 			waveData.Energy[i] = math.Max(0.0, math.Min(1.0, waveData.Energy[i]))
 
-			// Добавляем случайную вариацию энергии для разнообразия
-			// Это позволит некоторым точкам иметь низкую энергию и аккумуляцию
-			energyVariation := (hashFloat(point.Lat + point.Lon) - 0.5) * 0.4 // ±20% вариация
-			waveData.Energy[i] = math.Max(0.1, math.Min(1.0, waveData.Energy[i] + energyVariation))
+			// 📍 УЛУЧШЕНИЕ 1: Геометрическая вариативность энергии
+			// Рассчитываем локальную кривизну береговой линии
+			curvatureFactor := 1.0
+			shelteringEffect := 1.0
+
+			if n >= 3 {
+				// Берём предыдущую и следующую точку для расчёта угла
+				prevIdx := (i - 1 + n) % n
+				nextIdx := (i + 1) % n
+
+				prevPoint := points[prevIdx]
+				nextPoint := points[nextIdx]
+
+				// Вектор от prev к next (направление берега)
+				coastX := nextPoint.Lon - prevPoint.Lon
+				coastY := nextPoint.Lat - prevPoint.Lat
+				coastLen := math.Hypot(coastX, coastY)
+
+				if coastLen > 1e-9 {
+					// Нормированное направление берега
+					coastDirX := coastX / coastLen
+					coastDirY := coastY / coastLen
+
+					// Вектор от prev к current (инцидентность)
+					incidentX := point.Lon - prevPoint.Lon
+					incidentY := point.Lat - prevPoint.Lat
+					incidentLen := math.Hypot(incidentX, incidentY)
+
+					if incidentLen > 1e-9 {
+						// Dot product для определения угла
+						dot := (incidentX*coastDirX + incidentY*coastDirY) / incidentLen
+
+						// Если dot близко к 1, точка на прямой линии (large curvature)
+						// Если dot близко к 0, точка на выступе (headland)
+						absDot := math.Abs(dot)
+
+						// Headlands (высокая кривизна) → sheltered → low energy
+						// Bays (низкая кривизна) → exposed → high energy
+						if absDot < 0.6 { // Headland/convex
+							curvatureFactor = 0.6 // Сниженная энергия
+						} else if absDot > 0.95 { // Bay/concave
+							curvatureFactor = 1.3 // Повышенная энергия
+						}
+
+						// Sheltering от соседних участков
+						if i > 0 && i < n-1 {
+							// Проверяем, есть ли "защита" от соседних точек
+							nextDist := geometry.Haversine(point, nextPoint)
+							prevDist := geometry.Haversine(point, prevPoint)
+
+							// Близкие соседи создают sheltering эффект
+							if nextDist < 2.0 || prevDist < 2.0 { // < 2km
+								shelteringEffect = 0.7 // 30% снижение энергии
+							}
+						}
+					}
+				}
+			}
+
+			// Применяем геометрические факторы
+			waveData.Energy[i] *= curvatureFactor * shelteringEffect
+
+			// Добавляем случайную вариацию для естественности
+			energyVariation := (hashFloat(point.Lat + point.Lon) - 0.5) * 0.3 // ±15% вместо ±20%
+			waveData.Energy[i] = math.Max(0.05, math.Min(1.0, waveData.Energy[i] + energyVariation))
 
 			// Incidence (угол падения) - упрощённо, считаем что волны приходят спереди
 			waveData.Incidence[i] = 0.5 // среднее значение
