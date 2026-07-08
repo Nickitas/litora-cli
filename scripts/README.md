@@ -13,7 +13,9 @@ scripts/
     ├── plot_dynamics.py       # Визуализация динамики
     ├── storm_analysis.py      # Анализ штормов
     ├── compare_scenarios.py   # Сравнение сценариев
-    └── export_reports.py      # Генерация отчетов
+    ├── export_reports.py      # Генерация отчетов
+    ├── segment_analysis.py    # Детализация по сегментам берега
+    └── segment_svg_generator.py  # SVG генератор карт сегментов
 ```
 
 ## Установка
@@ -166,6 +168,65 @@ python scripts/analysis/export_reports.py output/csv/erosion_metrics.csv \
 - `reports/paper_analysis.tex` — LaTeX для научных статей
 - Настройка директории сохранения через `--report-dir`
 
+### Детализация по сегментам берега
+
+**Задача:** Анализ береговой линии по сегментам (бухты, мысы, защищенные/незащищенные участки).
+
+```bash
+# Анализ сегментов с GeoJSON координатами
+python scripts/analysis/segment_analysis.py output/csv/erosion_metrics.csv \
+  --geojson data/black-sea.json
+
+# С настраиваемым порогом уязвимости
+python scripts/analysis/segment_analysis.py output/csv/erosion_metrics.csv \
+  --geojson data/black-sea.json --threshold 65 --output segment_report
+
+# Только текстовый отчет
+python scripts/analysis/segment_analysis.py output/csv/erosion_metrics.csv \
+  --geojson data/black-sea.json --report-only
+```
+
+**Результат:**
+- `output/report/segment_report_report.txt` — текстовый отчет со статистикой
+- `output/report/segment_report_segments.png` — карта сегментов берега
+- `output/report/segment_report_exposure.png` — карта экспозиции участков
+- `output/report/segment_report_vulnerability.png` — график уязвимости
+- `output/report/segment_report_comparison.png` — панель сравнения защищенных/незащищенных участков
+
+**Классификация сегментов:**
+- **Бухты** (зеленый) — защищенные участки с низкой эрозией
+- **Мысы** (красный) — опасные участки с высокой эрозией
+- **Прямые участки** (синий) — нейтральные участки
+- **Плавные изгибы** (оранжевый) — промежуточные участки
+- **Сложные участки** (фиолетовый) — участки со сложной геометрией
+
+### SVG генератор карт сегментов
+
+**Задача:** Создать интерактивные SVG карты с классификацией сегментов.
+
+```bash
+# Генерация карты сегментов
+python scripts/analysis/segment_svg_generator.py data/black-sea.json
+
+# С указанием выходного файла
+python scripts/analysis/segment_svg_generator.py data/black-sea.json \
+  --output output/report/black_sea_segments.svg
+
+# Генерация карты экспозиции
+python scripts/analysis/segment_svg_generator.py data/black-sea.json \
+  --exposure-map
+
+# Генерация обеих карт
+python scripts/analysis/segment_svg_generator.py data/black-sea.json \
+  --both --width 1600 --height 1200
+```
+
+**Результат:**
+- Интерактивные SVG карты с всплывающими подсказками
+- Цветовая кодировка по типам сегментов и экспозиции
+- Масштабная линейка и сетка координат
+- Маркеры проблемных зон (уязвимость > 70)
+
 ### Комплексный анализ
 
 **Задача:** Полный анализ данных для диссертационного исследования.
@@ -179,7 +240,7 @@ python scripts/analysis/export_reports.py output/csv/erosion_metrics.csv \
 python scripts/analysis/analyze_erosion.py output/csv/erosion_metrics.csv \
   --output analysis_results.txt
 
-# 3. Визуализации  
+# 3. Визуализации
 python scripts/analysis/plot_dynamics.py output/csv/erosion_metrics.csv \
   --dashboard --output thesis_dashboard --style seaborn
 
@@ -187,7 +248,15 @@ python scripts/analysis/plot_dynamics.py output/csv/erosion_metrics.csv \
 python scripts/analysis/storm_analysis.py output/csv/erosion_metrics.csv \
   --detailed --plot --output thesis_storms
 
-# 5. Отчеты
+# 5. Детализация по сегментам
+python scripts/analysis/segment_analysis.py output/csv/erosion_metrics.csv \
+  --geojson data/black-sea.json --output thesis_segments
+
+# 6. SVG карты сегментов
+python scripts/analysis/segment_svg_generator.py data/black-sea.json \
+  --both --output thesis_maps
+
+# 7. Отчеты
 python scripts/analysis/export_reports.py output/csv/erosion_metrics.csv \
   --format all --output thesis_chapter
 ```
@@ -195,4 +264,6 @@ python scripts/analysis/export_reports.py output/csv/erosion_metrics.csv \
 **Результат:**
 - Полный набор анализов для диссертации
 - Профессиональные графики
+- Детализация по сегментам берега
+- Интерактивные SVG карты
 - LaTeX код для включения в диссертацию
