@@ -115,10 +115,10 @@ func normalizeTemporalParameters(params TemporalParameters) TemporalParameters {
 	return params
 }
 
-// calculateSeasonalFactor рассчитывает сезонный множитель
+// calculateTemporalSeasonalFactor рассчитывает сезонный множитель
 // Формула: seasonalFactor = 1.0 + 0.5×sin(2π × year + phase)
 // Результат: [0.5, 1.5] - сезонные колебания эрозии
-func calculateSeasonalFactor(year float64, phase float64) float64 {
+func calculateTemporalSeasonalFactor(year float64, phase float64) float64 {
 	// Нормализуем фазу
 	phase = math.Mod(phase, 2*math.Pi)
 
@@ -158,7 +158,7 @@ func calculateTemporalState(step int, params TemporalParameters, rng *rand.Rand)
 
 	// Сезонность
 	if params.Seasonality {
-		state.SeasonalFactor = calculateSeasonalFactor(state.Year, params.SeasonalPhase)
+		state.SeasonalFactor = calculateTemporalSeasonalFactor(state.Year, params.SeasonalPhase)
 	} else {
 		state.SeasonalFactor = 1.0
 	}

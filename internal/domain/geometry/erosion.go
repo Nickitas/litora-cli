@@ -27,6 +27,13 @@ type WaveErosionOptions struct {
 	BathymetryGrid           *BathymetryGrid
 	LithologyProfile         *LithologyProfile
 	EnableLithology          bool
+
+	// Динамическая литология (более реалистичная модель)
+	DynamicLithologyMap      *SpatialLithologyMap
+	EnableDynamicLithology   bool
+	LithologyInteractionParams LithologyInteractionParams
+	WeatheringProfile        WeatheringProfile
+	SimulationYears          float64  // время симуляции для выветривания
 }
 
 type waveSideResponse struct {
@@ -315,6 +322,35 @@ func waveErodeStep(points []LatLon, options WaveErosionOptions, seed int64, step
 				// Higher resistance = slower retreat (inverse relationship)
 				// Resistance=1.0 is baseline, Resistance>1.0 slows erosion
 				retreatMeters /= lithology.Resistance
+			}
+		}
+
+		// Dynamic lithology: more sophisticated modulation with weathering
+		if options.EnableDynamicLithology && options.DynamicLithologyMap != nil {
+			// Find nearest point in spatial map
+			if i < len(options.DynamicLithologyMap.Points) {
+				dynamicState := options.DynamicLithologyMap.Points[i]
+
+				// Apply weathering if simulation time is set
+				if options.SimulationYears > 0 {
+					weatheredState := ApplyWeathering(
+						dynamicState.Static,
+						options.SimulationYears,
+						options.WeatheringProfile,
+						1.0, // climate factor
+					)
+					retreatMeters = CalculateLithologyErosionInteraction(
+						retreatMeters,
+						weatheredState,
+						options.LithologyInteractionParams,
+						false, // isStorm
+					)
+				} else {
+					// Use current resistance directly
+					if dynamicState.CurrentResistance > 0 {
+						retreatMeters /= dynamicState.CurrentResistance
+					}
+				}
 			}
 		}
 
