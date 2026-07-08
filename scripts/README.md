@@ -9,13 +9,14 @@ scripts/
 ├── README.md                  # Эта документация
 ├── requirements.txt           # Зависимости Python
 └── analysis/                 # Скрипты анализа
-    ├── analyze_erosion.py     # Базовый анализ эрозии
-    ├── plot_dynamics.py       # Визуализация динамики
-    ├── storm_analysis.py      # Анализ штормов
-    ├── compare_scenarios.py   # Сравнение сценариев
-    ├── export_reports.py      # Генерация отчетов
-    ├── segment_analysis.py    # Детализация по сегментам берега
-    └── segment_svg_generator.py  # SVG генератор карт сегментов
+    ├── analyze_erosion.py         # Базовый анализ эрозии
+    ├── plot_dynamics.py           # Визуализация динамики
+    ├── storm_analysis.py          # Анализ штормов
+    ├── compare_scenarios.py       # Сравнение сценариев
+    ├── export_reports.py          # Генерация отчетов
+    ├── segment_analysis.py        # Детализация по сегментам берега
+    ├── segment_svg_generator.py   # SVG генератор карт сегментов
+    └── sediment_temporal_analysis.py  # Анализ временной динамики седиментации
 ```
 
 ## Установка
@@ -199,6 +200,35 @@ python scripts/analysis/segment_analysis.py output/csv/erosion_metrics.csv \
 - **Прямые участки** (синий) — нейтральные участки
 - **Плавные изгибы** (оранжевый) — промежуточные участки
 - **Сложные участки** (фиолетовый) — участки со сложной геометрией
+
+### Анализ временной динамики седиментации
+
+**Задача:** Анализ влияния штормов и сезонности на транспорт наносов и аккумуляцию.
+
+```bash
+# Анализ с данными о штормах
+python scripts/analysis/sediment_temporal_analysis.py output/csv/storm_analysis.csv
+
+# С указанием количества точек береговой линии
+python scripts/analysis/sediment_temporal_analysis.py output/csv/storm_analysis.csv \
+  --num-points 150 --output sediment_analysis
+
+# С кастомным порогом эрозии для определения штормов
+python scripts/analysis/sediment_temporal_analysis.py output/csv/erosion_metrics.csv \
+  --erosion-threshold 5000
+```
+
+**Результат:**
+- `output/report/sediment_temporal_report.txt` — текстовый отчет
+- `output/report/sediment_temporal_seasonal.png` — сезонный цикл эрозии/аккумуляции
+- `output/report/sediment_temporal_storms.png` — влияние штормов
+- `output/report/sediment_temporal_budget.png` — баланс седиментов
+
+**Анализируемые параметры:**
+- **Штормовые события**: интенсивность, частота, эрозионное воздействие
+- **Сезонная цикличность**: зимние штормы vs летняя аккумуляция
+- **Штормовые отложения**: толщина слоёв, размер зёрен, сохранность
+- **Баланс седиментов**: эрозия vs аккумуляция vs транспорт
 
 ### SVG генератор карт сегментов
 
