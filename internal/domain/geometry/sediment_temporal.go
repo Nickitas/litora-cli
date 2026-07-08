@@ -3,6 +3,8 @@ package geometry
 import (
 	"fmt"
 	"math"
+	"runtime"
+	"sync"
 )
 
 // StormDepositLayer представляет слой отложений от отдельного шторма
@@ -467,4 +469,258 @@ func CreateSeasonalAccumulationProfile(
 	}
 
 	return results
+}
+
+// CalculateSedimentTransportWithTemporalOptimized оптимизированная версия с параллельной обработкой
+func CalculateSedimentTransportWithTemporalOptimized(
+	points []LatLon,
+	erosionRates []float64,
+	waveData WaveEnergyData,
+	lithology []LithologyState,
+	params SedimentTransportParameters,
+	temporalState TemporalState,
+	seasonalMod SeasonalModulation,
+	stormParams StormSedimentParameters,
+) SedimentTemporalResult {
+
+	n := len(points)
+	if n == 0 {
+		return SedimentTemporalResult{}
+	}
+
+	params = normalizeSedimentParams(params)
+	seasonalMod = normalizeSeasonalMod(seasonalMod)
+	stormParams = normalizeStormSedimentParams(stormParams)
+
+	result := SedimentTemporalResult{
+		States:       make([]TemporalSedimentState, n),
+		SeasonalStats: make(map[string]SedimentBudget),
+		StormImpact:  SedimentBudget{},
+	}
+
+	season := determineSeason(temporalState.Year, seasonalMod.AccumulationSeasonality)
+
+	// Используем оптимизированный расчёт базового транспорта
+	baseResult := CalculateSedimentTransportAuto(points, erosionRates, waveData, lithology, params)
+
+	// Предвычисляем сезонный фактор (общий для всех точек)
+	seasonalFactor := calculateSeasonalFactor(season, seasonalMod, temporalState.SeasonalFactor)
+
+	// Параллельная обработка временной модуляции
+	useParallel := n > 500
+
+	if useParallel {
+		applyTemporalModulationParallel(result, baseResult, erosionRates, temporalState,
+			season, seasonalFactor, stormParams, n)
+	} else {
+		applyTemporalModulationSequential(result, baseResult, erosionRates, temporalState,
+			season, seasonalFactor, stormParams, n)
+	}
+
+	// Сводная статистика (может быть параллельной)
+	calculateTemporalStatistics(result, baseResult, season, temporalState)
+
+	return result
+}
+
+// applyTemporalModulationParallel параллельная применяет временную модуляцию
+func applyTemporalModulationParallel(
+	result SedimentTemporalResult,
+	baseResult SedimentTransportResult,
+	erosionRates []float64,
+	temporalState TemporalState,
+	season string,
+	seasonalFactor float64,
+	stormParams StormSedimentParameters,
+	n int,
+) {
+	workers := runtime.NumCPU()
+	batchSize := (n + workers - 1) / workers
+
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+
+	for i := 0; i < workers; i++ {
+		start := i * batchSize
+		end := start + batchSize
+		if end > n {
+			end = n
+		}
+		if start >= n {
+			break
+		}
+
+		wg.Add(1)
+		go func(workerStart, workerEnd int) {
+			defer wg.Done()
+
+			localStormDeposits := make([]StormDepositLayer, 0)
+			localStormImpact := SedimentBudget{}
+
+			for j := workerStart; j < workerEnd; j++ {
+				if j >= len(baseResult.States) {
+					break
+				}
+
+				// Копируем базовое состояние
+				result.States[j].BaseState = baseResult.States[j]
+				result.States[j].CurrentSeason = season
+				result.States[j].IsStormActive = temporalState.IsStorm
+				result.States[j].StormIntensity = temporalState.StormIntensity
+				result.States[j].SeasonalFactor = seasonalFactor
+
+				baseErosion := erosionRates[j]
+				modifiedErosion := baseErosion * seasonalFactor
+
+				// Штормовая модуляция
+				if temporalState.IsStorm && temporalState.StormIntensity > stormParams.StormThreshold {
+					modifiedErosion *= temporalState.StormIntensity
+					result.States[j].BaseState.LocalBudget.TransportVolume *= stormParams.StormTransportMultiplier
+					result.States[j].BaseState.LocalBudget.ErodedVolume *= stormParams.StormRetreatMultiplier
+
+					localStormImpact.ErodedVolume += result.States[j].BaseState.LocalBudget.ErodedVolume
+					localStormImpact.TransportVolume += result.States[j].BaseState.LocalBudget.TransportVolume
+					localStormImpact.ErosionPoints++
+				}
+
+				result.States[j].ModifiedErosion = modifiedErosion
+
+				// Сезонная аккумуляция
+				if season == "summer" || seasonalFactor < 1.0 {
+					depositionBoost := (2.0 - seasonalFactor) * 0.5
+					result.States[j].BaseState.LocalBudget.DepositedVolume *= (1.0 + depositionBoost)
+					result.States[j].DepositionChange = result.States[j].BaseState.LocalBudget.DepositedVolume
+				} else if season == "winter" {
+					result.States[j].BaseState.LocalBudget.DepositedVolume *= 0.7
+					result.States[j].DepositionChange = -result.States[j].BaseState.LocalBudget.DepositedVolume * 0.3
+				}
+
+				// Штормовые отложения
+				if temporalState.IsStorm && temporalState.StormIntensity > 1.5 {
+					stormDeposit := StormDepositLayer{
+						StormIndex:      int(temporalState.Step),
+						Thickness:       calculateStormDepositThickness(temporalState.StormIntensity),
+						Volume:          result.States[j].BaseState.LocalBudget.DepositedVolume,
+						GrainSize:       calculateStormGrainSize(temporalState.StormIntensity),
+						IsPreserved:     determinePreservation(temporalState.StormIntensity, result.States[j].BaseState),
+						DepositLocation: j,
+					}
+					result.States[j].StormDeposits = append(result.States[j].StormDeposits, stormDeposit)
+					localStormDeposits = append(localStormDeposits, stormDeposit)
+				}
+
+				result.States[j].BaseState.LocalBudget.NetChange =
+					result.States[j].BaseState.LocalBudget.ErodedVolume -
+					result.States[j].BaseState.LocalBudget.DepositedVolume
+			}
+
+			// Агрегируем результаты
+			mu.Lock()
+			result.AllStormDeposits = append(result.AllStormDeposits, localStormDeposits...)
+			result.StormImpact.ErodedVolume += localStormImpact.ErodedVolume
+			result.StormImpact.TransportVolume += localStormImpact.TransportVolume
+			result.StormImpact.ErosionPoints += localStormImpact.ErosionPoints
+			mu.Unlock()
+		}(start, end)
+	}
+
+	wg.Wait()
+
+	// Пост-обработка: фильтруем сохранённые отложения
+	for _, deposit := range result.AllStormDeposits {
+		if deposit.IsPreserved {
+			result.PreservedDeposits = append(result.PreservedDeposits, deposit)
+		}
+	}
+}
+
+// applyTemporalModulationSequential последовательная версия
+func applyTemporalModulationSequential(
+	result SedimentTemporalResult,
+	baseResult SedimentTransportResult,
+	erosionRates []float64,
+	temporalState TemporalState,
+	season string,
+	seasonalFactor float64,
+	stormParams StormSedimentParameters,
+	n int,
+) {
+	for i := 0; i < n && i < len(baseResult.States); i++ {
+		result.States[i].BaseState = baseResult.States[i]
+		result.States[i].CurrentSeason = season
+		result.States[i].IsStormActive = temporalState.IsStorm
+		result.States[i].StormIntensity = temporalState.StormIntensity
+		result.States[i].SeasonalFactor = seasonalFactor
+
+		baseErosion := erosionRates[i]
+		modifiedErosion := baseErosion * seasonalFactor
+
+		if temporalState.IsStorm && temporalState.StormIntensity > stormParams.StormThreshold {
+			modifiedErosion *= temporalState.StormIntensity
+			result.States[i].BaseState.LocalBudget.TransportVolume *= stormParams.StormTransportMultiplier
+			result.States[i].BaseState.LocalBudget.ErodedVolume *= stormParams.StormRetreatMultiplier
+
+			result.StormImpact.ErodedVolume += result.States[i].BaseState.LocalBudget.ErodedVolume
+			result.StormImpact.TransportVolume += result.States[i].BaseState.LocalBudget.TransportVolume
+			result.StormImpact.ErosionPoints++
+		}
+
+		result.States[i].ModifiedErosion = modifiedErosion
+
+		if season == "summer" || seasonalFactor < 1.0 {
+			depositionBoost := (2.0 - seasonalFactor) * 0.5
+			result.States[i].BaseState.LocalBudget.DepositedVolume *= (1.0 + depositionBoost)
+			result.States[i].DepositionChange = result.States[i].BaseState.LocalBudget.DepositedVolume
+		} else if season == "winter" {
+			result.States[i].BaseState.LocalBudget.DepositedVolume *= 0.7
+			result.States[i].DepositionChange = -result.States[i].BaseState.LocalBudget.DepositedVolume * 0.3
+		}
+
+		if temporalState.IsStorm && temporalState.StormIntensity > 1.5 {
+			stormDeposit := StormDepositLayer{
+				StormIndex:      int(temporalState.Step),
+				Thickness:       calculateStormDepositThickness(temporalState.StormIntensity),
+				Volume:          result.States[i].BaseState.LocalBudget.DepositedVolume,
+				GrainSize:       calculateStormGrainSize(temporalState.StormIntensity),
+				IsPreserved:     determinePreservation(temporalState.StormIntensity, result.States[i].BaseState),
+				DepositLocation: i,
+			}
+			result.States[i].StormDeposits = append(result.States[i].StormDeposits, stormDeposit)
+			result.AllStormDeposits = append(result.AllStormDeposits, stormDeposit)
+
+			if stormDeposit.IsPreserved {
+				result.PreservedDeposits = append(result.PreservedDeposits, stormDeposit)
+			}
+		}
+
+		result.States[i].BaseState.LocalBudget.NetChange =
+			result.States[i].BaseState.LocalBudget.ErodedVolume -
+			result.States[i].BaseState.LocalBudget.DepositedVolume
+	}
+}
+
+// calculateTemporalStatistics вычисляет статистику (может быть параллельной)
+func calculateTemporalStatistics(
+	result SedimentTemporalResult,
+	baseResult SedimentTransportResult,
+	season string,
+	temporalState TemporalState,
+) {
+	result.TotalBudget = baseResult.TotalBudget
+
+	seasonBudget := SedimentBudget{}
+	for _, state := range result.States {
+		seasonBudget.ErodedVolume += state.BaseState.LocalBudget.ErodedVolume
+		seasonBudget.TransportVolume += state.BaseState.LocalBudget.TransportVolume
+		seasonBudget.DepositedVolume += state.BaseState.LocalBudget.DepositedVolume
+	}
+	result.SeasonalStats[season] = seasonBudget
+
+	result.IsValid = baseResult.IsValid
+	result.Warnings = baseResult.Warnings
+
+	if temporalState.IsStorm {
+		result.Warnings = append(result.Warnings,
+			fmt.Sprintf("Storm event: intensity %.2f", temporalState.StormIntensity))
+	}
 }

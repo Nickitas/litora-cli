@@ -60,8 +60,8 @@ func calculateSedimentTransportForValidation(
 		LongshoreDriftCoefficient: 0.9, // сила alongshore транспорта (увеличена)
 	}
 
-	// Рассчитываем sediment transport
-	result := geometry.CalculateSedimentTransport(
+	// Рассчитываем sediment transport с автоматическим выбором оптимальной стратегии
+	result := geometry.CalculateSedimentTransportAuto(
 		currentPoints, erosionRates, waveData, lithology, params,
 	)
 
