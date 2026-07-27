@@ -31,14 +31,14 @@ type DynamicLithologyState struct {
 	Static LithologyState
 
 	// Динамические свойства (меняются со временем)
-	CurrentResistance  float64  // текущее сопротивление
-	WeatheringProgress float64  // прогресс выветривания [0-1]
-	AgeYears           float64  // возраст породы (лет)
-	Thickness          float64  // толщина слоя (м)
-	IsWeathered        bool     // флаг выветривания
-	FractureDensity    float64  // плотность трещин [0-1]
-	Porosity           float64  // пористость [0-1]
-	Saturation         float64  // водонасыщенность [0-1]
+	CurrentResistance  float64 // текущее сопротивление
+	WeatheringProgress float64 // прогресс выветривания [0-1]
+	AgeYears           float64 // возраст породы (лет)
+	Thickness          float64 // толщина слоя (м)
+	IsWeathered        bool    // флаг выветривания
+	FractureDensity    float64 // плотность трещин [0-1]
+	Porosity           float64 // пористость [0-1]
+	Saturation         float64 // водонасыщенность [0-1]
 
 	// История изменений
 	ModificationHistory []LithologyModification
@@ -46,22 +46,22 @@ type DynamicLithologyState struct {
 
 // LithologyModification запись об изменении литологии
 type LithologyModification struct {
-	Timestamp      time.Time
-	OldResistance  float64
-	NewResistance  float64
-	ModificationType string // "weathering", "erosion", "deposition", "storm"
-	Cause          string  // описание причины
-	Magnitude      float64  // величина изменения
+	Timestamp        time.Time
+	OldResistance    float64
+	NewResistance    float64
+	ModificationType string  // "weathering", "erosion", "deposition", "storm"
+	Cause            string  // описание причины
+	Magnitude        float64 // величина изменения
 }
 
 // LithologyInteractionParams параметры взаимодействия литологии с процессами
 type LithologyInteractionParams struct {
 	// Erosion-lithology interaction
 	ErosionResistanceFactor float64 // насколько сопротивление снижает эрозию [0-1]
-	WeatheringErosionBoost   float64 // насколько выветривание ускоряет эрозию [0-1]
+	WeatheringErosionBoost  float64 // насколько выветривание ускоряет эрозию [0-1]
 
 	// Deposition-lithology interaction
-	DepositionAdhesionFactor float64 // сцепление отложений с породой [0-1]
+	DepositionAdhesionFactor    float64 // сцепление отложений с породой [0-1]
 	LithologyTrappingEfficiency float64 // эффективность захвата наносов [0-1]
 
 	// Storm impact on lithology
@@ -69,29 +69,29 @@ type LithologyInteractionParams struct {
 	StormErosionMultiplier  float64 // множитель эрозии во время штормов
 
 	// Spatial variability
-	SpatialAutocorrelation   float64 // пространственная автокорреляция [0-1]
-	HeterogeneityScale      float64 // масштаб неоднородности (км)
-	NoiseLevel              float64 // уровень случайных вариаций [0-1]
+	SpatialAutocorrelation float64 // пространственная автокорреляция [0-1]
+	HeterogeneityScale     float64 // масштаб неоднородности (км)
+	NoiseLevel             float64 // уровень случайных вариаций [0-1]
 }
 
 // SpatialLithologyMap пространственная карта литологии
 type SpatialLithologyMap struct {
-	Points    []DynamicLithologyState
-	Bounds    Bounds
+	Points     []DynamicLithologyState
+	Bounds     Bounds
 	Resolution float64 // км между точками
-	Params    LithologyInteractionParams
+	Params     LithologyInteractionParams
 	Weathering WeatheringProfile
 }
 
 // LithologyEvolutionResult результат эволюции литологии
 type LithologyEvolutionResult struct {
-	InitialState  []DynamicLithologyState
-	FinalState    []DynamicLithologyState
-	TimeSpanYears float64
+	InitialState         []DynamicLithologyState
+	FinalState           []DynamicLithologyState
+	TimeSpanYears        float64
 	TotalWeatheringDepth float64
-	ResistanceChanges []float64
-	ErosionImpact  []float64
-	DepositionImpact []float64
+	ResistanceChanges    []float64
+	ErosionImpact        []float64
+	DepositionImpact     []float64
 }
 
 // ApplyWeathering применяет выветривание к породе
@@ -139,16 +139,16 @@ func ApplyWeathering(
 	}
 
 	// Увеличение пористости и трещиноватости
-	dynamic.Porosity = 0.05 + dynamic.WeatheringProgress*0.25 // до 30%
+	dynamic.Porosity = 0.05 + dynamic.WeatheringProgress*0.25      // до 30%
 	dynamic.FractureDensity = 0.1 + dynamic.WeatheringProgress*0.4 // до 50%
 
 	dynamic.IsWeathered = dynamic.WeatheringProgress > 0.3
 
 	// Запись в историю
 	dynamic.ModificationHistory = append(dynamic.ModificationHistory, LithologyModification{
-		Timestamp:         time.Now(),
-		OldResistance:     state.Resistance,
-		NewResistance:     dynamic.CurrentResistance,
+		Timestamp:        time.Now(),
+		OldResistance:    state.Resistance,
+		NewResistance:    dynamic.CurrentResistance,
 		ModificationType: "weathering",
 		Cause:            fmt.Sprintf("weathering over %.1f years", years),
 		Magnitude:        state.Resistance - dynamic.CurrentResistance,
@@ -293,8 +293,8 @@ func generateSpatiallyCorrelatedNoise(index, n int, autocorr, noiseLevel float64
 	normalizedPos := float64(index) / float64(n)
 
 	// Детерминированная компонента (пространственная волна)
-	spatialComponent := 0.5 * math.Sin(2*math.Pi*normalizedPos*3) +
-		0.3 * math.Sin(2*math.Pi*normalizedPos*7)
+	spatialComponent := 0.5*math.Sin(2*math.Pi*normalizedPos*3) +
+		0.3*math.Sin(2*math.Pi*normalizedPos*7)
 
 	// Случайная компонента с автокорреляцией
 	// Упрощённо: используем хеш-подобную функцию от индекса
@@ -377,9 +377,9 @@ func SimulateLithologyEvolution(
 				}
 
 				state.ModificationHistory = append(state.ModificationHistory, LithologyModification{
-					Timestamp:         time.Now(),
-					OldResistance:     state.CurrentResistance,
-					NewResistance:     state.CurrentResistance * (1.0 - erosionFactor),
+					Timestamp:        time.Now(),
+					OldResistance:    state.CurrentResistance,
+					NewResistance:    state.CurrentResistance * (1.0 - erosionFactor),
 					ModificationType: "erosion",
 					Cause:            fmt.Sprintf("erosion impact %.2f", baseErosion),
 					Magnitude:        state.CurrentResistance * erosionFactor,
@@ -449,9 +449,9 @@ func ApplyStormImpactOnLithology(
 
 	// Запись в историю
 	state.ModificationHistory = append(state.ModificationHistory, LithologyModification{
-		Timestamp:         time.Now(),
-		OldResistance:     oldResistance,
-		NewResistance:     state.CurrentResistance,
+		Timestamp:        time.Now(),
+		OldResistance:    oldResistance,
+		NewResistance:    state.CurrentResistance,
 		ModificationType: "storm",
 		Cause:            fmt.Sprintf("storm intensity %.2f", stormIntensity),
 		Magnitude:        resistanceDecrease,
@@ -520,19 +520,19 @@ func GetLithologyStatistics(states []DynamicLithologyState) map[string]interface
 // CreateDefaultWeatheringProfile создаёт профиль выветривания по умолчанию
 func CreateDefaultWeatheringProfile() WeatheringProfile {
 	return WeatheringProfile{
-		BaseRate:       0.1, // базовая скорость отн. единиц/год
+		BaseRate: 0.1, // базовая скорость отн. единиц/год
 		WeatheringRates: map[string]float64{
-			"limestone":     0.2, // известняк быстро выветривается
-			"granite":       0.05, // гранит медленно
-			"sandstone":     0.3, // песчаник быстро
-			"shale":         0.4, // глины сланцы очень быстро
-			"basalt":        0.03, // базальт медленно
-			"conglomerate":  0.2, // конгломераты средне
-			"alluvium":      1.0, // аллювий очень быстро
-			"rock":          0.1, // по умолчанию
+			"limestone":    0.2,  // известняк быстро выветривается
+			"granite":      0.05, // гранит медленно
+			"sandstone":    0.3,  // песчаник быстро
+			"shale":        0.4,  // глины сланцы очень быстро
+			"basalt":       0.03, // базальт медленно
+			"conglomerate": 0.2,  // конгломераты средне
+			"alluvium":     1.0,  // аллювий очень быстро
+			"rock":         0.1,  // по умолчанию
 		},
 		ClimateMultiplier: 1.0,
-		WeatheringDepth:   2.0, // 2 м зона выветривания
+		WeatheringDepth:   2.0,  // 2 м зона выветривания
 		StabilizationTime: 50.0, // 50 лет характерное время выветривания
 	}
 }
@@ -540,15 +540,15 @@ func CreateDefaultWeatheringProfile() WeatheringProfile {
 // CreateDefaultLithologyInteractionParams создаёт параметры взаимодействия по умолчанию
 func CreateDefaultLithologyInteractionParams() LithologyInteractionParams {
 	return LithologyInteractionParams{
-		ErosionResistanceFactor:      0.5,
-		WeatheringErosionBoost:       0.3,
-		DepositionAdhesionFactor:     0.7,
-		LithologyTrappingEfficiency:  0.5,
-		StormFractureMultiplier:      2.0,
-		StormErosionMultiplier:       3.0,
-		SpatialAutocorrelation:       0.7,
-		HeterogeneityScale:           5.0, // 5 км
-		NoiseLevel:                   0.2,
+		ErosionResistanceFactor:     0.5,
+		WeatheringErosionBoost:      0.3,
+		DepositionAdhesionFactor:    0.7,
+		LithologyTrappingEfficiency: 0.5,
+		StormFractureMultiplier:     2.0,
+		StormErosionMultiplier:      3.0,
+		SpatialAutocorrelation:      0.7,
+		HeterogeneityScale:          5.0, // 5 км
+		NoiseLevel:                  0.2,
 	}
 }
 
@@ -690,9 +690,9 @@ func UpdateLithologyAfterErosion(
 		}
 
 		updated[i].ModificationHistory = append(updated[i].ModificationHistory, LithologyModification{
-			Timestamp:         time.Now(),
-			OldResistance:     states[i].CurrentResistance,
-			NewResistance:     updated[i].CurrentResistance,
+			Timestamp:        time.Now(),
+			OldResistance:    states[i].CurrentResistance,
+			NewResistance:    updated[i].CurrentResistance,
 			ModificationType: "erosion_feedback",
 			Cause:            fmt.Sprintf("erosion %.2fm", erosionMeters),
 			Magnitude:        resistanceLoss,
@@ -735,9 +735,9 @@ func UpdateLithologyAfterDeposition(
 		}
 
 		updated[i].ModificationHistory = append(updated[i].ModificationHistory, LithologyModification{
-			Timestamp:         time.Now(),
-			OldResistance:     states[i].CurrentResistance,
-			NewResistance:     updated[i].CurrentResistance,
+			Timestamp:        time.Now(),
+			OldResistance:    states[i].CurrentResistance,
+			NewResistance:    updated[i].CurrentResistance,
 			ModificationType: "deposition",
 			Cause:            fmt.Sprintf("deposition %.2fm", depositionMeters),
 			Magnitude:        depositionMeters,
@@ -851,7 +851,7 @@ func EstimateStormProbabilityByLithology(
 	}
 
 	if state.IsWeathered {
-		probability *= (1.0 + state.WeatheringProgress * 0.3)
+		probability *= (1.0 + state.WeatheringProgress*0.3)
 	}
 
 	if probability > 1.0 {

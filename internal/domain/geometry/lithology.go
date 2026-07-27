@@ -9,9 +9,9 @@ import (
 
 // LithologyProfile represents the complete lithology profile for a region
 type LithologyProfile struct {
-	Metadata  LithologyMetadata        `json:"metadata"`
-	Points    []LithologyPoint         `json:"points"`
-	Classes   map[string]LithologyClass `json:"classes"`
+	Metadata  LithologyMetadata          `json:"metadata"`
+	Points    []LithologyPoint           `json:"points"`
+	Classes   map[string]LithologyClass  `json:"classes"`
 	Baselines map[string]ErosionBaseline `json:"erosion_baselines"`
 }
 
@@ -37,36 +37,36 @@ type Bounds struct {
 
 // LithologyPoint represents a single lithology measurement point
 type LithologyPoint struct {
-	Lat         float64  `json:"lat"`
-	Lon         float64  `json:"lon"`
-	Region      string   `json:"region"`
-	Lithology   string   `json:"lithology_class"`
-	Resistance  float64  `json:"resistance"`
-	Color       string   `json:"color"`
-	Description string   `json:"description"`
-	Confidence  string   `json:"confidence"`
-	Source      string   `json:"source"`
+	Lat             float64  `json:"lat"`
+	Lon             float64  `json:"lon"`
+	Region          string   `json:"region"`
+	Lithology       string   `json:"lithology_class"`
+	Resistance      float64  `json:"resistance"`
+	Color           string   `json:"color"`
+	Description     string   `json:"description"`
+	Confidence      string   `json:"confidence"`
+	Source          string   `json:"source"`
 	ErosionObserved *float64 `json:"erosion_observed,omitempty"`
-	Note        string   `json:"note,omitempty"`
-	Dynamic     bool     `json:"dynamic,omitempty"`
+	Note            string   `json:"note,omitempty"`
+	Dynamic         bool     `json:"dynamic,omitempty"`
 }
 
 // LithologyClass defines a rock type class
 type LithologyClass struct {
-	Resistance  float64  `json:"resistance"`
-	Color       string   `json:"color"`
-	Description string   `json:"description"`
+	Resistance   float64   `json:"resistance"`
+	Color        string    `json:"color"`
+	Description  string    `json:"description"`
 	ErosionRange []float64 `json:"erosion_range,omitempty"`
-	Dynamic     bool    `json:"dynamic,omitempty"`
-	Note        string  `json:"note,omitempty"`
+	Dynamic      bool      `json:"dynamic,omitempty"`
+	Note         string    `json:"note,omitempty"`
 }
 
 // ErosionBaseline defines baseline erosion rates for resistance classes
 type ErosionBaseline struct {
-	ResistanceRange [2]float64             `json:"resistance_range"`
-	ErosionMYear    map[string]float64    `json:"erosion_m_year"`
-	Description    string                 `json:"description"`
-	Note           string                 `json:"note,omitempty"`
+	ResistanceRange [2]float64         `json:"resistance_range"`
+	ErosionMYear    map[string]float64 `json:"erosion_m_year"`
+	Description     string             `json:"description"`
+	Note            string             `json:"note,omitempty"`
 }
 
 // LoadLithologyProfile loads a lithology profile from JSON data
@@ -131,8 +131,8 @@ func (p *LithologyProfile) GetLithologyAt(lat, lon float64) LithologyState {
 
 // interpolateLithologyIDW interpolates lithology using inverse distance weighting
 func (p *LithologyProfile) interpolateLithologyIDW(lat, lon float64) LithologyState {
-	const maxPoints = 6     // максимальное число точек для интерполяции
-	const power = 2.0       // степень для IDW (стандартное значение)
+	const maxPoints = 6 // максимальное число точек для интерполяции
+	const power = 2.0   // степень для IDW (стандартное значение)
 
 	// Найти ближайшие точки
 	nearby := p.findNearbyPoints(lat, lon, maxPoints)
@@ -342,14 +342,14 @@ func validateLithologyProfile(profile *LithologyProfile) error {
 // GetStatistics returns statistics about the lithology profile
 func (p *LithologyProfile) GetStatistics() map[string]interface{} {
 	stats := map[string]interface{}{
-		"name":         p.Metadata.Name,
-		"version":      p.Metadata.Version,
-		"num_points":   len(p.Points),
-		"num_classes":  len(p.Classes),
+		"name":          p.Metadata.Name,
+		"version":       p.Metadata.Version,
+		"num_points":    len(p.Points),
+		"num_classes":   len(p.Classes),
 		"num_baselines": len(p.Baselines),
-		"resolution":   p.Metadata.Resolution,
-		"bounds":       p.Metadata.Bounds,
-		"regions":      p.Metadata.Regions,
+		"resolution":    p.Metadata.Resolution,
+		"bounds":        p.Metadata.Bounds,
+		"regions":       p.Metadata.Regions,
 	}
 
 	// Resistance statistics

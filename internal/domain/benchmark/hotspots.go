@@ -1,0 +1,177 @@
+package benchmark
+
+import (
+	"math"
+	"sort"
+
+	"coastal-geometry/internal/domain/geometry"
+)
+
+// Hotspot represents a segment of coastline with significant erosion
+type Hotspot struct {
+	Center          geometry.LatLon `json:"center"`
+	StartIdx        int             `json:"start_idx"`
+	EndIdx          int             `json:"end_idx"`
+	MeanRetreatRate float64         `json:"mean_retreat_rate_m_per_year"`
+	MaxRetreatRate  float64         `json:"max_retreat_rate_m_per_year"`
+	LengthKm        float64         `json:"length_km"`
+	Rank            int             `json:"rank"` // 1 = hottest
+}
+
+// SegmentRate represents modeled retreat rate for each coastline segment
+type SegmentRate struct {
+	Index          int             `json:"index"`
+	Center         geometry.LatLon `json:"center"`
+	RetreatRate    float64         `json:"retreat_rate_m_per_year"`
+	ObservedRate   float64         `json:"observed_rate_m_per_year,omitempty"`
+	HasObservation bool            `json:"has_observation"`
+	DistanceKm     float64         `json:"distance_km_to_nearest_observation,omitempty"`
+}
+
+// SegmentRates returns modeled retreat rates for every coastline segment
+// using a single model run with given parameters
+func SegmentRates(site BenchmarkSite, config CalibrationConfig, strength, waveDir float64) []SegmentRate {
+	steps := int(float64(config.TotalYears) / config.YearsPerStep)
+	if steps < 1 {
+		steps = 1
+	}
+
+	options := geometry.WaveErosionOptions{
+		StrengthMeters:           strength,
+		WindSourceDirectionDeg:   waveDir,
+		WindSpeedMetersPerSecond: config.WindSpeed,
+		FetchSpreadDeg:           55,
+		FetchSamples:             9,
+		MaxFetchMeters:           150_000,
+		DepthScaleMeters:         4000,
+		ExposurePower:            1.5,
+		MaxRetreatMeters:         strength * 3,
+		BathymetryGrid:           config.BathymetryGrid,
+	}
+
+	snapshots := geometry.SimulateWaveErosionWithSeed(site.Coastline, steps, options, 42)
+	initial := snapshots[0]
+	final := snapshots[len(snapshots)-1]
+
+	// Compute retreat per point
+	retreats := make([]float64, len(initial))
+	for i := range initial {
+		retreats[i] = computeSegmentRetreat(initial, final, i) / float64(config.TotalYears)
+	}
+
+	// Build segment rates
+	rates := make([]SegmentRate, len(initial))
+	for i := range initial {
+		// Check if any observation is near
+		var obsRate float64
+		hasObs := false
+		var minDist float64 = math.Inf(1)
+		for _, obs := range site.ObservedErosion {
+			d := haversineKm(initial[i], obs.LatLon)
+			if d < minDist {
+				minDist = d
+				if d < 2.0 { // within 2 km
+					obsRate = obs.ShorelineChangeRate
+					hasObs = true
+				}
+			}
+		}
+
+		rates[i] = SegmentRate{
+			Index:          i,
+			Center:         initial[i],
+			RetreatRate:    retreats[i],
+			ObservedRate:   obsRate,
+			HasObservation: hasObs,
+		}
+		if hasObs {
+			rates[i].DistanceKm = minDist
+		}
+	}
+
+	return rates
+}
+
+// FindHotspots identifies the top-N erosion hotspots along the coast
+// Hotspots are contiguous segments of high retreat rate (above threshold)
+func FindHotspots(rates []SegmentRate, coastline []geometry.LatLon, topN int, thresholdPercentile float64) []Hotspot {
+	if len(rates) < 2 || topN < 1 {
+		return nil
+	}
+	if thresholdPercentile <= 0 || thresholdPercentile > 1 {
+		thresholdPercentile = 0.75
+	}
+
+	// Sort retreat rates to find threshold
+	sortedRates := make([]float64, len(rates))
+	for i, r := range rates {
+		sortedRates[i] = r.RetreatRate
+	}
+	sort.Float64s(sortedRates)
+	thresholdIdx := int(float64(len(sortedRates)-1) * thresholdPercentile)
+	threshold := sortedRates[thresholdIdx]
+
+	// Find contiguous segments above threshold
+	var hotspots []Hotspot
+	i := 0
+	for i < len(rates) {
+		if rates[i].RetreatRate <= threshold {
+			i++
+			continue
+		}
+
+		// Start of a hotspot
+		start := i
+		maxRate := rates[i].RetreatRate
+		var sumRate float64
+		for i < len(rates) && rates[i].RetreatRate > threshold {
+			sumRate += rates[i].RetreatRate
+			if rates[i].RetreatRate > maxRate {
+				maxRate = rates[i].RetreatRate
+			}
+			i++
+		}
+		end := i - 1
+
+		// Compute hotspot properties
+		hotspots = append(hotspots, buildHotspot(coastline, rates, start, end, sumRate, maxRate))
+	}
+
+	// Sort by mean retreat rate descending
+	sort.Slice(hotspots, func(a, b int) bool {
+		return hotspots[a].MeanRetreatRate > hotspots[b].MeanRetreatRate
+	})
+
+	// Assign ranks and limit to top N
+	for i := range hotspots {
+		hotspots[i].Rank = i + 1
+	}
+	if len(hotspots) > topN {
+		hotspots = hotspots[:topN]
+	}
+	return hotspots
+}
+
+func buildHotspot(coastline []geometry.LatLon, rates []SegmentRate, start, end int, sumRate, maxRate float64) Hotspot {
+	n := end - start + 1
+	meanRate := sumRate / float64(n)
+
+	// Center is midpoint
+	centerIdx := (start + end) / 2
+	center := coastline[centerIdx]
+
+	// Length along coastline
+	var lengthM float64
+	for i := start; i < end && i+1 < len(coastline); i++ {
+		lengthM += haversineKm(coastline[i], coastline[i+1]) * 1000
+	}
+
+	return Hotspot{
+		Center:          center,
+		StartIdx:        start,
+		EndIdx:          end,
+		MeanRetreatRate: meanRate,
+		MaxRetreatRate:  maxRate,
+		LengthKm:        lengthM / 1000,
+	}
+}

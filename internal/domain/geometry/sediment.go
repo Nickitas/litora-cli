@@ -24,8 +24,8 @@ type SedimentState struct {
 	LocalBudget    SedimentBudget
 	InTransitFrom  []float64 // объём от соседей (incoming)
 	InTransitTo    []float64 // объём к соседям (outgoing)
-	IsAccumulating bool       // режим аккумуляции
-	IsEroding      bool       // режим эрозии
+	IsAccumulating bool      // режим аккумуляции
+	IsEroding      bool      // режим эрозии
 }
 
 // SedimentTransportParameters параметры транспорта наносов
@@ -61,21 +61,21 @@ type LithologyState struct {
 
 // SedimentTransportResult результат расчёта транспорта
 type SedimentTransportResult struct {
-	States         []SedimentState
-	TotalBudget    SedimentBudget
-	MassBalance    float64  // должен быть ≈ 0
-	IsValid        bool     // validation check
-	Warnings       []string
+	States          []SedimentState
+	TotalBudget     SedimentBudget
+	MassBalance     float64 // должен быть ≈ 0
+	IsValid         bool    // validation check
+	Warnings        []string
 	BaselineErosion []float64 // базовая эрозия (м)
 	ModifiedErosion []float64 // модифицированная эрозия (м)
 }
 
 // WaveEnergyData волновая энергия по точкам
 type WaveEnergyData struct {
-	Energy      []float64 // волновая энергия [0-1]
-	Direction   float64   // главное направление (град от севера)
-	Incidence   []float64 // угол падения на берег [0-1]
-	Fetch       []float64 // fetch distance (m)
+	Energy    []float64 // волновая энергия [0-1]
+	Direction float64   // главное направление (град от севера)
+	Incidence []float64 // угол падения на берег [0-1]
+	Fetch     []float64 // fetch distance (m)
 }
 
 // CalculateSedimentTransport рассчитывает транспорт наносов
@@ -277,7 +277,7 @@ func calculateDeposition(
 		} else if waveEnergy < 0.35 {
 			accumulationThreshold = 0.6 // Низкая энергия → легче аккумуляция
 		} else if waveEnergy > 0.75 {
-					accumulationThreshold = 1.1 // Высокая энергия → сложнее аккумуляция
+			accumulationThreshold = 1.1 // Высокая энергия → сложнее аккумуляция
 		}
 
 		// Основная логика аккумуляции с несколькими условиями
@@ -285,7 +285,7 @@ func calculateDeposition(
 		depositionAmount := 0.0
 
 		// Условие 1: Превышение capacity (классическая логика)
-		if incomingTotal > localCapacity * accumulationThreshold {
+		if incomingTotal > localCapacity*accumulationThreshold {
 			shouldAccumulate = true
 			excess := incomingTotal - (localCapacity * accumulationThreshold)
 			depositionAmount = excess * params.DepositionRate
@@ -309,7 +309,7 @@ func calculateDeposition(
 			states[i].IsAccumulating = true
 
 			// Остаток идёт дальше (только если был избыток)
-			if incomingTotal > localCapacity * accumulationThreshold {
+			if incomingTotal > localCapacity*accumulationThreshold {
 				remainingExcess := incomingTotal - (localCapacity * accumulationThreshold) - depositionAmount
 				if remainingExcess > 0 {
 					states[i].LocalBudget.TransportVolume += remainingExcess
@@ -323,7 +323,7 @@ func calculateDeposition(
 		// Баланс массы
 		states[i].LocalBudget.NetChange =
 			states[i].LocalBudget.ErodedVolume -
-			states[i].LocalBudget.DepositedVolume
+				states[i].LocalBudget.DepositedVolume
 
 		// Статистика
 		if states[i].LocalBudget.NetChange > 0 {
@@ -342,7 +342,7 @@ func summarizeSedimentTransport(
 ) SedimentTransportResult {
 
 	result := SedimentTransportResult{
-		States:         states,
+		States:          states,
 		BaselineErosion: make([]float64, len(states)),
 		ModifiedErosion: make([]float64, len(states)),
 	}
@@ -470,12 +470,12 @@ func GetSedimentStatistics(result SedimentTransportResult) map[string]interface{
 		"total_eroded_m3":    result.TotalBudget.ErodedVolume,
 		"total_deposited_m3": result.TotalBudget.DepositedVolume,
 		"total_transport_m3": result.TotalBudget.TransportVolume,
-		"net_change_m3":     result.TotalBudget.NetChange,
+		"net_change_m3":      result.TotalBudget.NetChange,
 		"mass_balance":       result.MassBalance,
-		"is_valid":          result.IsValid,
-		"erosion_points":    result.TotalBudget.ErosionPoints,
-		"deposition_points": result.TotalBudget.DepositionPoints,
-		"warnings":          result.Warnings,
+		"is_valid":           result.IsValid,
+		"erosion_points":     result.TotalBudget.ErosionPoints,
+		"deposition_points":  result.TotalBudget.DepositionPoints,
+		"warnings":           result.Warnings,
 	}
 
 	return stats

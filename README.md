@@ -211,6 +211,37 @@ type ModelQualityMetrics struct {
 ---
 
 ### Методы аппроксимации
+
+#### TIN (Triangulated Irregular Network)
+
+**Более точная аппроксимация сложной береговой линии**
+
+```go
+type ApproximationMesh struct {
+    Type             string  // "regular" | "tin" | "adaptive"
+    Resolution       float64 // для regular (градусы)
+    MaxTriangleArea  float64 // для TIN (км²)
+    ErrorTolerance   float64 // для adaptive (метры)
+}
+
+func BuildTINMesh(points []LatLon, opts ApproximationOptions) (*TINMesh, error)
+```
+
+**Применение:**
+- **Плотная триангуляция** нерегулярно распределённых точек береговой линии
+- **Интерполяция значений** (глубина, эрозия) через барицентрические координаты
+- **Адаптивное уточнение** сетки в зонах сложной геометрии
+- **Визуализация рельефа** через TIN mesh с экспортом в GeoJSON
+
+**Алгоритм:** Delaunay триангуляция (Bowyer-Watson) с автоматическим удалением супер-треугольника
+
+**Метрики качества:**
+- Углы треугольников (min/max/avg) для оценки регулярности сетки
+- Плотность треугольников на единицу площади
+- Выявление вырожденных треугольников
+
+#### Другие методы аппроксимации
+
 - **IDW (Inverse Distance Weighting):** интерполяция литологических данных
 - **Regular Grid:** батиметрическая сетка с заданным разрешением
 - **Билинейная интерполяция:** оценка глубин в промежуточных точках
@@ -523,6 +554,156 @@ make bathymetry
   --gif-colors 12 \
   --gif-compression high
 # → climate_analysis.csv + climate_optimized.gif
+```
+
+### 6. TIN Mesh аппроксимация береговой линии
+
+#### 6.1 Базовая TIN триангуляция
+
+```go
+package main
+
+import (
+    "coastal-geometry/internal/domain/geometry"
+    "log"
+)
+
+func main() {
+    // Загрузка береговой линии
+    points, _, err := coastline.LoadFromJSON("data/black-sea.json")
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    // Параметры TIN mesh
+    opts := geometry.DefaultApproximationOptions()
+    opts.MeshType = "tin"
+    opts.MaxTriangleArea = 10.0  // 10 км² максимальная площадь треугольника
+
+    // Построение TIN mesh
+    mesh, err := geometry.BuildTINMesh(points, opts)
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    log.Printf("TIN Mesh: %d вершин, %d треугольников",
+        mesh.Stats.VertexCount, mesh.Stats.TriangleCount)
+    log.Printf("Площадь треугольников: avg=%.2f км², min=%.2f км², max=%.2f км²",
+        mesh.Stats.AvgTriangleArea/1e6,
+        mesh.Stats.MinTriangleArea/1e6,
+        mesh.Stats.MaxTriangleArea/1e6)
+}
+```
+
+#### 6.2 Адаптивное уточнение сетки
+
+```go
+// Адаптивная триангуляция с автоматическим уточнением
+opts := geometry.DefaultApproximationOptions()
+opts.MeshType = "adaptive"
+opts.MaxTriangleArea = 5.0   // 5 км² - порог для разделения
+opts.ErrorTolerance = 100.0  // 100 метров допустимая ошибка
+
+mesh, _ := geometry.BuildTINMesh(points, opts)
+
+log.Printf("Рефайнмент: %d итераций", mesh.Stats.RefinementSteps)
+```
+
+#### 6.3 Интерполяция значений через TIN
+
+```go
+// Интерполяция глубин в произвольной точке
+depths := []float64{-10.5, -25.3, -15.8, ...} // для каждой вершины mesh
+
+lat, lon := 44.5, 38.5
+interpolatedDepth, err := mesh.InterpolateValue(lat, lon, depths)
+if err != nil {
+    log.Printf("Точка (%f, %f) вне mesh bounds", lat, lon)
+} else {
+    log.Printf("Глубина в точке: %.2f м", interpolatedDepth)
+}
+```
+
+#### 6.4 Оценка качества TIN mesh
+
+```go
+// Метрики качества сетки
+quality := mesh.GetMeshQuality()
+
+log.Printf("Углы треугольников: min=%.1f°, max=%.1f°, avg=%.1f°",
+    quality.MinAngle, quality.MaxAngle, quality.AvgAngle)
+
+// Хороший TIN mesh: min угол > 20°, max угол < 120°
+if quality.MinAngle < 20 {
+    log.Println("Предупреждение: найдены узкие треугольники")
+}
+if quality.MaxAngle > 120 {
+    log.Println("Предупреждение: найдены вытянутые треугольники")
+}
+```
+
+#### 6.5 Экспорт TIN mesh в GeoJSON
+
+```go
+// Экспорт для визуализации в GIS системах
+geojson, err := mesh.ExportGeoJSON()
+if err != nil {
+    log.Fatal(err)
+}
+
+err = os.WriteFile("output/tin_mesh.geojson", geojson, 0644)
+if err != nil {
+    log.Fatal(err)
+}
+```
+
+**Пример использования в Python:**
+
+```python
+import geopandas as gpd
+import matplotlib.pyplot as plt
+
+# Загрузка TIN mesh
+gdf = gpd.read_file("output/tin_mesh.geojson")
+
+# Визуализация треугольников с цветовой кодировкой по площади
+fig, ax = plt.subplots(figsize=(12, 8))
+gdf.plot(column='area', cmap='viridis', legend=True, ax=ax)
+ax.set_title('TIN Mesh береговой линии')
+plt.show()
+```
+
+#### 6.6 Валидация TIN mesh
+
+```go
+// Проверка топологической корректности
+errors := mesh.ValidateMesh()
+if len(errors) > 0 {
+    log.Println("Ошибки валидации TIN mesh:")
+    for _, e := range errors {
+        log.Printf("  - %s", e)
+    }
+} else {
+    log.Println("TIN mesh валиден")
+}
+
+// Плотность сетки (треугольников на км²)
+density := mesh.MeshDensity()
+log.Printf("Плотность: %.2f треугольников/км²", density/1e6)
+```
+
+#### 6.7 Упрощение TIN mesh
+
+```go
+// Удаление мелких треугольников для снижения детализации
+maxAreaKm2 := 50.0  // 50 км²
+err := mesh.Simplify(maxAreaKm2 * 1e6)  // конвертация в м²
+if err != nil {
+    log.Fatal(err)
+}
+
+log.Printf("После упрощения: %d треугольников (было %d)",
+    mesh.Stats.TriangleCount, originalCount)
 ```
 
 ---

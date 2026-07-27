@@ -16,7 +16,7 @@ func printModelQualityMetrics(snapshots [][]geometry.LatLon, sedimentResult *geo
 
 	fmt.Println("\n  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 	fmt.Println("  МЕТРИКИ КАЧЕСТВА МОДЕЛИ")
-	fmt.Println("  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+	fmt.Println("  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 
 	// 1. Рассчитываем метрики эрозии для каждого шага
 	var erosionMetrics []geometry.ErosionMetrics
@@ -132,7 +132,7 @@ func printModelQualityMetrics(snapshots [][]geometry.LatLon, sedimentResult *geo
 	// 5.1. Выводим расширенные метрики (Extended Metrics v2.0)
 	fmt.Println("  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 	fmt.Println("  РАСШИРЕННЫЕ МЕТРИКИ (v2.0)")
-	fmt.Println("  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+	fmt.Println("  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 
 	fmt.Printf("  Sediment Transport Rate: %.2f m³/step\n", qualityMetrics.SedimentTransportRate)
 	fmt.Printf("  Accumulation Index: %.2f%%\n", qualityMetrics.AccumulationIndex*100)
@@ -158,7 +158,7 @@ func printModelQualityMetrics(snapshots [][]geometry.LatLon, sedimentResult *geo
 	} else {
 		fmt.Println("  ИТОГОВАЯ ОЦЕНКА: МОДЕЛЬ ТРЕБУЕТ ДОРАБОТКИ ✗")
 	}
-	fmt.Println("  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+	fmt.Println("  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 
 	return nil
 }

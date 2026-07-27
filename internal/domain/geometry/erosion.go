@@ -29,11 +29,11 @@ type WaveErosionOptions struct {
 	EnableLithology          bool
 
 	// Динамическая литология (более реалистичная модель)
-	DynamicLithologyMap      *SpatialLithologyMap
-	EnableDynamicLithology   bool
+	DynamicLithologyMap        *SpatialLithologyMap
+	EnableDynamicLithology     bool
 	LithologyInteractionParams LithologyInteractionParams
-	WeatheringProfile        WeatheringProfile
-	SimulationYears          float64  // время симуляции для выветривания
+	WeatheringProfile          WeatheringProfile
+	SimulationYears            float64 // время симуляции для выветривания
 }
 
 type waveSideResponse struct {

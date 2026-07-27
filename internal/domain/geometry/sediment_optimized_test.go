@@ -83,8 +83,8 @@ func generateTestLithology(n int) []LithologyState {
 // TestOptimizedVsOriginal сравнивает результаты оптимизированной и оригинальной версий
 func TestOptimizedVsOriginal(t *testing.T) {
 	testCases := []struct {
-		name  string
-		n     int
+		name string
+		n    int
 	}{
 		{"small", 50},
 		{"medium", 500},
@@ -437,25 +437,25 @@ func TestTemporalOptimized(t *testing.T) {
 	}
 
 	seasonalMod := SeasonalModulation{
-		WinterMultiplier:          1.5,
-		SummerMultiplier:          0.7,
-		TransitionMultiplier:      1.0,
-		StormSeasonBoost:          1.5,
-		AccumulationSeasonality:   true,
+		WinterMultiplier:        1.5,
+		SummerMultiplier:        0.7,
+		TransitionMultiplier:    1.0,
+		StormSeasonBoost:        1.5,
+		AccumulationSeasonality: true,
 	}
 
 	stormParams := StormSedimentParameters{
-		StormTransportMultiplier:    2.5,
-		StormDepositionEfficiency:   0.6,
-		PostStormSurgeMultiplier:    1.5,
-		StormThreshold:              1.2,
-		StormRetreatMultiplier:      3.0,
-		StormBypassingCoefficient:   0.3,
+		StormTransportMultiplier:  2.5,
+		StormDepositionEfficiency: 0.6,
+		PostStormSurgeMultiplier:  1.5,
+		StormThreshold:            1.2,
+		StormRetreatMultiplier:    3.0,
+		StormBypassingCoefficient: 0.3,
 	}
 
 	temporalState := TemporalState{
 		Step:           0,
-		Year:           0.5,  // Summer
+		Year:           0.5, // Summer
 		IsStorm:        false,
 		StormIntensity: 1.0,
 		SeasonalFactor: 1.0,
@@ -503,20 +503,20 @@ func TestTemporalOptimizedVsOriginal(t *testing.T) {
 	}
 
 	seasonalMod := SeasonalModulation{
-		WinterMultiplier:          1.5,
-		SummerMultiplier:          0.7,
-		TransitionMultiplier:      1.0,
-		StormSeasonBoost:          1.5,
-		AccumulationSeasonality:   true,
+		WinterMultiplier:        1.5,
+		SummerMultiplier:        0.7,
+		TransitionMultiplier:    1.0,
+		StormSeasonBoost:        1.5,
+		AccumulationSeasonality: true,
 	}
 
 	stormParams := StormSedimentParameters{
-		StormTransportMultiplier:    2.5,
-		StormDepositionEfficiency:   0.6,
-		PostStormSurgeMultiplier:    1.5,
-		StormThreshold:              1.2,
-		StormRetreatMultiplier:      3.0,
-		StormBypassingCoefficient:   0.3,
+		StormTransportMultiplier:  2.5,
+		StormDepositionEfficiency: 0.6,
+		PostStormSurgeMultiplier:  1.5,
+		StormThreshold:            1.2,
+		StormRetreatMultiplier:    3.0,
+		StormBypassingCoefficient: 0.3,
 	}
 
 	temporalState := TemporalState{

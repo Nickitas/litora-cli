@@ -11,7 +11,7 @@ func TestPhysicalDepthFactorValues(t *testing.T) {
 		name        string
 		depthMeters float64
 		fetchMeters float64
-		depthScale   float64
+		depthScale  float64
 		expectedMin float64
 		expectedMax float64
 	}{
@@ -19,15 +19,15 @@ func TestPhysicalDepthFactorValues(t *testing.T) {
 			name:        "Very deep water (2000m)",
 			depthMeters: -2000,
 			fetchMeters: 5000,
-			depthScale:   1000,
-			expectedMin: 0.8,  // exp(-2000/1000) = 0.135, 1 - 0.135 = 0.865
+			depthScale:  1000,
+			expectedMin: 0.8, // exp(-2000/1000) = 0.135, 1 - 0.135 = 0.865
 			expectedMax: 0.9,
 		},
 		{
 			name:        "Shallow water (10m)",
 			depthMeters: -10,
 			fetchMeters: 1000,
-			depthScale:   1000,
+			depthScale:  1000,
 			expectedMin: 0.0,
 			expectedMax: 0.05, // exp(-10/1000) = 0.99, 1 - 0.99 = 0.01
 		},
@@ -35,7 +35,7 @@ func TestPhysicalDepthFactorValues(t *testing.T) {
 			name:        "Zero depth (sea level)",
 			depthMeters: 0,
 			fetchMeters: 1000,
-			depthScale:   1000,
+			depthScale:  1000,
 			expectedMin: 0.0,
 			expectedMax: 0.01,
 		},
@@ -43,7 +43,7 @@ func TestPhysicalDepthFactorValues(t *testing.T) {
 			name:        "Land (positive depth)",
 			depthMeters: 10,
 			fetchMeters: 1000,
-			depthScale:   1000,
+			depthScale:  1000,
 			expectedMin: 0.0,
 			expectedMax: 0.01,
 		},
@@ -188,7 +188,7 @@ func TestWaveErosionOpenCoastErodesMoreThanProtected(t *testing.T) {
 	// Создаём "изгиб" берега - открытая часть vs защищённая
 	points := []LatLon{
 		{Lat: 45.0, Lon: 30.0},
-		{Lat: 45.0, Lon: 31.0},  // Открытый к северу
+		{Lat: 45.0, Lon: 31.0}, // Открытый к северу
 		{Lat: 44.5, Lon: 31.0}, // Вогнута (защищённая)
 		{Lat: 44.0, Lon: 30.5}, // Открытый к северу
 		{Lat: 44.0, Lon: 30.0},
@@ -225,10 +225,10 @@ func TestWaveErosionOpenCoastErodesMoreThanProtected(t *testing.T) {
 // TestWindFactorScaling проверяет корректность масштабирования по скорости ветра
 func TestWindFactorScaling(t *testing.T) {
 	tests := []struct {
-		name         string
-		windSpeed    float64
+		name           string
+		windSpeed      float64
 		expectedFactor float64
-		tolerance    float64
+		tolerance      float64
 	}{
 		{"6 m/s", 6, 0.25, 0.01},
 		{"12 m/s", 12, 1.0, 0.01},
@@ -253,11 +253,11 @@ func TestWindFactorScaling(t *testing.T) {
 // TestFetchFactorCalculation проверяет корректность расчёта fetch factor
 func TestFetchFactorCalculation(t *testing.T) {
 	tests := []struct {
-		name         string
-		meanFetch    float64
-		maxFetch     float64
-		expectedMin  float64
-		expectedMax  float64
+		name        string
+		meanFetch   float64
+		maxFetch    float64
+		expectedMin float64
+		expectedMax float64
 	}{
 		{
 			name:        "Fetch = max",

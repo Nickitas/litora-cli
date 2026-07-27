@@ -64,27 +64,27 @@ type StormSedimentParameters struct {
 
 // TemporalSedimentState объединяет sediment state с временной динамикой
 type TemporalSedimentState struct {
-	BaseState         SedimentState
-	CurrentSeason     string  // "winter", "spring", "summer", "autumn"
-	IsStormActive     bool    // активный шторм в этом шаге
-	StormIntensity    float64 // интенсивность шторма [1.0+]
-	SeasonalFactor    float64 // сезонный множитель [0.5-1.5]
-	StormDeposits     []StormDepositLayer
-	ModifiedErosion   float64 // модифицированная эрозия с учётом сезона/шторма
-	DepositionChange  float64 // изменение аккумуляции
+	BaseState        SedimentState
+	CurrentSeason    string  // "winter", "spring", "summer", "autumn"
+	IsStormActive    bool    // активный шторм в этом шаге
+	StormIntensity   float64 // интенсивность шторма [1.0+]
+	SeasonalFactor   float64 // сезонный множитель [0.5-1.5]
+	StormDeposits    []StormDepositLayer
+	ModifiedErosion  float64 // модифицированная эрозия с учётом сезона/шторма
+	DepositionChange float64 // изменение аккумуляции
 }
 
 // SedimentTemporalResult результат с учётом времени
 type SedimentTemporalResult struct {
-	States              []TemporalSedimentState
-	TotalBudget         SedimentBudget
-	SeasonalStats       map[string]SedimentBudget // статистика по сезонам
-	StormImpact         SedimentBudget            // влияние штормов
-	AllStormDeposits    []StormDepositLayer       // все штормовые отложения
-	PreservedDeposits   []StormDepositLayer       // сохранённые отложения
-	SeasonalCycle       []SedimentBudget          // годовой цикл
-	IsValid             bool
-	Warnings            []string
+	States            []TemporalSedimentState
+	TotalBudget       SedimentBudget
+	SeasonalStats     map[string]SedimentBudget // статистика по сезонам
+	StormImpact       SedimentBudget            // влияние штормов
+	AllStormDeposits  []StormDepositLayer       // все штормовые отложения
+	PreservedDeposits []StormDepositLayer       // сохранённые отложения
+	SeasonalCycle     []SedimentBudget          // годовой цикл
+	IsValid           bool
+	Warnings          []string
 }
 
 // CalculateSedimentTransportWithTemporal расчёт транспорта с учётом временной динамики
@@ -109,9 +109,9 @@ func CalculateSedimentTransportWithTemporal(
 	stormParams = normalizeStormSedimentParams(stormParams)
 
 	result := SedimentTemporalResult{
-		States:       make([]TemporalSedimentState, n),
+		States:        make([]TemporalSedimentState, n),
 		SeasonalStats: make(map[string]SedimentBudget),
-		StormImpact:  SedimentBudget{},
+		StormImpact:   SedimentBudget{},
 	}
 
 	// Определяем текущий сезон
@@ -170,12 +170,12 @@ func CalculateSedimentTransportWithTemporal(
 		// Штормовые отложения
 		if temporalState.IsStorm && temporalState.StormIntensity > 1.5 {
 			stormDeposit := StormDepositLayer{
-				StormIndex:        int(temporalState.Step),
-				Thickness:         calculateStormDepositThickness(temporalState.StormIntensity),
-				Volume:            result.States[i].BaseState.LocalBudget.DepositedVolume,
-				GrainSize:         calculateStormGrainSize(temporalState.StormIntensity),
-				IsPreserved:       determinePreservation(temporalState.StormIntensity, result.States[i].BaseState),
-				DepositLocation:   i,
+				StormIndex:      int(temporalState.Step),
+				Thickness:       calculateStormDepositThickness(temporalState.StormIntensity),
+				Volume:          result.States[i].BaseState.LocalBudget.DepositedVolume,
+				GrainSize:       calculateStormGrainSize(temporalState.StormIntensity),
+				IsPreserved:     determinePreservation(temporalState.StormIntensity, result.States[i].BaseState),
+				DepositLocation: i,
 			}
 			result.States[i].StormDeposits = append(result.States[i].StormDeposits, stormDeposit)
 			result.AllStormDeposits = append(result.AllStormDeposits, stormDeposit)
@@ -188,7 +188,7 @@ func CalculateSedimentTransportWithTemporal(
 		// Баланс
 		result.States[i].BaseState.LocalBudget.NetChange =
 			result.States[i].BaseState.LocalBudget.ErodedVolume -
-			result.States[i].BaseState.LocalBudget.DepositedVolume
+				result.States[i].BaseState.LocalBudget.DepositedVolume
 	}
 
 	// Сводная статистика
@@ -399,14 +399,14 @@ func ApplySeasonalAccumulationModulation(
 // GetStormDepositStatistics возвращает статистику штормовых отложений
 func GetStormDepositStatistics(result SedimentTemporalResult) map[string]interface{} {
 	stats := map[string]interface{}{
-		"total_storms":            len(result.AllStormDeposits),
-		"preserved_layers":        len(result.PreservedDeposits),
-		"total_thickness_m":       0.0,
-		"avg_thickness_m":         0.0,
-		"avg_grain_size_mm":       0.0,
-		"storm_impact_eroded_m3":  result.StormImpact.ErodedVolume,
-		"storm_impact_transport":  result.StormImpact.TransportVolume,
-		"storm_impact_deposited":  result.StormImpact.DepositedVolume,
+		"total_storms":           len(result.AllStormDeposits),
+		"preserved_layers":       len(result.PreservedDeposits),
+		"total_thickness_m":      0.0,
+		"avg_thickness_m":        0.0,
+		"avg_grain_size_mm":      0.0,
+		"storm_impact_eroded_m3": result.StormImpact.ErodedVolume,
+		"storm_impact_transport": result.StormImpact.TransportVolume,
+		"storm_impact_deposited": result.StormImpact.DepositedVolume,
 	}
 
 	if len(result.AllStormDeposits) > 0 {
@@ -445,8 +445,8 @@ func CreateSeasonalAccumulationProfile(
 		year := float64(step) / float64(yearlySteps)
 
 		temporalState := TemporalState{
-			Step:           step,
-			Year:           year,
+			Step: step,
+			Year: year,
 			SeasonalFactor: calculateSeasonalFactor(
 				determineSeason(year, seasonalMod.AccumulationSeasonality),
 				seasonalMod,
@@ -493,9 +493,9 @@ func CalculateSedimentTransportWithTemporalOptimized(
 	stormParams = normalizeStormSedimentParams(stormParams)
 
 	result := SedimentTemporalResult{
-		States:       make([]TemporalSedimentState, n),
+		States:        make([]TemporalSedimentState, n),
 		SeasonalStats: make(map[string]SedimentBudget),
-		StormImpact:  SedimentBudget{},
+		StormImpact:   SedimentBudget{},
 	}
 
 	season := determineSeason(temporalState.Year, seasonalMod.AccumulationSeasonality)
@@ -611,7 +611,7 @@ func applyTemporalModulationParallel(
 
 				result.States[j].BaseState.LocalBudget.NetChange =
 					result.States[j].BaseState.LocalBudget.ErodedVolume -
-					result.States[j].BaseState.LocalBudget.DepositedVolume
+						result.States[j].BaseState.LocalBudget.DepositedVolume
 			}
 
 			// Агрегируем результаты
@@ -695,7 +695,7 @@ func applyTemporalModulationSequential(
 
 		result.States[i].BaseState.LocalBudget.NetChange =
 			result.States[i].BaseState.LocalBudget.ErodedVolume -
-			result.States[i].BaseState.LocalBudget.DepositedVolume
+				result.States[i].BaseState.LocalBudget.DepositedVolume
 	}
 }
 

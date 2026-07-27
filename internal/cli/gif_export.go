@@ -13,43 +13,43 @@ import (
 
 // GIFConfig содержит настройки для генерации GIF анимации
 type GIFConfig struct {
-	OutputPath    string   // путь для сохранения GIF файла
-	FPS           int      // кадры в секунду
-	SkipEvery     int      // пропускать каждый N-ный кадр
-	Width         int      // ширина изображения
-	Height        int      // высота изображения
-	ColorByChange bool     // цветовое кодирование изменений
-	ShowInitial   bool     // показывать начальное состояние
-	ShowMetrics   bool     // показывать метрики на кадрах
-	ShowScaleBar  bool     // показывать масштабную линейку
-	ScaleBarKM    float64  // длина scale bar в км (0 = auto)
-	ShowColorLegend bool     // показывать цветовую легенду
-	ColorLegendPos string   // позиция легенды (bottom|right|none)
-	GeoLabels       string   // geographic labels (none|major|all)
+	OutputPath      string                   // путь для сохранения GIF файла
+	FPS             int                      // кадры в секунду
+	SkipEvery       int                      // пропускать каждый N-ный кадр
+	Width           int                      // ширина изображения
+	Height          int                      // высота изображения
+	ColorByChange   bool                     // цветовое кодирование изменений
+	ShowInitial     bool                     // показывать начальное состояние
+	ShowMetrics     bool                     // показывать метрики на кадрах
+	ShowScaleBar    bool                     // показывать масштабную линейку
+	ScaleBarKM      float64                  // длина scale bar в км (0 = auto)
+	ShowColorLegend bool                     // показывать цветовую легенду
+	ColorLegendPos  string                   // позиция легенды (bottom|right|none)
+	GeoLabels       string                   // geographic labels (none|major|all)
 	TemporalStates  []geometry.TemporalState // временные состояния для меток
-		Colors         int      // количество цветов в палитре
-		Compression    string   // уровень сжатия (low|medium|high)
-	ShowTimeStamp   bool     // показывать временные метки
+	Colors          int                      // количество цветов в палитре
+	Compression     string                   // уровень сжатия (low|medium|high)
+	ShowTimeStamp   bool                     // показывать временные метки
 }
 
 // DefaultGIFConfig возвращает настройки по умолчанию
 func DefaultGIFConfig() GIFConfig {
 	return GIFConfig{
-		OutputPath:    "erosion_animation.gif",
-		FPS:           10,
-		SkipEvery:     1,
-		Width:         1200,  // увеличенное разрешение
-		Height:        800,
-		ColorByChange: true,  // включено по умолчанию
-		ShowInitial:   true,   // показываем начальное состояние
-		ShowMetrics:   true,
-		ShowScaleBar:  true,
-		ScaleBarKM:    0,
-		ColorLegendPos:   "right",
+		OutputPath:     "erosion_animation.gif",
+		FPS:            10,
+		SkipEvery:      1,
+		Width:          1200, // увеличенное разрешение
+		Height:         800,
+		ColorByChange:  true, // включено по умолчанию
+		ShowInitial:    true, // показываем начальное состояние
+		ShowMetrics:    true,
+		ShowScaleBar:   true,
+		ScaleBarKM:     0,
+		ColorLegendPos: "right",
 		Colors:         16,
 		Compression:    "medium",
-		GeoLabels:        "major",
-		ShowTimeStamp:   true,
+		GeoLabels:      "major",
+		ShowTimeStamp:  true,
 	}
 }
 
@@ -94,17 +94,17 @@ func GenerateErosionGIFWithConfig(snapshots [][]geometry.LatLon, config GIFConfi
 		draw.Draw(img, img.Bounds(), &image.Uniform{palette[0]}, image.Point{}, draw.Src)
 
 		// Рисуем береговую линию с цветовыми кодами
-			minLat, maxLat, minLon, maxLon := computeBounds(snapshot)
+		minLat, maxLat, minLon, maxLon := computeBounds(snapshot)
 
-			// Рисуем береговую линию с цветовыми кодами и scale bar
+		// Рисуем береговую линию с цветовыми кодами и scale bar
 		maxErosion, maxDeposition := computeMaxErosion(segmentChanges)
 
 		// Рисуем цветовую легенду если включена
 		if config.ShowColorLegend {
 			drawColorLegend(img, maxErosion, maxDeposition, config)
 		}
-			drawGeoLabels(img, minLat, maxLat, minLon, maxLon, config)
-			drawEnhancedColoredCoastline(img, snapshot, filteredSnapshots[0], segmentChanges, minLat, maxLat, minLon, maxLon, config)
+		drawGeoLabels(img, minLat, maxLat, minLon, maxLon, config)
+		drawEnhancedColoredCoastline(img, snapshot, filteredSnapshots[0], segmentChanges, minLat, maxLat, minLon, maxLon, config)
 		drawColoredCoastline(img, snapshot, filteredSnapshots[0], segmentChanges, config)
 
 		// Добавляем метрики
@@ -444,6 +444,7 @@ func computeDelay(fps int) int {
 	}
 	return delay
 }
+
 // drawScaleBar рисует масштабную линейку на GIF
 func drawScaleBar(img *image.Paletted, minLat, maxLat, minLon, maxLon float64, config GIFConfig) {
 	if !config.ShowScaleBar {
@@ -490,7 +491,7 @@ func drawScaleBar(img *image.Paletted, minLat, maxLat, minLon, maxLon float64, c
 	padding := 30
 	barX := float64(padding)
 	barY := float64(config.Height - padding - 20) // 20px для текста
-	barHeight := 6.0 // толщина линии в пикселях
+	barHeight := 6.0                              // толщина линии в пикселях
 
 	// Рисуем горизонтальную линию
 	for x := int(barX); x < int(barX+barPx); x++ {
@@ -503,10 +504,10 @@ func drawScaleBar(img *image.Paletted, minLat, maxLat, minLon, maxLon float64, c
 
 	// Рисуем вертикальные засечки на концах
 	tickHeight := barHeight + 8
-	for y := int(barY - 2); y < int(barY + tickHeight); y++ {
+	for y := int(barY - 2); y < int(barY+tickHeight); y++ {
 		if y >= 0 && y < config.Height {
-			img.SetColorIndex(int(barX), y, 13)              // левая засечка
-			img.SetColorIndex(int(barX+barPx), y, 13)       // правая засечка
+			img.SetColorIndex(int(barX), y, 13)       // левая засечка
+			img.SetColorIndex(int(barX+barPx), y, 13) // правая засечка
 		}
 	}
 
@@ -757,7 +758,7 @@ func drawVerticalColorLegend(img *image.Paletted, legendX, legendY, legendWidth,
 	axisY := int(gradientStart - 5)
 	axisY2 := int(gradientEnd + 5)
 
-	drawSimpleText(img, "Max", int(gradientX-25), axisY, 13)   // сильная эрозия
+	drawSimpleText(img, "Max", int(gradientX-25), axisY, 13)  // сильная эрозия
 	drawSimpleText(img, "Min", int(gradientX-25), axisY2, 13) // слабая эрозия
 
 	// Численные значения (в метрах)
@@ -816,9 +817,9 @@ func drawRect(img *image.Paletted, x, y, width, height int, colorIndex uint8) {
 		for j := y; j < y+height; j++ {
 			if i >= 0 && i < img.Bounds().Dx() && j >= 0 && j < img.Bounds().Dy() {
 				img.SetColorIndex(i, j, colorIndex)
+			}
 		}
 	}
-}
 }
 
 // formatMeters форматирует метры в понятный формат
@@ -863,18 +864,18 @@ var blackSeaPoints = []GeoPoint{
 	{Name: "Batumi", Lat: 41.6423, Lon: 41.6339, Category: "city", Priority: 1},
 	{Name: "Varna", Lat: 43.2050, Lon: 27.9100, Category: "city", Priority: 1},
 	{Name: "Constanta", Lat: 44.1800, Lon: 28.6300, Category: "city", Priority: 1},
-	
+
 	// Дополнительные города (minor)
 	{Name: "Yalta", Lat: 44.4930, Lon: 34.1650, Category: "city", Priority: 2},
 	{Name: "Sochi", Lat: 43.6028, Lon: 39.7342, Category: "city", Priority: 2},
 	{Name: "Trabzon", Lat: 41.0027, Lon: 39.7168, Category: "city", Priority: 2},
 	{Name: "Samsun", Lat: 41.2867, Lon: 36.3300, Category: "city", Priority: 2},
-	
+
 	// Мысы (major)
 	{Name: "Kerch Cape", Lat: 45.3500, Lon: 36.4500, Category: "cape", Priority: 1},
 	{Name: "Taman Cape", Lat: 45.3330, Lon: 36.6700, Category: "cape", Priority: 1},
 	{Name: "Crimean Cape", Lat: 45.1500, Lon: 33.4500, Category: "cape", Priority: 1},
-	
+
 	// Заливы (major)
 	{Name: "Karkinit Bay", Lat: 45.7000, Lon: 33.0000, Category: "bay", Priority: 1},
 	{Name: "Kalamit Bay", Lat: 45.4000, Lon: 32.8000, Category: "bay", Priority: 1},
@@ -897,23 +898,23 @@ func drawGeoLabels(img *image.Paletted, minLat, maxLat, minLon, maxLon float64, 
 
 		// Преобразуем географические координаты в пиксельные
 		x := int(float64(config.Width) * (point.Lon - minLon) / (maxLon - minLon))
-		y := int(float64(config.Height) * (1 - (point.Lat - minLat) / (maxLat - minLat)))
+		y := int(float64(config.Height) * (1 - (point.Lat-minLat)/(maxLat-minLat)))
 
 		// Проверяем, не выходит ли точка за границы изображения
 		if x < 0 || x >= config.Width || y < 0 || y >= config.Height {
 			continue
 		}
 
-			// Определяем цвет маркера по категории
-			markerColor := uint8(8) // оранжевый маркер по умолчанию
-			switch point.Category {
-			case "city":
-				markerColor = 8 // оранжевый
-			case "cape":
-				markerColor = 7 // желто-оранжевый
-			case "bay":
-				markerColor = 9 // голубой
-			}
+		// Определяем цвет маркера по категории
+		markerColor := uint8(8) // оранжевый маркер по умолчанию
+		switch point.Category {
+		case "city":
+			markerColor = 8 // оранжевый
+		case "cape":
+			markerColor = 7 // желто-оранжевый
+		case "bay":
+			markerColor = 9 // голубой
+		}
 
 		// Рисуем маркер (кружок)
 		drawMarker(img, x, y, markerColor)
@@ -972,7 +973,7 @@ func drawTimeStamp(img *image.Paletted, frameIndex int, config GIFConfig) {
 	}
 
 	state := config.TemporalStates[frameIndex]
-	
+
 	// Позиция для временной метки (левый верхний угол)
 	marginX := 10
 	marginY := 10
@@ -1002,7 +1003,7 @@ func createOptimizedPalette(config GIFConfig) color.Palette {
 	if config.Colors > 0 {
 		colors = config.Colors
 	}
-	
+
 	// Ограничиваем диапазон
 	if colors < 4 {
 		colors = 4
@@ -1010,10 +1011,10 @@ func createOptimizedPalette(config GIFConfig) color.Palette {
 	if colors > 256 {
 		colors = 256
 	}
-	
+
 	// Базовая палитра
 	basePalette := getBasePaletteForSize(colors)
-	
+
 	// Оптимизация в зависимости от уровня сжатия
 	switch config.Compression {
 	case "low":
@@ -1033,17 +1034,17 @@ func getBasePaletteForSize(size int) color.Palette {
 	if size <= 8 {
 		// Минимальная палитра для очень маленького размера
 		return color.Palette{
-			color.RGBA{0, 30, 60, 255},        // 0: темно-синяя вода
-			color.RGBA{240, 240, 240, 255},     // 1: белый берег
-			color.RGBA{34, 139, 34, 255},       // 2: зеленая эрозия
-			color.RGBA{255, 140, 0, 255},       // 3: оранжевая эрозия
-			color.RGBA{178, 34, 34, 255},        // 4: красная эрозия
-			color.RGBA{135, 206, 235, 255},      // 5: голубая аккумуляция
-			color.RGBA{255, 255, 255, 255},      // 6: белый текст
-			color.RGBA{169, 169, 169, 255},      // 7: серый текст
+			color.RGBA{0, 30, 60, 255},     // 0: темно-синяя вода
+			color.RGBA{240, 240, 240, 255}, // 1: белый берег
+			color.RGBA{34, 139, 34, 255},   // 2: зеленая эрозия
+			color.RGBA{255, 140, 0, 255},   // 3: оранжевая эрозия
+			color.RGBA{178, 34, 34, 255},   // 4: красная эрозия
+			color.RGBA{135, 206, 235, 255}, // 5: голубая аккумуляция
+			color.RGBA{255, 255, 255, 255}, // 6: белый текст
+			color.RGBA{169, 169, 169, 255}, // 7: серый текст
 		}
 	}
-	
+
 	// Стандартная научная палитра (16 цветов)
 	return createHighQualityPalette()
 }
@@ -1053,39 +1054,39 @@ func reducePalette(palette color.Palette, targetSize int) color.Palette {
 	if len(palette) <= targetSize {
 		return palette
 	}
-	
+
 	// Сохраняем самые важные цвета
-	important := []int{0, 1, len(palette)-1} // первый, второй, последний
+	important := []int{0, 1, len(palette) - 1} // первый, второй, последний
 	result := make(color.Palette, 0, targetSize)
-	
+
 	// Добавляем важные цвета
 	for _, idx := range important {
 		if idx < len(palette) {
 			result = append(result, palette[idx])
 		}
 	}
-	
+
 	// Добавляем промежуточные цвета равномерно
 	step := (len(palette) - len(important)) / (targetSize - len(important))
 	added := make(map[int]bool)
 	for _, idx := range important {
 		added[idx] = true
 	}
-	
+
 	for i := 0; i < len(palette) && len(result) < targetSize; i += step {
 		if !added[i] {
 			result = append(result, palette[i])
 			added[i] = true
 		}
 	}
-	
+
 	// Если еще не достигли целевого размера, добавляем оставшиеся
 	for i := 0; i < len(palette) && len(result) < targetSize; i++ {
 		if !added[i] {
 			result = append(result, palette[i])
 		}
 	}
-	
+
 	return result
 }
 
@@ -1093,28 +1094,28 @@ func reducePalette(palette color.Palette, targetSize int) color.Palette {
 func createHighQualityPalette() color.Palette {
 	return color.Palette{
 		// Фон и вода
-		color.RGBA{15, 30, 50, 255},     // 0: глубокая вода
-		color.RGBA{25, 50, 80, 255},     // 1: вода
+		color.RGBA{15, 30, 50, 255}, // 0: глубокая вода
+		color.RGBA{25, 50, 80, 255}, // 1: вода
 
 		// Цвета эрозии (градиент от слабой к сильной)
-		color.RGBA{100, 200, 100, 255},   // 2: стабильный/слабая эрозия (светло-зеленый)
-		color.RGBA{150, 180, 80, 255},    // 3: слабая эрозия (желто-зеленый)
-		color.RGBA{200, 160, 60, 255},    // 4: умеренная эрозия (желто-оранжевый)
-		color.RGBA{230, 120, 40, 255},    // 5: средняя эрозия (оранжевый)
-		color.RGBA{250, 80, 30, 255},     // 6: сильная эрозия (красно-оранжевый)
-		color.RGBA{255, 40, 20, 255},     // 7: очень сильная эрозия (ярко-красный)
-		color.RGBA{200, 30, 10, 255},     // 8: экстремальная эрозия (темно-красный)
+		color.RGBA{100, 200, 100, 255}, // 2: стабильный/слабая эрозия (светло-зеленый)
+		color.RGBA{150, 180, 80, 255},  // 3: слабая эрозия (желто-зеленый)
+		color.RGBA{200, 160, 60, 255},  // 4: умеренная эрозия (желто-оранжевый)
+		color.RGBA{230, 120, 40, 255},  // 5: средняя эрозия (оранжевый)
+		color.RGBA{250, 80, 30, 255},   // 6: сильная эрозия (красно-оранжевый)
+		color.RGBA{255, 40, 20, 255},   // 7: очень сильная эрозия (ярко-красный)
+		color.RGBA{200, 30, 10, 255},   // 8: экстремальная эрозия (темно-красный)
 
 		// Цвета аккумуляции
-		color.RGBA{50, 150, 200, 255},    // 9: слабая аккумуляция (светло-голубой)
-		color.RGBA{30, 100, 180, 255},    // 10: умеренная аккумуляция (голубой)
-		color.RGBA{20, 80, 160, 255},     // 11: сильная аккумуляция (синий)
+		color.RGBA{50, 150, 200, 255}, // 9: слабая аккумуляция (светло-голубой)
+		color.RGBA{30, 100, 180, 255}, // 10: умеренная аккумуляция (голубой)
+		color.RGBA{20, 80, 160, 255},  // 11: сильная аккумуляция (синий)
 
 		// Начальное состояние (серое)
-		color.RGBA{120, 120, 120, 255},   // 12: начальная линия
+		color.RGBA{120, 120, 120, 255}, // 12: начальная линия
 
 		// Текст
-		color.RGBA{255, 255, 240, 255},   // 13: текст (теплый белый)
-		color.RGBA{40, 40, 40, 255},       // 14: темный текст
+		color.RGBA{255, 255, 240, 255}, // 13: текст (теплый белый)
+		color.RGBA{40, 40, 40, 255},    // 14: темный текст
 	}
 }

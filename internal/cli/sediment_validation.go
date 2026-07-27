@@ -11,7 +11,7 @@ func hashFloat(x float64) float64 {
 	abs := math.Abs(x)
 	frac := abs - math.Floor(abs)
 	// Используем синус для дополнительного перемешивания
-	hash := math.Sin(frac * 1e6) // масштабируем для хорошей гранулярности
+	hash := math.Sin(frac * 1e6)   // масштабируем для хорошей гранулярности
 	return hash - math.Floor(hash) // возвращаем дробную часть [0-1]
 }
 
@@ -53,10 +53,10 @@ func calculateSedimentTransportForValidation(
 
 	// Параметры sediment transport (калиброванные для лучшего баланса)
 	params := geometry.SedimentTransportParameters{
-		TransportCoefficient:     0.8, // 80% эродированного материала идёт в транспорт (увеличен)
+		TransportCoefficient:      0.8, // 80% эродированного материала идёт в транспорт (увеличен)
 		DepositionRate:            0.5, // 50% избытка откладывается (сбалансировано)
-		MinimumFlowVelocity:      0.2, // минимальная скорость потока (снижена)
-		CapacityFactor:           1.2, // ёмкость берега для аккумуляции (уменьшена для реализма)
+		MinimumFlowVelocity:       0.2, // минимальная скорость потока (снижена)
+		CapacityFactor:            1.2, // ёмкость берега для аккумуляции (уменьшена для реализма)
 		LongshoreDriftCoefficient: 0.9, // сила alongshore транспорта (увеличена)
 	}
 
@@ -174,8 +174,8 @@ func prepareWaveEnergyData(
 			waveData.Energy[i] *= curvatureFactor * shelteringEffect
 
 			// Добавляем случайную вариацию для естественности
-			energyVariation := (hashFloat(point.Lat + point.Lon) - 0.5) * 0.3 // ±15% вместо ±20%
-			waveData.Energy[i] = math.Max(0.05, math.Min(1.0, waveData.Energy[i] + energyVariation))
+			energyVariation := (hashFloat(point.Lat+point.Lon) - 0.5) * 0.3 // ±15% вместо ±20%
+			waveData.Energy[i] = math.Max(0.05, math.Min(1.0, waveData.Energy[i]+energyVariation))
 
 			// Incidence (угол падения) - упрощённо, считаем что волны приходят спереди
 			waveData.Incidence[i] = 0.5 // среднее значение
@@ -183,7 +183,7 @@ func prepareWaveEnergyData(
 	} else {
 		// Без батиметрии используем упрощённые значения
 		for i := range points {
-			waveData.Energy[i] = 0.5 // средняя энергия
+			waveData.Energy[i] = 0.5    // средняя энергия
 			waveData.Fetch[i] = 50000.0 // 50km
 			waveData.Incidence[i] = 0.5
 		}

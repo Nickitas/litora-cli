@@ -28,8 +28,8 @@ func NewApp(cfg config) (*App, error) {
 	// Initialize output path manager
 	app.OutputPaths = NewOutputPathManager(cfg.OutputPath)
 
-	// Ensure output directories exist (except for source command)
-	if cfg.Command != cmdSource {
+	// Ensure output directories exist (except for source and benchmark commands)
+	if cfg.Command != cmdSource && cfg.Command != cmdBenchmark {
 		if err := app.OutputPaths.EnsureDirectories(); err != nil {
 			return nil, fmt.Errorf("create output directories: %w", err)
 		}

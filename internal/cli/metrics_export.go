@@ -296,3 +296,36 @@ func cloneStrings(values []string) []string {
 	cloned = append(cloned, values...)
 	return cloned
 }
+
+// meshQualityMetrics represents TIN mesh quality metrics for JSON export.
+type meshQualityMetrics struct {
+	TriangleCount int     `json:"triangle_count"`
+	VertexCount   int     `json:"vertex_count"`
+	MinAngleDeg   float64 `json:"min_angle_deg"`
+	MaxAngleDeg   float64 `json:"max_angle_deg"`
+	AvgAngleDeg   float64 `json:"avg_angle_deg"`
+	QualityScore  string  `json:"quality_score"` // "excellent", "good", "poor"
+}
+
+// meshQualityMetricsFromGeometry converts geometry.MeshQuality to export format.
+func meshQualityMetricsFromGeometry(quality *geometry.MeshQuality) *meshQualityMetrics {
+	if quality == nil {
+		return nil
+	}
+
+	score := "poor"
+	if quality.MinAngle >= 20 && quality.MaxAngle <= 120 {
+		score = "excellent"
+	} else if quality.MinAngle >= 15 && quality.MaxAngle <= 130 {
+		score = "good"
+	}
+
+	return &meshQualityMetrics{
+		TriangleCount: quality.TriangleCount,
+		VertexCount:   quality.VertexCount,
+		MinAngleDeg:   quality.MinAngle,
+		MaxAngleDeg:   quality.MaxAngle,
+		AvgAngleDeg:   quality.AvgAngle,
+		QualityScore:  score,
+	}
+}

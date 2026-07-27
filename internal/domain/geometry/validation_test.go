@@ -98,10 +98,10 @@ func TestCalculateConvergenceRate(t *testing.T) {
 	// Тест с расходящейся моделью (экспоненциальные изменения)
 	divergingMetrics := []ErosionMetrics{
 		{LengthKm: 100.0},
-		{LengthKm: 90.0},  // изменение 10
-		{LengthKm: 70.0},  // изменение 20
-		{LengthKm: 40.0},  // изменение 30
-		{LengthKm: 0.0},   // изменение 40
+		{LengthKm: 90.0}, // изменение 10
+		{LengthKm: 70.0}, // изменение 20
+		{LengthKm: 40.0}, // изменение 30
+		{LengthKm: 0.0},  // изменение 40
 	}
 
 	divergenceRate := calculateConvergenceRate(divergingMetrics)
@@ -166,6 +166,7 @@ func TestCalculateModelQualityMetrics(t *testing.T) {
 			DepositedVolume: 95.0,
 			NetChange:       5.0,
 		},
+		MassBalance: 0.05, // нормализованный баланс массы (5%)
 	}
 
 	// Рассчитываем метрики качества
@@ -236,12 +237,14 @@ func TestValidateModelQuality(t *testing.T) {
 func TestGenerateValidationWarnings(t *testing.T) {
 	// Тест с хорошими метриками (без предупреждений)
 	goodMetrics := ModelQualityMetrics{
-		DimensionStability: 0.85,
-		MassBalance:        0.05,
-		SpatialAutocorr:    0.4,
-		ConvergenceRate:    0.7,
-		DimensionVariance:  0.01,
-		MassBalanceTrend:   0.1,
+		DimensionStability:    0.85,
+		MassBalance:           0.05,
+		SpatialAutocorr:       0.4,
+		ConvergenceRate:       0.7,
+		DimensionVariance:     0.01,
+		MassBalanceTrend:      0.1,
+		SedimentTransportRate: 50.0, // достаточно для избежания warning
+		AccumulationIndex:     0.5,  // в допустимом диапазоне
 	}
 
 	warnings := generateValidationWarnings(goodMetrics)
@@ -376,14 +379,14 @@ func TestValidateModelConvergence(t *testing.T) {
 
 func TestGetQualityMetricsSummary(t *testing.T) {
 	metrics := ModelQualityMetrics{
-		DimensionStability:  0.85,
-		MassBalance:         0.05,
-		SpatialAutocorr:     0.4,
-		ConvergenceRate:     0.7,
-		DimensionVariance:   0.01,
-		MassBalanceTrend:    0.1,
-		SpatialCorrelation:  0.3,
-		IsValidModel:        true,
+		DimensionStability: 0.85,
+		MassBalance:        0.05,
+		SpatialAutocorr:    0.4,
+		ConvergenceRate:    0.7,
+		DimensionVariance:  0.01,
+		MassBalanceTrend:   0.1,
+		SpatialCorrelation: 0.3,
+		IsValidModel:       true,
 		Warnings:           []string{"test warning"},
 	}
 

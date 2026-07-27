@@ -47,10 +47,10 @@ func CalculateSedimentTransportAuto(
 
 		// Конвертируем пачечный результат в обычный
 		result := SedimentTransportResult{
-			TotalBudget:  batched.TotalBudget,
-			IsValid:      batched.IsValid,
-			Warnings:     batched.Warnings,
-			MassBalance:  batched.TotalBudget.NetChange / batched.TotalBudget.ErodedVolume,
+			TotalBudget: batched.TotalBudget,
+			IsValid:     batched.IsValid,
+			Warnings:    batched.Warnings,
+			MassBalance: batched.TotalBudget.NetChange / batched.TotalBudget.ErodedVolume,
 		}
 
 		// Объединяем states из всех батчей
@@ -120,7 +120,7 @@ type Vector2D struct {
 func NewOptimizedCache() *OptimizedSedimentCache {
 	return &OptimizedSedimentCache{
 		alongshoreDirections: make([]Vector2D, 0),
-		segmentLengths:        make([]float64, 0),
+		segmentLengths:       make([]float64, 0),
 	}
 }
 
@@ -378,11 +378,11 @@ func calculateLongshoreDriftOptimized(
 	// Сначала собираем данные о транспорте (без race conditions)
 	// Используем промежуточный буфер
 	type TransportData struct {
-		index        int
-		toPrev       float64
-		toNext       float64
-		prevIndex    int
-		nextIndex    int
+		index     int
+		toPrev    float64
+		toNext    float64
+		prevIndex int
+		nextIndex int
 	}
 
 	// Используем sync.Pool для переиспользования буферов
@@ -608,7 +608,7 @@ func calculateDepositionOptimized(
 					states[j].IsAccumulating = true
 
 					if incomingTotal > localCapacity*accumulationThreshold {
-						remainingExcess := incomingTotal - (localCapacity*accumulationThreshold) - depositionAmount
+						remainingExcess := incomingTotal - (localCapacity * accumulationThreshold) - depositionAmount
 						if remainingExcess > 0 {
 							states[j].LocalBudget.TransportVolume += remainingExcess
 						}
@@ -619,7 +619,7 @@ func calculateDepositionOptimized(
 
 				states[j].LocalBudget.NetChange =
 					states[j].LocalBudget.ErodedVolume -
-					states[j].LocalBudget.DepositedVolume
+						states[j].LocalBudget.DepositedVolume
 
 				if states[j].LocalBudget.NetChange > 0 {
 					states[j].LocalBudget.ErosionPoints++
@@ -688,7 +688,7 @@ func calculateDepositionSequential(
 			states[i].IsAccumulating = true
 
 			if incomingTotal > localCapacity*accumulationThreshold {
-				remainingExcess := incomingTotal - (localCapacity*accumulationThreshold) - depositionAmount
+				remainingExcess := incomingTotal - (localCapacity * accumulationThreshold) - depositionAmount
 				if remainingExcess > 0 {
 					states[i].LocalBudget.TransportVolume += remainingExcess
 				}
@@ -699,7 +699,7 @@ func calculateDepositionSequential(
 
 		states[i].LocalBudget.NetChange =
 			states[i].LocalBudget.ErodedVolume -
-			states[i].LocalBudget.DepositedVolume
+				states[i].LocalBudget.DepositedVolume
 
 		if states[i].LocalBudget.NetChange > 0 {
 			states[i].LocalBudget.ErosionPoints++

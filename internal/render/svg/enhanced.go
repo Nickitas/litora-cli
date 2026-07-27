@@ -20,77 +20,79 @@ type EnhancedDocument struct {
 
 // GridOptions configures coordinate grid display
 type GridOptions struct {
-	Show           bool
-	ShowLatLabels  bool
-	ShowLonLabels  bool
-	LatStep        float64  // degrees between latitude lines
-	LonStep        float64  // degrees between longitude lines
-	LineColor      string
-	LabelColor     string
-	FontSize       float64
-	Opacity        float64
-	DashArray      string
+	Show          bool
+	ShowLatLabels bool
+	ShowLonLabels bool
+	LatStep       float64 // degrees between latitude lines
+	LonStep       float64 // degrees between longitude lines
+	LineColor     string
+	LabelColor    string
+	FontSize      float64
+	Opacity       float64
+	DashArray     string
 }
 
 // CompassOptions configures compass/wind rose display
 type CompassOptions struct {
-	Show           bool
-	X              float64  // SVG x position (0 = auto position)
-	Y              float64  // SVG y position (0 = auto position)
-	Size           float64  // pixels
-	WindDirection  float64  // degrees from north (for wave erosion)
-	ShowWindArrow  bool
-	Label          string   // optional label text
-	Style          string   // "modern", "classic", "minimal"
+	Show          bool
+	X             float64 // SVG x position (0 = auto position)
+	Y             float64 // SVG y position (0 = auto position)
+	Size          float64 // pixels
+	WindDirection float64 // degrees from north (for wave erosion)
+	ShowWindArrow bool
+	Label         string // optional label text
+	Style         string // "modern", "classic", "minimal"
 }
 
 // MarkerOptions configures key point markers
 type MarkerOptions struct {
-	Show           bool
-	Markers        []Marker
-	DefaultSize    float64
-	DefaultColor   string
-	ShowLabels     bool
+	Show         bool
+	Markers      []Marker
+	DefaultSize  float64
+	DefaultColor string
+	ShowLabels   bool
 }
 
 // Marker represents a labeled point on the map
 type Marker struct {
-	Lat          float64
-	Lon          float64
-	Label        string
-	Color        string
-	Size         float64
-	Shape        string  // "circle", "square", "diamond", "triangle"
-	Tooltip      string
+	Lat     float64
+	Lon     float64
+	Label   string
+	Color   string
+	Size    float64
+	Shape   string // "circle", "square", "diamond", "triangle"
+	Tooltip string
 }
 
 // IsolineOptions configures depth/height contour lines
 type IsolineOptions struct {
 	Show           bool
-	BathymetryGrid interface{ GetIsolinePoints(depthStep float64) []Isoline }
-	DepthStep      float64  // meters between contour lines
-	MinDepth       float64
-	MaxDepth       float64
-	LineColor      string
-	LabelColor     string
-	LineWidth      float64
-	Opacity        float64
-	LabelInterval  int      // label every N lines
+	BathymetryGrid interface {
+		GetIsolinePoints(depthStep float64) []Isoline
+	}
+	DepthStep     float64 // meters between contour lines
+	MinDepth      float64
+	MaxDepth      float64
+	LineColor     string
+	LabelColor    string
+	LineWidth     float64
+	Opacity       float64
+	LabelInterval int // label every N lines
 }
 
 // SedimentTransportOptions configures sediment transport visualization
 type SedimentTransportOptions struct {
-	Show                bool
-	Points              []geometry.LatLon
-	SedimentStates      []geometry.SedimentState
-	ShowAccumulation    bool  // show accumulation points
-	ShowErosion         bool  // show erosion points
+	Show                 bool
+	Points               []geometry.LatLon
+	SedimentStates       []geometry.SedimentState
+	ShowAccumulation     bool // show accumulation points
+	ShowErosion          bool // show erosion points
 	ShowTransportVectors bool // show longshore drift vectors
-	AccumulationColor   string
-	ErosionColor        string
-	VectorColor         string
-	VectorScale         float64 // scale factor for vector length
-	MarkerSize         float64
+	AccumulationColor    string
+	ErosionColor         string
+	VectorColor          string
+	VectorScale          float64 // scale factor for vector length
+	MarkerSize           float64
 }
 
 // Isoline represents a contour line
@@ -362,13 +364,13 @@ func buildCompass(opts CompassOptions, originX, originY, contentWidth, contentHe
 	// Set defaults - smaller size for bottom-right placement
 	size := opts.Size
 	if size <= 0 {
-		size = 45  // Slightly larger for better proportions
+		size = 45 // Slightly larger for better proportions
 	}
 
 	// Auto position: bottom-right corner, below the plot area to avoid overlap
 	x := opts.X
 	if x <= 0 {
-		x = originX + contentWidth - size - 10  // Right side with minimal padding
+		x = originX + contentWidth - size - 10 // Right side with minimal padding
 	}
 	y := opts.Y
 	if y <= 0 {
@@ -606,7 +608,7 @@ func buildMinimalCompass(size float64, windDirection float64, showWindArrow bool
 	if label != "" {
 		out.WriteString(fmt.Sprintf(
 			`      <text x="0" y="%.1f" font-family="Helvetica, Arial, sans-serif" font-size="9" fill="#6b7a87" text-anchor="middle" transform="rotate(-45, %.0f, %.0f)">%s</text>`+"\n",
-			radius+12, label,
+			radius+12, 0.0, 0.0, label,
 		))
 	}
 
@@ -684,15 +686,15 @@ func buildMarkers(opts MarkerOptions, markers []Marker, minLat, minLon, originX,
 			))
 		}
 
-			// Label
-			if opts.ShowLabels && m.Label != "" {
-				labelX := x
-				labelY := y - size - 6
-				out.WriteString(fmt.Sprintf(
-					`    <text x="%.2f" y="%.2f" font-family="Helvetica, Arial, sans-serif" font-size="11" font-weight="600" fill="#16324f" text-anchor="middle">%s</text>`+"\n",
-					labelX, labelY, escapeText(m.Label),
-				))
-			}
+		// Label
+		if opts.ShowLabels && m.Label != "" {
+			labelX := x
+			labelY := y - size - 6
+			out.WriteString(fmt.Sprintf(
+				`    <text x="%.2f" y="%.2f" font-family="Helvetica, Arial, sans-serif" font-size="11" font-weight="600" fill="#16324f" text-anchor="middle">%s</text>`+"\n",
+				labelX, labelY, escapeText(m.Label),
+			))
+		}
 	}
 
 	return out.String()

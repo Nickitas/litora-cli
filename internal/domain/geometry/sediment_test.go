@@ -36,11 +36,11 @@ func TestCalculateSedimentTransport(t *testing.T) {
 
 	// Параметры транспорта
 	params := SedimentTransportParameters{
-		TransportCoefficient:         0.7,
-		DepositionRate:                0.5,
-		MinimumFlowVelocity:           0.3,
-		CapacityFactor:                1.0,
-		LongshoreDriftCoefficient:     0.8,
+		TransportCoefficient:      0.7,
+		DepositionRate:            0.5,
+		MinimumFlowVelocity:       0.3,
+		CapacityFactor:            1.0,
+		LongshoreDriftCoefficient: 0.8,
 	}
 
 	// Расчёт
@@ -99,7 +99,7 @@ func TestMassBalance(t *testing.T) {
 	}
 
 	params := SedimentTransportParameters{
-		TransportCoefficient:     0.7,
+		TransportCoefficient:      0.7,
 		DepositionRate:            0.6,
 		CapacityFactor:            1.0,
 		LongshoreDriftCoefficient: 0.8,
@@ -157,7 +157,7 @@ func TestSedimentAccumulation(t *testing.T) {
 	}
 
 	params := SedimentTransportParameters{
-		TransportCoefficient:     0.7,
+		TransportCoefficient:      0.7,
 		DepositionRate:            0.8, // высокая депозиция
 		CapacityFactor:            0.5, // низкая ёмкость
 		LongshoreDriftCoefficient: 0.8,
@@ -200,12 +200,12 @@ func TestLithologyEffect(t *testing.T) {
 	}
 
 	lithology := []LithologyState{
-		{Class: "clay", Resistance: 1.0, Color: "#c4a484"},      // мягкая
+		{Class: "clay", Resistance: 1.0, Color: "#c4a484"},         // мягкая
 		{Class: "serpentinite", Resistance: 9.0, Color: "#2d2d2d"}, // твёрдая
 	}
 
 	params := SedimentTransportParameters{
-		TransportCoefficient:     0.7,
+		TransportCoefficient:      0.7,
 		DepositionRate:            0.5,
 		CapacityFactor:            1.0,
 		LongshoreDriftCoefficient: 0.8,
@@ -255,10 +255,10 @@ func TestLongshoreDrift(t *testing.T) {
 	}
 
 	params := SedimentTransportParameters{
-		TransportCoefficient:     0.8,  // высокий транспорт
-		DepositionRate:            0.3,  // низкая депозиция
+		TransportCoefficient:      0.8, // высокий транспорт
+		DepositionRate:            0.3, // низкая депозиция
 		CapacityFactor:            1.0,
-		LongshoreDriftCoefficient: 0.9,  // сильный drift
+		LongshoreDriftCoefficient: 0.9, // сильный drift
 	}
 
 	result := CalculateSedimentTransport(points, erosionRates, waveData, lithology, params)
@@ -363,7 +363,7 @@ func BenchmarkCalculateSedimentTransport(b *testing.B) {
 	}
 
 	params := SedimentTransportParameters{
-		TransportCoefficient:     0.7,
+		TransportCoefficient:      0.7,
 		DepositionRate:            0.5,
 		CapacityFactor:            1.0,
 		LongshoreDriftCoefficient: 0.8,

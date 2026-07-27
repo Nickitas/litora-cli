@@ -12,6 +12,8 @@ func executeCommand(app *App) error {
 		return runDimensionCommand(app)
 	case cmdErosion:
 		return runErosionCommand(app)
+	case cmdBenchmark:
+		return runBenchmarkCommand(app)
 	default:
 		return errUnsupportedCommand(app.Config.Command)
 	}

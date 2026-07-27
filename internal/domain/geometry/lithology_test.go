@@ -82,7 +82,7 @@ func TestLoadLithologyProfileValidation(t *testing.T) {
 			name: "valid profile",
 			profile: LithologyProfile{
 				Metadata: LithologyMetadata{
-					Name: "Valid",
+					Name:   "Valid",
 					Bounds: Bounds{MinLat: 40, MaxLat: 47, MinLon: 27, MaxLon: 42},
 				},
 				Points: []LithologyPoint{
@@ -98,7 +98,7 @@ func TestLoadLithologyProfileValidation(t *testing.T) {
 			name: "invalid latitude bounds",
 			profile: LithologyProfile{
 				Metadata: LithologyMetadata{
-					Name: "Invalid",
+					Name:   "Invalid",
 					Bounds: Bounds{MinLat: 47, MaxLat: 40, MinLon: 27, MaxLon: 42},
 				},
 				Points: []LithologyPoint{},
@@ -109,7 +109,7 @@ func TestLoadLithologyProfileValidation(t *testing.T) {
 			name: "invalid point coordinates",
 			profile: LithologyProfile{
 				Metadata: LithologyMetadata{
-					Name: "Invalid",
+					Name:   "Invalid",
 					Bounds: Bounds{MinLat: 40, MaxLat: 47, MinLon: 27, MaxLon: 42},
 				},
 				Points: []LithologyPoint{
@@ -122,7 +122,7 @@ func TestLoadLithologyProfileValidation(t *testing.T) {
 			name: "invalid resistance",
 			profile: LithologyProfile{
 				Metadata: LithologyMetadata{
-					Name: "Invalid",
+					Name:   "Invalid",
 					Bounds: Bounds{MinLat: 40, MaxLat: 47, MinLon: 27, MaxLon: 42},
 				},
 				Points: []LithologyPoint{
@@ -153,7 +153,7 @@ func TestGetLithologyAt(t *testing.T) {
 	// Создаём профиль с известными точками
 	profile := &LithologyProfile{
 		Metadata: LithologyMetadata{
-			Name: "Test",
+			Name:   "Test",
 			Bounds: Bounds{MinLat: 44, MaxLat: 46, MinLon: 33, MaxLon: 35},
 		},
 		Points: []LithologyPoint{
@@ -162,7 +162,7 @@ func TestGetLithologyAt(t *testing.T) {
 		},
 		Classes: map[string]LithologyClass{
 			"limestone": {Resistance: 4.5, Color: "#6b6b6b", Description: "Limestone"},
-			"clay":     {Resistance: 1.2, Color: "#c4a484", Description: "Clay"},
+			"clay":      {Resistance: 1.2, Color: "#c4a484", Description: "Clay"},
 		},
 	}
 
@@ -192,7 +192,7 @@ func TestGetLithologyAt(t *testing.T) {
 			lat:       44.75,
 			lon:       33.75,
 			wantClass: "limestone", // ближайшая точка (доминирующий вес)
-			wantR:     2.85, // IDW интерполяция: (4.5 + 1.2) / 2 ≈ 2.85
+			wantR:     2.85,        // IDW интерполяция: (4.5 + 1.2) / 2 ≈ 2.85
 		},
 	}
 
@@ -217,11 +217,11 @@ func TestGetLithologyAt(t *testing.T) {
 func TestGetLithologyAtOutOfBounds(t *testing.T) {
 	profile := &LithologyProfile{
 		Metadata: LithologyMetadata{
-			Name: "Test",
+			Name:   "Test",
 			Bounds: Bounds{MinLat: 44, MaxLat: 46, MinLon: 33, MaxLon: 35},
 		},
-		Points:     []LithologyPoint{},
-		Classes:    map[string]LithologyClass{},
+		Points:  []LithologyPoint{},
+		Classes: map[string]LithologyClass{},
 	}
 
 	testCases := []struct {
@@ -269,7 +269,7 @@ func TestGetStatistics(t *testing.T) {
 			Name:       "Test Stats",
 			Version:    "1.0",
 			Resolution: 0.5,
-			Bounds: Bounds{MinLat: 40, MaxLat: 47, MinLon: 27, MaxLon: 42},
+			Bounds:     Bounds{MinLat: 40, MaxLat: 47, MinLon: 27, MaxLon: 42},
 			Regions:    []string{"test1", "test2"},
 		},
 		Points: []LithologyPoint{
@@ -279,7 +279,7 @@ func TestGetStatistics(t *testing.T) {
 		},
 		Classes: map[string]LithologyClass{
 			"limestone": {Resistance: 4.5, Color: "#6b6b6b"},
-			"clay":     {Resistance: 1.2, Color: "#c4a484"},
+			"clay":      {Resistance: 1.2, Color: "#c4a484"},
 		},
 	}
 
@@ -392,7 +392,7 @@ func TestCreateDefaultBlackSeaProfile(t *testing.T) {
 func BenchmarkGetLithologyAt(b *testing.B) {
 	profile := &LithologyProfile{
 		Metadata: LithologyMetadata{
-			Name: "Benchmark",
+			Name:   "Benchmark",
 			Bounds: Bounds{MinLat: 40, MaxLat: 47, MinLon: 27, MaxLon: 42},
 		},
 		Points: make([]LithologyPoint, 100),
@@ -415,48 +415,49 @@ func BenchmarkGetLithologyAt(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		// Случайные координаты в пределах bounds
-		lat := 40.0 + (float64(i%70)*0.1)
-		lon := 27.0 + (float64(i/70)*0.2)
+		lat := 40.0 + (float64(i%70) * 0.1)
+		lon := 27.0 + (float64(i/70) * 0.2)
 		profile.GetLithologyAt(lat, lon)
 	}
 }
+
 // TestApplyWeathering тест функции выветривания
 func TestApplyWeathering(t *testing.T) {
 	weathering := CreateDefaultWeatheringProfile()
 
 	testCases := []struct {
-		name           string
-		resistance     float64
-		years          float64
-		wantWeathered  bool
+		name            string
+		resistance      float64
+		years           float64
+		wantWeathered   bool
 		wantMinProgress float64
 	}{
 		{
-			name:           "no time - no weathering",
-			resistance:     4.0,
-			years:          0,
-			wantWeathered:  false,
+			name:            "no time - no weathering",
+			resistance:      4.0,
+			years:           0,
+			wantWeathered:   false,
 			wantMinProgress: 0,
 		},
 		{
-			name:           "short time - minor weathering",
-			resistance:     4.0,
-			years:          10,
-			wantWeathered:  false,
+			name:            "short time - minor weathering",
+			resistance:      4.0,
+			years:           10,
+			wantWeathered:   false,
 			wantMinProgress: 0,
 		},
 		{
-			name:           "long time - significant weathering",
-			resistance:     4.0,
-			years:          500,
-			wantWeathered:  true,
+			name:            "long time - significant weathering",
+			resistance:      4.0,
+			years:           500,
+			wantWeathered:   true,
 			wantMinProgress: 0.3,
 		},
 		{
-			name:           "very long time - heavy weathering",
-			resistance:     4.0,
-			years:          2000,
-			wantWeathered:  true,
+			name:            "very long time - heavy weathering",
+			resistance:      4.0,
+			years:           2000,
+			wantWeathered:   true,
 			wantMinProgress: 0.8,
 		},
 	}
@@ -540,8 +541,8 @@ func TestCalculateLithologyErosionInteraction(t *testing.T) {
 					Color:       "#6b6b6b",
 					Description: "Test",
 				},
-				CurrentResistance:   tc.resistance,
-				WeatheringProgress:  tc.weatheringProg,
+				CurrentResistance:  tc.resistance,
+				WeatheringProgress: tc.weatheringProg,
 				IsWeathered:        tc.weathered,
 				FractureDensity:    0.2,
 				Porosity:           0.1,
@@ -576,11 +577,11 @@ func TestCalculateLithologyDepositionInteraction(t *testing.T) {
 	params := CreateDefaultLithologyInteractionParams()
 
 	testCases := []struct {
-		name         string
-		baseDep      float64
-		porosity     float64
-		fractureDen  float64
-		isWeathered  bool
+		name        string
+		baseDep     float64
+		porosity    float64
+		fractureDen float64
+		isWeathered bool
 	}{
 		{
 			name:        "low porosity",
@@ -607,10 +608,10 @@ func TestCalculateLithologyDepositionInteraction(t *testing.T) {
 					Color:       "#6b6b6b",
 					Description: "Test",
 				},
-				CurrentResistance:  4.0,
-				Porosity:           tc.porosity,
-				FractureDensity:    tc.fractureDen,
-				IsWeathered:        tc.isWeathered,
+				CurrentResistance: 4.0,
+				Porosity:          tc.porosity,
+				FractureDensity:   tc.fractureDen,
+				IsWeathered:       tc.isWeathered,
 			}
 
 			modified := CalculateLithologyDepositionInteraction(
@@ -806,28 +807,28 @@ func TestSimulateErosionWithLithologyFeedback(t *testing.T) {
 func TestGetLithologyStatistics(t *testing.T) {
 	states := []DynamicLithologyState{
 		{
-			Static: LithologyState{Class: "limestone", Resistance: 4.0, Color: "#6b6b6b", Description: "Test"},
-			CurrentResistance: 4.0,
-			IsWeathered:       false,
+			Static:             LithologyState{Class: "limestone", Resistance: 4.0, Color: "#6b6b6b", Description: "Test"},
+			CurrentResistance:  4.0,
+			IsWeathered:        false,
 			WeatheringProgress: 0.1,
-			FractureDensity:   0.1,
-			Porosity:          0.05,
+			FractureDensity:    0.1,
+			Porosity:           0.05,
 		},
 		{
-			Static: LithologyState{Class: "clay", Resistance: 1.5, Color: "#c4a484", Description: "Test"},
-			CurrentResistance: 1.2,
-			IsWeathered:       true,
+			Static:             LithologyState{Class: "clay", Resistance: 1.5, Color: "#c4a484", Description: "Test"},
+			CurrentResistance:  1.2,
+			IsWeathered:        true,
 			WeatheringProgress: 0.6,
-			FractureDensity:   0.4,
-			Porosity:          0.2,
+			FractureDensity:    0.4,
+			Porosity:           0.2,
 		},
 		{
-			Static: LithologyState{Class: "granite", Resistance: 7.0, Color: "#4a4a4a", Description: "Test"},
-			CurrentResistance: 6.5,
-			IsWeathered:       true,
+			Static:             LithologyState{Class: "granite", Resistance: 7.0, Color: "#4a4a4a", Description: "Test"},
+			CurrentResistance:  6.5,
+			IsWeathered:        true,
 			WeatheringProgress: 0.3,
-			FractureDensity:   0.2,
-			Porosity:          0.1,
+			FractureDensity:    0.2,
+			Porosity:           0.1,
 		},
 	}
 
@@ -859,8 +860,8 @@ func TestLithologyInteractionParamsValidation(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			name:   "valid params",
-			params: CreateDefaultLithologyInteractionParams(),
+			name:    "valid params",
+			params:  CreateDefaultLithologyInteractionParams(),
 			wantErr: false,
 		},
 		{

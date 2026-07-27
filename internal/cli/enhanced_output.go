@@ -2,8 +2,8 @@ package cli
 
 import (
 	"coastal-geometry/internal/domain/geometry"
-	"fmt"
 	svgrender "coastal-geometry/internal/render/svg"
+	"fmt"
 )
 
 // buildEnhancedOptions creates enhanced SVG options from config
@@ -83,14 +83,14 @@ func buildEnhancedOptions(cfg config, points []geometry.LatLon, waveDir float64)
 	var isolineOpts *svgrender.IsolineOptions
 	if cfg.ShowIsolines {
 		isolineOpts = &svgrender.IsolineOptions{
-			Show:         true,
-			DepthStep:    50,
-			MinDepth:     -200,
-			MaxDepth:     0,
-			LineColor:    "#4a90b8",
-			LabelColor:   "#2c5f7a",
-			LineWidth:    1.0,
-			Opacity:      0.4,
+			Show:          true,
+			DepthStep:     50,
+			MinDepth:      -200,
+			MaxDepth:      0,
+			LineColor:     "#4a90b8",
+			LabelColor:    "#2c5f7a",
+			LineWidth:     1.0,
+			Opacity:       0.4,
 			LabelInterval: 2,
 		}
 	}
@@ -99,7 +99,7 @@ func buildEnhancedOptions(cfg config, points []geometry.LatLon, waveDir float64)
 		GridOptions:    gridOpts,
 		CompassOptions: compassOpts,
 		MarkerOptions:  markerOpts,
-		IsolineOptions:  isolineOpts,
+		IsolineOptions: isolineOpts,
 	}
 }
 
@@ -139,22 +139,27 @@ func wrapDocumentForEnhanced(doc svgrender.Document, cfg config, points []geomet
 			accumCount, erosionCount)
 
 		enhanced.SedimentTransportOptions = &svgrender.SedimentTransportOptions{
-			Show:                true,
-			Points:              displayPoints,
-			SedimentStates:      sedimentResult.States,
-			ShowAccumulation:    true,
-			ShowErosion:         true,
+			Show:                 true,
+			Points:               displayPoints,
+			SedimentStates:       sedimentResult.States,
+			ShowAccumulation:     true,
+			ShowErosion:          true,
 			ShowTransportVectors: true,
-			AccumulationColor:   "#2d6a4f", // green
-			ErosionColor:        "#c2410c", // red
-			VectorColor:         "#1f6f8b", // blue
-			VectorScale:         1000,
-			MarkerSize:          8,
+			AccumulationColor:    "#2d6a4f", // green
+			ErosionColor:         "#c2410c", // red
+			VectorColor:          "#1f6f8b", // blue
+			VectorScale:          1000,
+			MarkerSize:           8,
 		}
 	} else {
 		fmt.Printf("⚠️  Sediment transport visualization skipped: result=%v, states=%d, enhanced=%v\n",
 			sedimentResult != nil,
-			func() int { if sedimentResult != nil { return len(sedimentResult.States) }; return 0 }(),
+			func() int {
+				if sedimentResult != nil {
+					return len(sedimentResult.States)
+				}
+				return 0
+			}(),
 			cfg.EnableEnhanced)
 	}
 

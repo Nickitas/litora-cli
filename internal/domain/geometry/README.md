@@ -54,6 +54,7 @@
   - [Детерминизм через seed](#детерминизм-через-seed)
   - [Замкнутые полилинии](#замкнутые-полилинии)
   - [Многоступенчатая симуляция](#многоступенчатая-симуляция)
+- [TIN approximation mesh](#tin-approximation-mesh)
 - [Константы и конфигурация](#константы-и-конфигурация)
 - [Публичный API](#публичный-api)
 - [Примеры использования](#примеры-использования)
@@ -70,6 +71,7 @@ internal/domain/geometry/
 ├── length.go       # Длина полилинии
 ├── area.go         # Площадь полигона (shoelace)
 ├── simplify.go     # Упрощение (Ramer-Douglas-Peucker)
+├── tin.go          # TIN approximation mesh (Delaunay)
 ├── erosion.go      # Стохастическая и волновая эрозия
 ├── temporal.go     # Временная динамика эрозии
 ├── sediment.go     # Транспорт наносов и аккумуляция
@@ -1162,6 +1164,172 @@ E[|sₙ - s₀|] ≈ √n × σ
 
 ---
 
+## TIN approximation mesh
+
+**Triangulated Irregular Network** — нерегулярная триангуляционная сеть для аппроксимации сложной береговой линии с использованием Delaunay триангуляции.
+
+### Структуры данных
+
+```go
+type ApproximationMesh struct {
+    Type             string  // "regular" | "tin" | "adaptive"
+    Resolution       float64 // для regular (градусы)
+    MaxTriangleArea  float64 // для TIN (км²)
+    ErrorTolerance   float64 // для adaptive (метры)
+}
+
+type ApproximationOptions struct {
+    MeshType        string  // "regular" | "tin" | "adaptive"
+    Resolution      float64 // Grid resolution in degrees
+    MaxTriangleArea float64 // Max triangle area in km² for TIN
+    ErrorTolerance  float64 // Max error for adaptive in meters
+    MinPoints       int     // Minimum points for triangulation
+    RefineFactor    float64 // Refinement factor for adaptive mesh
+}
+
+type TINMesh struct {
+    Vertices  []LatLon      // Original lat/lon vertices
+    Projected []Point2D     // Projected coordinates in meters
+    Triangles []Triangle    // Delaunay triangles
+    Bounds    MeshBounds    // Mesh bounding box
+    Options   ApproximationOptions
+    Stats     MeshStats
+}
+```
+
+### Алгоритм Delaunay (Bowyer-Watson)
+
+**Шаги алгоритма:**
+
+1. **Создание супер-треугольника** — треугольник, охватывающий все точки
+2. **Инкрементальная вставка** — для каждой точки:
+   - Найти все треугольники, чья описанная окружность содержит точку
+   - Удалить эти треугольники, создавая "дыру"
+   - Триангулировать дыру, соединяя точку с границей
+3. **Удаление супер-треугольника** — удалить треугольники, содержащие его вершины
+
+**Свойства Delaunay триангуляции:**
+- Ни одна точка не находится внутри описанной окружности никакого треугольника
+- Максимально возможные минимальные углы всех треугольников
+- Единственность для точек в общем положении
+
+### Интерполяция значений
+
+**Барицентрические координаты:**
+
+Для точки P внутри треугольника ABC:
+```
+P = u·A + v·B + w·C
+где u + v + w = 1 и u, v, w ≥ 0
+```
+
+Интерполируемое значение:
+```
+value = u·V_A + v·V_B + w·V_C
+где V_* — значения в вершинах
+```
+
+### Адаптивное уточнение
+
+**Разделение треугольника:**
+
+Треугольник разделяется на 4 меньших:
+```
+      C
+     / \
+    /   \
+   M1---M2  ← середины рёбер
+  / \   / \
+ /   \ /   \
+A-----M0----B
+```
+
+**Критерий разделения:**
+- `Area > MaxTriangleArea` — слишком большой треугольник
+- Лимит итераций: 5 (предотвращает бесконечное уточнение)
+
+### Метрики качества
+
+**Углы треугольников:**
+- `MinAngle > 20°` — отсутствие узких треугольников
+- `MaxAngle < 120°` — отсутствие вытянутых треугольников
+- `AvgAngle ≈ 60°` — идеальная сетка
+
+**Плотность сетки:**
+```
+density = triangle_count / mesh_area
+```
+
+### Валидация
+
+**Проверки:**
+- Количество вершин ≥ 3
+- Количество треугольников > 0
+- Отсутствие вырожденных треугольников (Area < 1e-6 м²)
+- Корректность границ (Min < Max)
+
+### Экспорт
+
+**GeoJSON:**
+
+```json
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[lon0,lat0], [lon1,lat1], [lon2,lat2], [lon0,lat0]]]
+      },
+      "properties": {
+        "area": 1.234  // км²
+      }
+    }
+  ]
+}
+```
+
+### API
+
+| Функция | Описание | Возвращает |
+|---------|----------|------------|
+| `BuildTINMesh(points, opts)` | Построение TIN mesh | `*TINMesh, error` |
+| `DefaultApproximationOptions()` | Параметры по умолчанию | `ApproximationOptions` |
+| `(mesh).GetTriangles()` | Все треугольники | `[]Triangle` |
+| `(mesh).GetTriangleAreas()` | Площади треугольников (км²) | `[]float64` |
+| `(mesh).InterpolateValue(lat, lon, values)` | Интерполяция значения | `float64, error` |
+| `(mesh).GetMeshQuality()` | Метрики качества | `MeshQuality` |
+| `(mesh).ValidateMesh()` | Проверка валидности | `[]string` |
+| `(mesh).Simplify(maxArea)` | Упрощение сетки | `error` |
+| `(mesh).ExportGeoJSON()` | Экспорт в GeoJSON | `[]byte, error` |
+| `(mesh).MeshDensity()` | Плотность треугольников | `float64` |
+
+### Примеры использования
+
+```go
+// Базовая триангуляция
+opts := geometry.DefaultApproximationOptions()
+opts.MaxTriangleArea = 10.0  // 10 км²
+
+mesh, err := geometry.BuildTINMesh(points, opts)
+if err != nil {
+    log.Fatal(err)
+}
+
+// Интерполяция глубин
+depths := []float64{-10.5, -25.3, -15.8, ...}
+depth, err := mesh.InterpolateValue(lat, lon, depths)
+
+// Качество сетки
+quality := mesh.GetMeshQuality()
+if quality.MinAngle < 20 {
+    log.Println("Предупреждение: узкие треугольники")
+}
+```
+
+---
+
 ## Константы и конфигурация
 
 | Константа | Значение | Описание |
@@ -1220,6 +1388,21 @@ metersPerDegLat = 2π × R / 360 ≈ 111194.9 м
 | `(profile).GetLithologyAt(lat, lon)` | Интерполяция литологии (IDW) | `LithologyState` |
 | `(profile).GetStatistics()` | Статистика профиля | `map[string]interface{}` |
 | `CreateDefaultBlackSeaProfile()` | Дефолтный профиль Чёрного моря | `*LithologyProfile` |
+
+### TIN approximation mesh
+
+| Функция | Описание | Возвращает |
+|---------|----------|------------|
+| `BuildTINMesh(points, opts)` | Построение TIN mesh | `*TINMesh, error` |
+| `DefaultApproximationOptions()` | Параметры по умолчанию | `ApproximationOptions` |
+| `(mesh).GetTriangles()` | Все треугольники | `[]Triangle` |
+| `(mesh).GetTriangleAreas()` | Площади треугольников (км²) | `[]float64` |
+| `(mesh).InterpolateValue(lat, lon, values)` | Интерполяция значения | `float64, error` |
+| `(mesh).GetMeshQuality()` | Метрики качества | `MeshQuality` |
+| `(mesh).ValidateMesh()` | Проверка валидности | `[]string` |
+| `(mesh).Simplify(maxArea)` | Упрощение сетки | `error` |
+| `(mesh).ExportGeoJSON()` | Экспорт в GeoJSON | `[]byte, error` |
+| `(mesh).MeshDensity()` | Плотность треугольников | `float64` |
 
 ### Временная динамика
 

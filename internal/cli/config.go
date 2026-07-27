@@ -18,6 +18,7 @@ const (
 	cmdCoastline     = "coastline"
 	cmdDimension     = "dimension"
 	cmdErosion       = "erosion"
+	cmdBenchmark     = "benchmark"
 )
 
 type config struct {
@@ -46,43 +47,63 @@ type config struct {
 	DisableSimplify bool
 	Quiet           bool
 	// Temporal dynamics parameters
-	TargetYears            int
-	YearsPerStep           float64
-	StormProbability       float64
-	StormIntensityMult     float64
-	SeaLevelRise           float64
-	EnableSeasonality      bool
-	SeasonalPhase          float64
+	TargetYears        int
+	YearsPerStep       float64
+	StormProbability   float64
+	StormIntensityMult float64
+	SeaLevelRise       float64
+	EnableSeasonality  bool
+	SeasonalPhase      float64
 	// CSV export parameters
-	OutputCSV              string
-	CSVFormat              string
+	OutputCSV string
+	CSVFormat string
 	// GIF animation parameters
-	OutputGIF              string
-	GIFFPS                 int
-	GIFSkip                int
-	GIFColorByChange       bool
-	GIFShowInitial         bool
-	GIFShowMetrics         bool
-	GIFShowScaleBar        bool
-	GIFShowColorLegend     bool
-	GIFScaleBarKM          float64
-	GIFColorLegendPos      string
-	GIFGeoLabels           string
-	GIFShowTimeStamp      bool     // показывать временные метки на кадрах
-	GIFWidth             int      // ширина GIF в пикселях (0 = auto 1200)
-	GIFHeight            int      // высота GIF в пикселях (0 = auto 800)
-	GIFColors           int      // количество цветов в палитре (0 = auto 16)
-	GIFCompression      string   // уровень сжатия (low|medium|high)
+	OutputGIF          string
+	GIFFPS             int
+	GIFSkip            int
+	GIFColorByChange   bool
+	GIFShowInitial     bool
+	GIFShowMetrics     bool
+	GIFShowScaleBar    bool
+	GIFShowColorLegend bool
+	GIFScaleBarKM      float64
+	GIFColorLegendPos  string
+	GIFGeoLabels       string
+	GIFShowTimeStamp   bool   // показывать временные метки на кадрах
+	GIFWidth           int    // ширина GIF в пикселях (0 = auto 1200)
+	GIFHeight          int    // высота GIF в пикселях (0 = auto 800)
+	GIFColors          int    // количество цветов в палитре (0 = auto 16)
+	GIFCompression     string // уровень сжатия (low|medium|high)
 	// Enhanced SVG options
-	EnableEnhanced       bool     // включить enhanced SVG с дополнительными элементами
-	ShowGrid             bool     // показать координатную сетку
-	ShowCompass          bool     // показать компас/розу ветров
-	ShowMarkers          bool     // показать маркеры ключевых точек
-	ShowIsolines         bool     // показать изолинии глубин
-	CompassStyle         string   // стиль компаса (modern|classic|minimal)
-	GridStep             float64  // шаг координатной сетки в градусах
-	CompassSize          int      // размер компаса в пикселях
-	CompassWindDir       float64  // направление ветра для компаса
+	EnableEnhanced bool    // включить enhanced SVG с дополнительными элементами
+	ShowGrid       bool    // показать координатную сетку
+	ShowCompass    bool    // показать компас/розу ветров
+	ShowMarkers    bool    // показать маркеры ключевых точек
+	ShowIsolines   bool    // показать изолинии глубин
+	CompassStyle   string  // стиль компаса (modern|classic|minimal)
+	GridStep       float64 // шаг координатной сетки в градусах
+	CompassSize    int     // размер компаса в пикселях
+	CompassWindDir float64 // направление ветра для компаса
+	// Benchmark parameters
+	BenchmarkSubcommand string              // benchmark subcommand: list, init, show, calibrate, extract
+	BenchmarkDir        string              // directory for benchmark sites
+	BenchmarkSiteID     string              // site ID for show/calibrate commands
+	SpectrumSpread      float64             // wave spectrum directional spread (deg)
+	Bounds              coastline.GeoBounds // bounds for extract command
+	// Site creation parameters (for `create` subcommand)
+	SiteName        string
+	SiteRegion      string
+	SiteCountry     string
+	SiteDescription string
+	SiteLithology   string
+	BoundsString    string
+	CoastTypeStr    string
+	QualityStr      string
+	CoastlinePath   string
+	MeanWaveHeight  float64
+	MeanWavePeriod  float64
+	ObsYearMin      int
+	ObsYearMax      int
 }
 
 func parseConfig(args []string, stdout, stderr io.Writer) (config, error) {
@@ -158,27 +179,27 @@ func parseConfig(args []string, stdout, stderr io.Writer) (config, error) {
 		fs.IntVar(&cfg.GIFSkip, "gif-skip", 1, "skip every N frames to reduce GIF size (1 = don't skip)")
 		fs.BoolVar(&cfg.GIFColorByChange, "gif-color-change", true, "enable color coding by erosion/deposition intensity")
 		fs.BoolVar(&cfg.GIFShowInitial, "gif-show-initial", true, "show initial coastline state (gray line)")
-			fs.BoolVar(&cfg.GIFShowScaleBar, "gif-show-scalebar", true, "show scale bar on GIF (important for scientific publications)")
-		fs.Float64Var(&cfg.GIFScaleBarKM, "gif-scalebar-km", 0, "scale bar length in km (0 = auto-detect)" )
-			fs.StringVar(&cfg.GIFColorLegendPos, "gif-colorlegend-pos", "right", "color legend position (right|bottom|none)")
-			fs.IntVar(&cfg.GIFColors, "gif-colors", 0, "number of palette colors (0 = auto 16, 4-256)")
-			fs.StringVar(&cfg.GIFCompression, "gif-compression", "medium", "compression level (low|medium|high)")
-			fs.IntVar(&cfg.GIFWidth, "gif-width", 1200, "GIF width in pixels (0 = auto 1200)")
-			fs.IntVar(&cfg.GIFHeight, "gif-height", 800, "GIF height in pixels (0 = auto 800)")
-			fs.BoolVar(&cfg.GIFShowTimeStamp, "gif-show-timestamp", true, "show time stamps (years, storms) on GIF frames")
-			fs.StringVar(&cfg.GIFGeoLabels, "gif-geo-labels", "major", "geographic labels (none|major|all)")
+		fs.BoolVar(&cfg.GIFShowScaleBar, "gif-show-scalebar", true, "show scale bar on GIF (important for scientific publications)")
+		fs.Float64Var(&cfg.GIFScaleBarKM, "gif-scalebar-km", 0, "scale bar length in km (0 = auto-detect)")
+		fs.StringVar(&cfg.GIFColorLegendPos, "gif-colorlegend-pos", "right", "color legend position (right|bottom|none)")
+		fs.IntVar(&cfg.GIFColors, "gif-colors", 0, "number of palette colors (0 = auto 16, 4-256)")
+		fs.StringVar(&cfg.GIFCompression, "gif-compression", "medium", "compression level (low|medium|high)")
+		fs.IntVar(&cfg.GIFWidth, "gif-width", 1200, "GIF width in pixels (0 = auto 1200)")
+		fs.IntVar(&cfg.GIFHeight, "gif-height", 800, "GIF height in pixels (0 = auto 800)")
+		fs.BoolVar(&cfg.GIFShowTimeStamp, "gif-show-timestamp", true, "show time stamps (years, storms) on GIF frames")
+		fs.StringVar(&cfg.GIFGeoLabels, "gif-geo-labels", "major", "geographic labels (none|major|all)")
 		fs.BoolVar(&cfg.GIFShowMetrics, "gif-show-metrics", true, "show frame metrics (length, erosion)")
-			// Enhanced SVG flags
-			fs.BoolVar(&cfg.EnableEnhanced, "enhanced", true, "enable enhanced SVG with cartographic elements")
-			fs.BoolVar(&cfg.ShowGrid, "show-grid", true, "show coordinate grid on maps")
-			fs.BoolVar(&cfg.ShowCompass, "show-compass", true, "show compass/wind rose")
-			fs.BoolVar(&cfg.ShowMarkers, "show-markers", true, "show key point markers")
-			fs.BoolVar(&cfg.ShowIsolines, "show-isolines", false, "show depth contour lines (requires bathymetry data)")
-			fs.StringVar(&cfg.CompassStyle, "compass-style", "modern", "compass style: modern, classic, or minimal")
-			fs.Float64Var(&cfg.GridStep, "grid-step", 0.2, "coordinate grid step in degrees")
-			fs.IntVar(&cfg.CompassSize, "compass-size", 32, "compass size in pixels")
-			fs.Float64Var(&cfg.CompassWindDir, "compass-wind-dir", 315, "wind direction for compass arrow (degrees from north)")
-			fs.Usage = func() { printBanner(stdout); printCommandUsage(stdout, command) }
+		// Enhanced SVG flags
+		fs.BoolVar(&cfg.EnableEnhanced, "enhanced", true, "enable enhanced SVG with cartographic elements")
+		fs.BoolVar(&cfg.ShowGrid, "show-grid", true, "show coordinate grid on maps")
+		fs.BoolVar(&cfg.ShowCompass, "show-compass", true, "show compass/wind rose")
+		fs.BoolVar(&cfg.ShowMarkers, "show-markers", true, "show key point markers")
+		fs.BoolVar(&cfg.ShowIsolines, "show-isolines", false, "show depth contour lines (requires bathymetry data)")
+		fs.StringVar(&cfg.CompassStyle, "compass-style", "modern", "compass style: modern, classic, or minimal")
+		fs.Float64Var(&cfg.GridStep, "grid-step", 0.2, "coordinate grid step in degrees")
+		fs.IntVar(&cfg.CompassSize, "compass-size", 32, "compass size in pixels")
+		fs.Float64Var(&cfg.CompassWindDir, "compass-wind-dir", 315, "wind direction for compass arrow (degrees from north)")
+		fs.Usage = func() { printBanner(stdout); printCommandUsage(stdout, command) }
 	case cmdDimension:
 		fs.StringVar(&cfg.InputPath, "input", coastline.DefaultCoastlineJSONPath, "path to local coastline JSON/GeoJSON fallback file")
 		fs.StringVar(&cfg.SourceURL, "source-url", coastline.DefaultCoastlineGeoJSONURL, "remote GeoJSON URL for coastline data; empty string disables HTTP loading")
@@ -224,9 +245,9 @@ func parseConfig(args []string, stdout, stderr io.Writer) (config, error) {
 		// GIF animation flags
 		fs.StringVar(&cfg.OutputGIF, "output-gif", "", "path to GIF file for erosion animation (empty disables GIF export)")
 		fs.BoolVar(&cfg.GIFShowColorLegend, "gif-show-colorlegend", true, "show color legend on GIF")
-			fs.StringVar(&cfg.GIFColorLegendPos, "gif-colorlegend-pos", "right", "color legend position (right|bottom|none)")
-			fs.StringVar(&cfg.GIFGeoLabels, "gif-geo-labels", "major", "geographic labels (none|major|all)")
-			fs.BoolVar(&cfg.GIFShowScaleBar, "gif-show-scalebar", true, "show scale bar on GIF (important for scientific publications)")
+		fs.StringVar(&cfg.GIFColorLegendPos, "gif-colorlegend-pos", "right", "color legend position (right|bottom|none)")
+		fs.StringVar(&cfg.GIFGeoLabels, "gif-geo-labels", "major", "geographic labels (none|major|all)")
+		fs.BoolVar(&cfg.GIFShowScaleBar, "gif-show-scalebar", true, "show scale bar on GIF (important for scientific publications)")
 		fs.IntVar(&cfg.GIFFPS, "gif-fps", 10, "GIF animation frames per second (1-30)")
 		fs.IntVar(&cfg.GIFSkip, "gif-skip", 1, "skip every N frames to reduce GIF size (1 = don't skip)")
 		fs.Float64Var(&cfg.GIFScaleBarKM, "gif-scalebar-km", 0, "scale bar length in km (0 = auto-detect)")
@@ -238,16 +259,52 @@ func parseConfig(args []string, stdout, stderr io.Writer) (config, error) {
 		fs.BoolVar(&cfg.GIFShowTimeStamp, "gif-show-timestamp", true, "show time stamps (years, storms) on GIF frames")
 		fs.IntVar(&cfg.GIFWidth, "gif-width", 1200, "GIF width in pixels (0 = auto 1200)")
 		fs.IntVar(&cfg.GIFHeight, "gif-height", 800, "GIF height in pixels (0 = auto 800)")
-			// Enhanced SVG flags
-			fs.BoolVar(&cfg.EnableEnhanced, "enhanced", true, "enable enhanced SVG with cartographic elements")
-			fs.BoolVar(&cfg.ShowGrid, "show-grid", true, "show coordinate grid on maps")
-			fs.BoolVar(&cfg.ShowCompass, "show-compass", true, "show compass/wind rose")
-			fs.BoolVar(&cfg.ShowMarkers, "show-markers", true, "show key point markers")
-			fs.BoolVar(&cfg.ShowIsolines, "show-isolines", false, "show depth contour lines (requires bathymetry data)")
-			fs.StringVar(&cfg.CompassStyle, "compass-style", "modern", "compass style: modern, classic, or minimal")
-			fs.Float64Var(&cfg.GridStep, "grid-step", 0.2, "coordinate grid step in degrees")
-			fs.IntVar(&cfg.CompassSize, "compass-size", 32, "compass size in pixels")
-			fs.Float64Var(&cfg.CompassWindDir, "compass-wind-dir", 315, "wind direction for compass arrow (degrees from north)")
+		// Enhanced SVG flags
+		fs.BoolVar(&cfg.EnableEnhanced, "enhanced", true, "enable enhanced SVG with cartographic elements")
+		fs.BoolVar(&cfg.ShowGrid, "show-grid", true, "show coordinate grid on maps")
+		fs.BoolVar(&cfg.ShowCompass, "show-compass", true, "show compass/wind rose")
+		fs.BoolVar(&cfg.ShowMarkers, "show-markers", true, "show key point markers")
+		fs.BoolVar(&cfg.ShowIsolines, "show-isolines", false, "show depth contour lines (requires bathymetry data)")
+		fs.StringVar(&cfg.CompassStyle, "compass-style", "modern", "compass style: modern, classic, or minimal")
+		fs.Float64Var(&cfg.GridStep, "grid-step", 0.2, "coordinate grid step in degrees")
+		fs.IntVar(&cfg.CompassSize, "compass-size", 32, "compass size in pixels")
+		fs.Float64Var(&cfg.CompassWindDir, "compass-wind-dir", 315, "wind direction for compass arrow (degrees from north)")
+		fs.Usage = func() { printBanner(stdout); printCommandUsage(stdout, command) }
+	case cmdBenchmark:
+		// Get subcommand from args before flag parsing
+		if len(commandArgs) > 0 {
+			cfg.BenchmarkSubcommand = commandArgs[0]
+			commandArgs = commandArgs[1:]
+		} else {
+			cfg.BenchmarkSubcommand = "list"
+		}
+		fs.StringVar(&cfg.BenchmarkDir, "dir", "data/benchmarks", "directory for benchmark site data")
+		fs.StringVar(&cfg.BenchmarkSiteID, "site", "", "site ID for show/calibrate commands")
+		fs.StringVar(&cfg.InputPath, "input", coastline.DefaultCoastlineJSONPath, "path to coastline JSON for extract command")
+		fs.StringVar(&cfg.OutputPath, "output", "", "output file for extract command")
+		fs.StringVar(&cfg.BathymetryPath, "bathymetry", "", "path to bathymetry JSON for calibration")
+		fs.Float64Var(&cfg.SpectrumSpread, "spectrum-spread", 0, "wave spectrum directional spread in degrees (0=single dir, 30=mild, 60=wide)")
+		fs.Float64Var(&cfg.ErosionStrength, "erosion-strength", 0, "erosion strength in meters (for hotspots)")
+		fs.Float64Var(&cfg.WaveDirection, "wave-direction", -1, "wave direction in degrees (for hotspots)")
+		// Site creation (for `create` subcommand)
+		fs.StringVar(&cfg.SiteName, "name", "", "site name (for create)")
+		fs.StringVar(&cfg.SiteRegion, "region", "", "region name (for create)")
+		fs.StringVar(&cfg.SiteCountry, "country", "", "country name (for create)")
+		fs.StringVar(&cfg.SiteDescription, "description", "", "site description (for create)")
+		fs.StringVar(&cfg.SiteLithology, "lithology", "mixed", "dominant lithology (for create)")
+		fs.StringVar(&cfg.BoundsString, "bounds", "", "bounds: min_lat,max_lat,min_lon,max_lon (for create)")
+		fs.StringVar(&cfg.CoastTypeStr, "coast-type", "mixed", "coast type: sandy|cliff|rocky|muddy|mixed|artificial")
+		fs.StringVar(&cfg.QualityStr, "quality", "medium", "data quality: high|medium|low")
+		fs.StringVar(&cfg.CoastlinePath, "coastline", "", "path to local coastline GeoJSON/JSON (for create)")
+		fs.Float64Var(&cfg.MeanWaveHeight, "mean-wave-height", 1.0, "mean significant wave height in meters")
+		fs.Float64Var(&cfg.MeanWavePeriod, "mean-wave-period", 5.0, "mean wave period in seconds")
+		fs.IntVar(&cfg.ObsYearMin, "obs-year-min", 2000, "observation start year")
+		fs.IntVar(&cfg.ObsYearMax, "obs-year-max", 2024, "observation end year")
+		// Bounds for extract
+		fs.Float64Var(&cfg.Bounds.MinLat, "bounds-min-lat", 0, "minimum latitude for extract")
+		fs.Float64Var(&cfg.Bounds.MaxLat, "bounds-max-lat", 0, "maximum latitude for extract")
+		fs.Float64Var(&cfg.Bounds.MinLon, "bounds-min-lon", 0, "minimum longitude for extract")
+		fs.Float64Var(&cfg.Bounds.MaxLon, "bounds-max-lon", 0, "maximum longitude for extract")
 		fs.Usage = func() { printBanner(stdout); printCommandUsage(stdout, command) }
 	}
 
@@ -350,7 +407,7 @@ func resolveCommand(args []string, stdout, stderr io.Writer) (string, []string, 
 		return resolveGroupedCommand(cmdReal, args[1:], stdout, stderr)
 	case cmdModel:
 		return resolveGroupedCommand(cmdModel, args[1:], stdout, stderr)
-	case cmdSource, cmdAll:
+	case cmdSource, cmdAll, cmdBenchmark:
 		return args[0], args[1:], nil
 	default:
 		printRootUsage(stderr)

@@ -74,7 +74,7 @@ func writeCoastlineSVG(points, renderPoints []geometry.LatLon, output, defaultNa
 	}
 
 	// Wrap with enhanced options if enabled
-			enhancedDoc := wrapDocumentForEnhanced(doc, ctx.Config, points, 0, nil, nil)
+	enhancedDoc := wrapDocumentForEnhanced(doc, ctx.Config, points, 0, nil, nil)
 
 	if ctx.Config.EnableEnhanced {
 		if err := svgrender.DrawEnhancedSVG(enhancedDoc, filename); err != nil {
@@ -107,7 +107,6 @@ func writeCoastlineSVG(points, renderPoints []geometry.LatLon, output, defaultNa
 	fmt.Printf("Metrics saved to %s\n", metricsPath)
 	return nil
 }
-
 
 func writeOrganicKochSVGSeries(originalBase, modelBase []geometry.LatLon, iterations int, output string, opts koch.OrganicOptions, erosionStrength float64, prefix, metricsBaseName string, includeDimension bool, ctx exportContext, outputPathManager *OutputPathManager) error {
 	title := "Органическая кривая Коха"
@@ -177,26 +176,26 @@ func writeErosionSVGSeries(originalBase, modelBase []geometry.LatLon, snapshots 
 		meta = append(meta, fmt.Sprintf("Эрозия: базовый отступ %.0f м, seed=%d", strength, seed))
 		meta = append(meta, fmt.Sprintf("Волны: %.0f° от севера, ветер %.1f м/с, сектор ±%.0f°, fetch <= %.0f км", waveOptions.WindSourceDirectionDeg, waveOptions.WindSpeedMetersPerSecond, waveOptions.FetchSpreadDeg, waveOptions.MaxFetchMeters/1000))
 
-			// Build document and apply enhanced options if enabled
-			doc := svgrender.Document{
-				Title:     fmt.Sprintf("Эрозия — шаг %d", step),
-				Subtitle:  "Серая пунктирная линия показывает реальную загруженную береговую линию; цветные слои — результаты пошаговой эрозии",
-				Layers:    layers,
-				StatCards: makeValidationStatCards(ctx.Validation, validationSummary),
-				Meta:      meta,
-			}
+		// Build document and apply enhanced options if enabled
+		doc := svgrender.Document{
+			Title:     fmt.Sprintf("Эрозия — шаг %d", step),
+			Subtitle:  "Серая пунктирная линия показывает реальную загруженную береговую линию; цветные слои — результаты пошаговой эрозии",
+			Layers:    layers,
+			StatCards: makeValidationStatCards(ctx.Validation, validationSummary),
+			Meta:      meta,
+		}
 
-			if ctx.Config.EnableEnhanced {
-				// Use enhanced options with current step's reference points
-				enhancedDoc := wrapDocumentForEnhanced(doc, ctx.Config, referenceRender, waveOptions.WindSourceDirectionDeg, sedimentResult, renderSnapshots[step])
-				if err := svgrender.DrawEnhancedSVG(enhancedDoc, filename); err != nil {
-					return err
-				}
-			} else {
-				if err := svgrender.DrawDocument(doc, filename); err != nil {
-					return err
-				}
+		if ctx.Config.EnableEnhanced {
+			// Use enhanced options with current step's reference points
+			enhancedDoc := wrapDocumentForEnhanced(doc, ctx.Config, referenceRender, waveOptions.WindSourceDirectionDeg, sedimentResult, renderSnapshots[step])
+			if err := svgrender.DrawEnhancedSVG(enhancedDoc, filename); err != nil {
+				return err
 			}
+		} else {
+			if err := svgrender.DrawDocument(doc, filename); err != nil {
+				return err
+			}
+		}
 
 		stepMetrics = append(stepMetrics, erosionStepMetrics{
 			Step:         step,
@@ -328,27 +327,27 @@ func writeFractalSeries(opts fractalSeriesOptions, output string, ctx exportCont
 				opts.OrganicOptions.Seed, opts.OrganicOptions.AngleJitterDeg, opts.OrganicOptions.HeightJitterPct*100)
 		}
 
-			// Build document and apply enhanced options if enabled
-			doc := svgrender.Document{
-				Title:     fmt.Sprintf("%s — итерация %d", opts.Title, iter),
-				Subtitle:  subtitle,
-				Layers:    layers,
-				StatCards: makeValidationStatCards(ctx.Validation, validationSummary),
-				Charts:    charts,
-				Meta:      meta,
-			}
+		// Build document and apply enhanced options if enabled
+		doc := svgrender.Document{
+			Title:     fmt.Sprintf("%s — итерация %d", opts.Title, iter),
+			Subtitle:  subtitle,
+			Layers:    layers,
+			StatCards: makeValidationStatCards(ctx.Validation, validationSummary),
+			Charts:    charts,
+			Meta:      meta,
+		}
 
-			if ctx.Config.EnableEnhanced {
-				// Use enhanced options - fractal usually doesn't have wind direction, use 0
-					enhancedDoc := wrapDocumentForEnhanced(doc, ctx.Config, referenceRender, 0, nil, nil)
-				if err := svgrender.DrawEnhancedSVG(enhancedDoc, filename); err != nil {
-					return err
-				}
-			} else {
-				if err := svgrender.DrawDocument(doc, filename); err != nil {
-					return err
-				}
+		if ctx.Config.EnableEnhanced {
+			// Use enhanced options - fractal usually doesn't have wind direction, use 0
+			enhancedDoc := wrapDocumentForEnhanced(doc, ctx.Config, referenceRender, 0, nil, nil)
+			if err := svgrender.DrawEnhancedSVG(enhancedDoc, filename); err != nil {
+				return err
 			}
+		} else {
+			if err := svgrender.DrawDocument(doc, filename); err != nil {
+				return err
+			}
+		}
 
 		iterationMetrics := fractalIterationMetrics{
 			Iteration:           iter,
@@ -620,7 +619,6 @@ func buildLengthChart(lengths []float64) svgrender.Chart {
 		},
 	}
 
-
 	return chart
 }
 
@@ -711,4 +709,124 @@ func resolveSeriesOutputDir(output string) (string, error) {
 	}
 
 	return filepath.Abs(output)
+}
+
+// printMeshQuality displays TIN mesh quality metrics in console.
+func printMeshQuality(quality *geometry.MeshQuality) {
+	if quality == nil {
+		return
+	}
+
+	fmt.Println("\n  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+	fmt.Println("  TIN MESH QUALITY METRICS")
+	fmt.Println("  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+
+	fmt.Println("  ┌─────────────────┬─────────────────┬──────────────────┐")
+	fmt.Println("  │ Metric          │ Value           │ Assessment       │")
+	fmt.Println("  ├─────────────────┼─────────────────┼──────────────────┤")
+
+	fmt.Printf("  │ Triangles       │ %-15d │                  │\n", quality.TriangleCount)
+	fmt.Printf("  │ Vertices        │ %-15d │                  │\n", quality.VertexCount)
+
+	minAngleAssessment := angleQualityAssessment(quality.MinAngle)
+	maxAngleAssessment := angleQualityAssessment(quality.MaxAngle)
+	avgAngleAssessment := angleQualityAssessment(quality.AvgAngle)
+
+	fmt.Printf("  │ Min Angle       │ %-15.1f° │ %-16s │\n", quality.MinAngle, minAngleAssessment)
+	fmt.Printf("  │ Max Angle       │ %-15.1f° │ %-16s │\n", quality.MaxAngle, maxAngleAssessment)
+	fmt.Printf("  │ Avg Angle       │ %-15.1f° │ %-16s │\n", quality.AvgAngle, avgAngleAssessment)
+
+	fmt.Println("  └─────────────────┴─────────────────┴──────────────────┘")
+	fmt.Println()
+
+	// Quality indicators
+	minAngle := quality.MinAngle
+	maxAngle := quality.MaxAngle
+	if minAngle >= 20 && maxAngle <= 120 {
+		fmt.Println("  ✅ Отличное качество: все углы в рекомендуемом диапазоне [20°, 120°]")
+	} else if minAngle >= 15 && maxAngle <= 130 {
+		fmt.Println("  ⚠️  Хорошее качество: большинство углов в допустимом диапазоне")
+	} else {
+		fmt.Println("  ❌ Плохое качество: обнаружены вырожденные треугольники")
+	}
+	fmt.Println()
+}
+
+// angleQualityAssessment returns quality assessment for an angle.
+func angleQualityAssessment(angle float64) string {
+	const (
+		minAngle   = 20.0
+		maxAngle   = 120.0
+		warningMin = 15.0
+		warningMax = 130.0
+	)
+
+	if angle >= minAngle && angle <= maxAngle {
+		return "✓ отлично"
+	}
+	if angle >= warningMin && angle <= warningMax {
+		return "⚠ допустимо"
+	}
+	return "❌ плохо"
+}
+
+// makeMeshQualityStatCard creates a StatCard for mesh quality metrics.
+func makeMeshQualityStatCard(quality *geometry.MeshQuality) svgrender.StatCard {
+	if quality == nil {
+		return svgrender.StatCard{}
+	}
+
+	minAngleTone := qualityToneForAngle(quality.MinAngle, 20, 120)
+	maxAngleTone := qualityToneForAngle(quality.MaxAngle, 20, 120)
+	avgAngleTone := qualityToneForAngle(quality.AvgAngle, 50, 70)
+
+	return svgrender.StatCard{
+		Title: "Качество TIN Mesh",
+		Items: []svgrender.StatItem{
+			{
+				Label: "Треугольников",
+				Value: fmt.Sprintf("%d", quality.TriangleCount),
+				Tone:  "#1f6f8b",
+			},
+			{
+				Label: "Вершин",
+				Value: fmt.Sprintf("%d", quality.VertexCount),
+				Tone:  "#2c7a7b",
+			},
+			{
+				Label: "Мин. угол",
+				Value: fmt.Sprintf("%.1f°", quality.MinAngle),
+				Tone:  minAngleTone,
+			},
+			{
+				Label: "Макс. угол",
+				Value: fmt.Sprintf("%.1f°", quality.MaxAngle),
+				Tone:  maxAngleTone,
+			},
+			{
+				Label: "Средний угол",
+				Value: fmt.Sprintf("%.1f°", quality.AvgAngle),
+				Tone:  avgAngleTone,
+			},
+		},
+	}
+}
+
+// qualityToneForAngle returns color tone based on angle quality.
+func qualityToneForAngle(angle, minIdeal, maxIdeal float64) string {
+	const (
+		warningMin = 15.0
+		warningMax = 130.0
+		good       = "#3f6b4b" // green
+		warning    = "#c06c3f" // orange
+		bad        = "#c2410c" // red
+	)
+
+	if angle >= minIdeal && angle <= maxIdeal {
+		return good
+	}
+	if angle >= warningMin && angle <= warningMax {
+		return warning
+	}
+	return bad
 }

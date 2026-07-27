@@ -42,39 +42,39 @@ type TemporalParameters struct {
 
 // TemporalState состояние временной динамики для одного шага
 type TemporalState struct {
-	Step           int       // номер шага
-	Year           float64   // текущий год
-	IsStorm        bool      // штормовое событие
-	StormIntensity float64   // интенсивность шторма [1.0+]
-	SeasonalFactor float64   // сезонный множитель [0.5-1.5]
-	SeaLevelOffset float64   // смещение уровня моря (м)
-	EffectiveYears float64   // эффективное число лет для этого шага
+	Step           int     // номер шага
+	Year           float64 // текущий год
+	IsStorm        bool    // штормовое событие
+	StormIntensity float64 // интенсивность шторма [1.0+]
+	SeasonalFactor float64 // сезонный множитель [0.5-1.5]
+	SeaLevelOffset float64 // смещение уровня моря (м)
+	EffectiveYears float64 // эффективное число лет для этого шага
 }
 
 // TemporalResult результат моделирования с временной динамикой
 type TemporalResult struct {
-	Snapshots       [][]LatLon       // состояния береговой линии по шагам
-	TemporalStates  []TemporalState  // временные состояния по шагам
-	TotalYears      float64          // общее число промоделированных лет
-	StormCount      int              // число штормовых событий
-	AccumulatedErosion float64       // накопленная эрозия (м)
-	FinalSeaLevelRise float64        // итоговый подъём уровня моря (м)
+	Snapshots          [][]LatLon      // состояния береговой линии по шагам
+	TemporalStates     []TemporalState // временные состояния по шагам
+	TotalYears         float64         // общее число промоделированных лет
+	StormCount         int             // число штормовых событий
+	AccumulatedErosion float64         // накопленная эрозия (м)
+	FinalSeaLevelRise  float64         // итоговый подъём уровня моря (м)
 }
 
 // ErosionMetrics метрики эрозии для каждого шага
 type ErosionMetrics struct {
-	Step                int      // номер шага
-	Year                float64  // год
-	LengthKm            float64  // длина береговой линии (км)
-	AreaKm2             float64  // площадь (км²)
-	ErodedM3            float64  // объём эрозии (м³)
-	DepositedM3         float64  // объём депозиции (м³)
-	NetChangeM3         float64  // баланс (м³)
-	FractalDimension    float64  // фрактальная размерность
-	MeanRetreatMeters   float64  // среднее отступание (м)
-	MaxRetreatMeters    float64  // максимальное отступание (м)
-	IsStorm             bool     // штормовое событие
-	SeasonalFactor       float64  // сезонный множитель
+	Step              int     // номер шага
+	Year              float64 // год
+	LengthKm          float64 // длина береговой линии (км)
+	AreaKm2           float64 // площадь (км²)
+	ErodedM3          float64 // объём эрозии (м³)
+	DepositedM3       float64 // объём депозиции (м³)
+	NetChangeM3       float64 // баланс (м³)
+	FractalDimension  float64 // фрактальная размерность
+	MeanRetreatMeters float64 // среднее отступание (м)
+	MaxRetreatMeters  float64 // максимальное отступание (м)
+	IsStorm           bool    // штормовое событие
+	SeasonalFactor    float64 // сезонный множитель
 }
 
 // normalizeTemporalParameters нормализует временные параметры
@@ -296,11 +296,11 @@ func CalculateErosionMetrics(result TemporalResult) []ErosionMetrics {
 		}
 
 		metric := ErosionMetrics{
-			Step:          i,
-			Year:          state.Year,
-			LengthKm:      PolylineLength(snapshot),
-			AreaKm2:       Area(snapshot),
-			IsStorm:       state.IsStorm,
+			Step:           i,
+			Year:           state.Year,
+			LengthKm:       PolylineLength(snapshot),
+			AreaKm2:        Area(snapshot),
+			IsStorm:        state.IsStorm,
 			SeasonalFactor: state.SeasonalFactor,
 		}
 

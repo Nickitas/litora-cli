@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	gebcoURL      = "https://www.gebco.net/data_and_products/gridded_bathymetry_data/"
+	gebcoURL       = "https://www.gebco.net/data_and_products/gridded_bathymetry_data/"
 	blackSeaRegion = "40.5_46.5_27.5_42.5"
 )
 

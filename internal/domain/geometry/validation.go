@@ -13,26 +13,26 @@ type ModelQualityMetrics struct {
 	ConvergenceRate    float64 // скорость изменения метрик (сходимость)
 
 	// Дополнительные статистики
-	DimensionVariance  float64 // вариация размерности
-	MassBalanceTrend   float64 // тренд баланса массы
-	SpatialCorrelation float64 // корреляция Moran's I
-	IsValidModel      bool     // флаг валидности модели
-	Warnings         []string // предупреждения
+	DimensionVariance  float64  // вариация размерности
+	MassBalanceTrend   float64  // тренд баланса массы
+	SpatialCorrelation float64  // корреляция Moran's I
+	IsValidModel       bool     // флаг валидности модели
+	Warnings           []string // предупреждения
 
 	// Расширенные метрики (Extended Metrics v2.0)
-	SedimentTransportRate  float64 // объем наносов в транспорте (m³/шаг)
-	AccumulationIndex      float64 // процент точек с аккумуляцией (0-1)
-	ErosionHotspots        int     // число кластеров высокой эрозии
-	ShorelineChangeRate    float64 // скорость изменения береговой линии (м/шаг)
+	SedimentTransportRate float64 // объем наносов в транспорте (m³/шаг)
+	AccumulationIndex     float64 // процент точек с аккумуляцией (0-1)
+	ErosionHotspots       int     // число кластеров высокой эрозии
+	ShorelineChangeRate   float64 // скорость изменения береговой линии (м/шаг)
 }
 
 // ValidationMetricsTimeSeries временной ряд метрик для анализа сходимости
 type ValidationMetricsTimeSeries struct {
-	Steps              []int     // номера шагов
-	Dimensions         []float64 // фрактальные размерности по шагам
-	MassBalances       []float64 // балансы массы по шагам
+	Steps               []int     // номера шагов
+	Dimensions          []float64 // фрактальные размерности по шагам
+	MassBalances        []float64 // балансы массы по шагам
 	SpatialCorrelations []float64 // пространственные корреляции по шагам
-	ConvergenceRates   []float64 // скорости сходимости по шагам
+	ConvergenceRates    []float64 // скорости сходимости по шагам
 }
 
 // CalculateModelQualityMetrics рассчитывает метрики качества модели
@@ -547,35 +547,35 @@ func generateValidationWarnings(metrics ModelQualityMetrics) []string {
 	}
 
 	// Предупреждения для расширенных метрик
-		if metrics.SedimentTransportRate < 10.0 {
-			warnings = append(warnings,
-				fmt.Sprintf("Low sediment transport: %.2f m³/step (insufficient transport)",
-					metrics.SedimentTransportRate))
-		}
+	if metrics.SedimentTransportRate < 10.0 {
+		warnings = append(warnings,
+			fmt.Sprintf("Low sediment transport: %.2f m³/step (insufficient transport)",
+				metrics.SedimentTransportRate))
+	}
 
-		if metrics.AccumulationIndex < 0.1 {
-			warnings = append(warnings,
-				fmt.Sprintf("Low accumulation index: %.2f (excessive erosion)",
-					metrics.AccumulationIndex))
-		}
+	if metrics.AccumulationIndex < 0.1 {
+		warnings = append(warnings,
+			fmt.Sprintf("Low accumulation index: %.2f (excessive erosion)",
+				metrics.AccumulationIndex))
+	}
 
-		if metrics.AccumulationIndex > 0.8 {
-			warnings = append(warnings,
-				fmt.Sprintf("High accumulation index: %.2f (excessive deposition)",
-					metrics.AccumulationIndex))
-		}
+	if metrics.AccumulationIndex > 0.8 {
+		warnings = append(warnings,
+			fmt.Sprintf("High accumulation index: %.2f (excessive deposition)",
+				metrics.AccumulationIndex))
+	}
 
-		if metrics.ErosionHotspots > 100 {
-			warnings = append(warnings,
-				fmt.Sprintf("Many erosion hotspots: %d (potential instability)",
-					metrics.ErosionHotspots))
-		}
+	if metrics.ErosionHotspots > 100 {
+		warnings = append(warnings,
+			fmt.Sprintf("Many erosion hotspots: %d (potential instability)",
+				metrics.ErosionHotspots))
+	}
 
-		if math.Abs(metrics.ShorelineChangeRate) > 100.0 {
-			warnings = append(warnings,
-				fmt.Sprintf("High shoreline change rate: %.2f m/step (rapid change)",
-					metrics.ShorelineChangeRate))
-		}
+	if math.Abs(metrics.ShorelineChangeRate) > 100.0 {
+		warnings = append(warnings,
+			fmt.Sprintf("High shoreline change rate: %.2f m/step (rapid change)",
+				metrics.ShorelineChangeRate))
+	}
 
 	return warnings
 }
@@ -629,7 +629,7 @@ func CalculateTimeSeriesMetrics(erosionMetrics []ErosionMetrics) ValidationMetri
 		if startIdx < 0 {
 			startIdx = 0
 		}
-		window := erosionMetrics[startIdx:i+1]
+		window := erosionMetrics[startIdx : i+1]
 		if len(window) >= 2 {
 			lengths := make([]float64, len(window))
 			for j, w := range window {
@@ -645,7 +645,7 @@ func CalculateTimeSeriesMetrics(erosionMetrics []ErosionMetrics) ValidationMetri
 		if startIdx < 0 {
 			startIdx = 0
 		}
-		window := erosionMetrics[startIdx:i+1]
+		window := erosionMetrics[startIdx : i+1]
 		ts.ConvergenceRates[i] = calculateConvergenceRate(window)
 	}
 
