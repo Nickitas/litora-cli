@@ -44,7 +44,7 @@ func printRootUsage(w io.Writer) {
 	fmt.Fprintf(w, "  %s benchmark init\n", bin)
 	fmt.Fprintf(w, "  %s benchmark show --site=odessa-coast-ua\n", bin)
 	fmt.Fprintln(w, "")
-	fmt.Fprintf(w, "См. '%s %s --help', '%s %s <command> --help', '%s %s <command> --help', '%s all --help' или '%s benchmark --help'.\n", bin, cmdSource, bin, cmdReal, bin, cmdModel, bin, cmdAll, bin)
+	fmt.Fprintf(w, "См. '%s %s --help', '%s %s <command> --help', '%s %s <command> --help', '%s all --help' или '%s benchmark --help'.\n", bin, cmdSource, bin, cmdReal, bin, cmdModel, bin, cmdAll)
 }
 
 func printGroupUsage(w io.Writer, group string) {
