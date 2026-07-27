@@ -19,6 +19,7 @@ const (
 	cmdDimension     = "dimension"
 	cmdErosion       = "erosion"
 	cmdBenchmark     = "benchmark"
+	cmdCompletion    = "completion"
 )
 
 type config struct {
@@ -104,6 +105,8 @@ type config struct {
 	MeanWavePeriod  float64
 	ObsYearMin      int
 	ObsYearMax      int
+	// Completion
+	CompletionShell string
 }
 
 func parseConfig(args []string, stdout, stderr io.Writer) (config, error) {
@@ -306,6 +309,9 @@ func parseConfig(args []string, stdout, stderr io.Writer) (config, error) {
 		fs.Float64Var(&cfg.Bounds.MinLon, "bounds-min-lon", 0, "minimum longitude for extract")
 		fs.Float64Var(&cfg.Bounds.MaxLon, "bounds-max-lon", 0, "maximum longitude for extract")
 		fs.Usage = func() { printBanner(stdout); printCommandUsage(stdout, command) }
+	case cmdCompletion:
+		fs.StringVar(&cfg.CompletionShell, "shell", "", "shell type: bash or zsh")
+		fs.Usage = func() { printBanner(stdout); printCommandUsage(stdout, command) }
 	}
 
 	if err := fs.Parse(commandArgs); err != nil {
@@ -407,7 +413,7 @@ func resolveCommand(args []string, stdout, stderr io.Writer) (string, []string, 
 		return resolveGroupedCommand(cmdReal, args[1:], stdout, stderr)
 	case cmdModel:
 		return resolveGroupedCommand(cmdModel, args[1:], stdout, stderr)
-	case cmdSource, cmdAll, cmdBenchmark:
+	case cmdSource, cmdAll, cmdBenchmark, cmdCompletion:
 		return args[0], args[1:], nil
 	default:
 		printRootUsage(stderr)

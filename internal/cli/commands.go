@@ -14,6 +14,8 @@ func executeCommand(app *App) error {
 		return runErosionCommand(app)
 	case cmdBenchmark:
 		return runBenchmarkCommand(app)
+	case cmdCompletion:
+		return runCompletionCommand(app)
 	default:
 		return errUnsupportedCommand(app.Config.Command)
 	}

@@ -15,7 +15,8 @@ func printRootUsage(w io.Writer) {
 	fmt.Fprintf(w, "       %s %s <command> [flags]\n", bin, cmdReal)
 	fmt.Fprintf(w, "       %s %s <command> [flags]\n", bin, cmdModel)
 	fmt.Fprintf(w, "       %s %s [flags]\n", bin, cmdAll)
-	fmt.Fprintf(w, "       %s %s [subcommand] [flags]\n\n", bin, cmdBenchmark)
+	fmt.Fprintf(w, "       %s %s [subcommand] [flags]\n", bin, cmdBenchmark)
+	fmt.Fprintf(w, "       %s %s [flags]\n\n", bin, cmdCompletion)
 	fmt.Fprintln(w, "Назначение:")
 	fmt.Fprintln(w, "  проверка геометрии береговой линии, геодезическое измерение длины")
 	fmt.Fprintln(w, "  и математически корректная демонстрация её фрактальных свойств.")
@@ -32,6 +33,8 @@ func printRootUsage(w io.Writer) {
 	fmt.Fprintf(w, "    %-18s %s\n", cmdAll, getCommandUX(cmdAll).Summary)
 	fmt.Fprintln(w, "  Калибровка и верификация:")
 	fmt.Fprintf(w, "    %-18s %s\n", cmdBenchmark, "управление контрольными участками для калибровки модели")
+	fmt.Fprintln(w, "  Утилиты:")
+	fmt.Fprintf(w, "    %-18s %s\n", cmdCompletion, "генерация скриптов автодополнения для shell")
 	fmt.Fprintln(w, "")
 	fmt.Fprintln(w, "Примеры:")
 	fmt.Fprintf(w, "  %s %s\n", bin, canonicalCommandPath(cmdSource))
@@ -43,8 +46,9 @@ func printRootUsage(w io.Writer) {
 	fmt.Fprintf(w, "  %s all --output ./output/full-run\n", bin)
 	fmt.Fprintf(w, "  %s benchmark init\n", bin)
 	fmt.Fprintf(w, "  %s benchmark show --site=odessa-coast-ua\n", bin)
+	fmt.Fprintf(w, "  %s completion --shell=bash\n", bin)
 	fmt.Fprintln(w, "")
-	fmt.Fprintf(w, "См. '%s %s --help', '%s %s <command> --help', '%s %s <command> --help', '%s all --help' или '%s benchmark --help'.\n", bin, cmdSource, bin, cmdReal, bin, cmdModel, bin, cmdAll)
+	fmt.Fprintf(w, "См. '%s %s --help', '%s %s <command> --help', '%s %s <command> --help', '%s all --help' или '%s %s --help'.\n", bin, cmdSource, bin, cmdReal, bin, cmdModel, bin, bin, cmdBenchmark)
 }
 
 func printGroupUsage(w io.Writer, group string) {
@@ -156,7 +160,7 @@ func printCommandUsage(w io.Writer, command string) {
 	case cmdCoastline:
 		fmt.Fprintf(w, "Использование: %s %s [flags]\n\n", bin, usagePath)
 		ux := getCommandUX(command)
-		fmt.Fprintln(w, "Проверяет геометрию береговой линии, измеряет её длину геодезически и сохраняет SVG-отчёт.")
+		fmt.Fprintln(w, "Проверяет геометри береговой линии, измеряет её длину геодезически и сохраняет SVG-отчёт.")
 		fmt.Fprintln(w, "")
 		fmt.Fprintf(w, "Режим: %s\n", ux.Mode)
 		fmt.Fprintf(w, "Примечание: %s\n", ux.RuntimeNote)
@@ -286,5 +290,22 @@ func printCommandUsage(w io.Writer, command string) {
 		fmt.Fprintf(w, "  %s benchmark init\n", bin)
 		fmt.Fprintf(w, "  %s benchmark show --site=odessa-coast-ua\n", bin)
 		fmt.Fprintf(w, "  %s benchmark extract --bounds-min-lat=46.3 --bounds-max-lat=46.6 --bounds-min-lon=30.6 --bounds-max-lon=31.2 --output odessa_segment.json\n", bin)
+	case cmdCompletion:
+		fmt.Fprintf(w, "Использование: %s %s --shell=<bash|zsh>\n\n", bin, cmdCompletion)
+		fmt.Fprintln(w, "Генерирует скрипт автодополнения для указанной оболочки.")
+		fmt.Fprintln(w, "")
+		fmt.Fprintln(w, "Флаги:")
+		fmt.Fprintln(w, "  --shell string")
+		fmt.Fprintln(w, "        тип оболочки: bash или zsh (обязательный)")
+		fmt.Fprintln(w, "")
+		fmt.Fprintln(w, "Примеры:")
+		fmt.Fprintln(w, "  # Для bash (временно):")
+		fmt.Fprintf(w, "  %s completion --shell=bash | source /dev/stdin\n", bin)
+		fmt.Fprintln(w, "  # Для bash (постоянно, добавить в ~/.bashrc):")
+		fmt.Fprintf(w, "  eval \"$(%s completion --shell=bash)\"\n", bin)
+		fmt.Fprintln(w, "  # Для zsh (временно):")
+		fmt.Fprintf(w, "  %s completion --shell=zsh | source /dev/stdin\n", bin)
+		fmt.Fprintln(w, "  # Для zsh (постоянно, добавить в ~/.zshrc):")
+		fmt.Fprintf(w, "  eval \"$(%s completion --shell=zsh)\"\n", bin)
 	}
 }

@@ -254,11 +254,11 @@ func NewQuietProgress(total int, description string) *QuietProgress {
 	return &QuietProgress{}
 }
 
-func (p *QuietProgress) Add(n int)            {}
-func (p *QuietProgress) Set(n int)             {}
-func (p *QuietProgress) Increment()           {}
-func (p *QuietProgress) Done()                {}
-func (p *QuietProgress) Workers(n int)         {}
+func (p *QuietProgress) Add(n int)     {}
+func (p *QuietProgress) Set(n int)     {}
+func (p *QuietProgress) Increment()    {}
+func (p *QuietProgress) Done()         {}
+func (p *QuietProgress) Workers(n int) {}
 
 // IsTerminal returns true if stdout is a terminal
 func IsTerminal() bool {
