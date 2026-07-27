@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"sort"
+	"sync/atomic"
 
 	"coastal-geometry/internal/domain/geometry"
 )
@@ -76,7 +77,7 @@ type ComparisonPoint struct {
 //     - Compute modeled retreat rate (m/year) at that segment
 //     c. Compute validation metrics (RMSE, MAE, R²)
 //  2. Return results sorted by RMSE (best first)
-func Calibrate(site BenchmarkSite, config CalibrationConfig) ([]CalibrationResultItem, error) {
+func Calibrate(site BenchmarkSite, config CalibrationConfig, progress ...ProgressFunc) ([]CalibrationResultItem, error) {
 	if len(site.ObservedErosion) == 0 {
 		return nil, fmt.Errorf("site %q has no observed erosion data", site.ID)
 	}
@@ -103,9 +104,13 @@ func Calibrate(site BenchmarkSite, config CalibrationConfig) ([]CalibrationResul
 	}
 
 	results := make([]CalibrationResultItem, len(combos))
+	var progressFn ProgressFunc
+	if len(progress) > 0 {
+		progressFn = progress[0]
+	}
 	parallelCalibrate(combos, func(i int, c combo) {
 		results[i] = runCalibrationIteration(site, config, c.strength, c.waveDir, steps)
-	})
+	}, progressFn)
 
 	// Sort by RMSE ascending (best first)
 	sort.Slice(results, func(i, j int) bool {
@@ -115,9 +120,12 @@ func Calibrate(site BenchmarkSite, config CalibrationConfig) ([]CalibrationResul
 	return results, nil
 }
 
+// ProgressFunc is a callback for progress reporting during calibration
+type ProgressFunc func(current, total int)
+
 // parallelCalibrate runs calibration iterations in parallel
 // Uses up to 8 workers (calibration is CPU-bound)
-func parallelCalibrate[T any](items []T, fn func(i int, item T)) {
+func parallelCalibrate[T any](items []T, fn func(i int, item T), progress ProgressFunc) {
 	const maxWorkers = 8
 	n := len(items)
 	if n == 0 {
@@ -136,10 +144,16 @@ func parallelCalibrate[T any](items []T, fn func(i int, item T)) {
 	close(jobs)
 
 	done := make(chan struct{}, workers)
+	completed := atomicInt64{}
+
 	for w := 0; w < workers; w++ {
 		go func() {
 			for idx := range jobs {
 				fn(idx, items[idx])
+				c := completed.Add(1) + 1
+				if progress != nil {
+					progress(int(c), n)
+				}
 			}
 			done <- struct{}{}
 		}()
@@ -149,9 +163,18 @@ func parallelCalibrate[T any](items []T, fn func(i int, item T)) {
 	}
 }
 
+// atomicInt64 is a simple atomic counter
+type atomicInt64 struct {
+	v int64
+}
+
+func (a *atomicInt64) Add(delta int64) int64 {
+	return atomic.AddInt64(&a.v, delta)
+}
+
 // CalibrateWithBathymetry runs calibration with bathymetry data integrated
 // This typically produces significantly better results than flat-bottom calibration
-func CalibrateWithBathymetry(site BenchmarkSite, config CalibrationConfig, bathymetry *geometry.BathymetryGrid) ([]CalibrationResultItem, error) {
+func CalibrateWithBathymetry(site BenchmarkSite, config CalibrationConfig, bathymetry *geometry.BathymetryGrid, progress ...ProgressFunc) ([]CalibrationResultItem, error) {
 	if len(site.ObservedErosion) == 0 {
 		return nil, fmt.Errorf("site %q has no observed erosion data", site.ID)
 	}
@@ -162,7 +185,7 @@ func CalibrateWithBathymetry(site BenchmarkSite, config CalibrationConfig, bathy
 	// Inject bathymetry into config
 	config.BathymetryGrid = bathymetry
 
-	return Calibrate(site, config)
+	return Calibrate(site, config, progress...)
 }
 
 // runCalibrationIteration runs a single model run and computes validation

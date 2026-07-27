@@ -147,6 +147,20 @@ func runErosionCommand(app *App) error {
 
 	if useTemporalDynamics {
 		// Используем временную динамику
+		fmt.Printf("Запуск моделирования на %d лет...\n", app.Config.TargetYears)
+
+		var progress *Progress
+		if IsTerminal() {
+			progress = NewProgress(app.Config.TargetYears, "Моделирование")
+			defer progress.Done()
+		}
+
+		if progress != nil {
+			temporalParams.ProgressCallback = func(year, totalYears int) {
+				progress.Set(year)
+			}
+		}
+
 		temporalResult = geometry.SimulateErosionWithDurationSeed(
 			app.ModelBase,
 			app.Config.TargetYears,
@@ -156,7 +170,12 @@ func runErosionCommand(app *App) error {
 		)
 		snapshots = temporalResult.Snapshots
 
-		fmt.Println("\n  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+		if progress != nil {
+			progress.Done()
+			fmt.Println()
+		}
+
+		fmt.Println("  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 		fmt.Println("  ВОЛНОВАЯ ЭРОЗИЯ С ВРЕМЕННОЙ ДИНАМИКОЙ")
 		fmt.Println("  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 

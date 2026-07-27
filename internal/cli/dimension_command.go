@@ -60,6 +60,13 @@ func runDimensionMetrics(base []geometry.LatLon, maxIterations int, opts koch.Or
 	results := make([]dimensionIterationResult, 0, maxIterations+1)
 	prevDimension := 0.0
 	prevValid := false
+
+	var progress *Progress
+	if IsTerminal() {
+		progress = NewProgress(maxIterations+1, "Анализ итераций")
+		defer progress.Done()
+	}
+
 	for iter := 0; iter <= maxIterations; iter++ {
 		curve := koch.OrganicKochCurve(base, iter, opts)
 		length := geometry.PolylineLength(curve)
@@ -90,6 +97,14 @@ func runDimensionMetrics(base []geometry.LatLon, maxIterations int, opts koch.Or
 
 		fmt.Printf("  │ %-4d │ %-9d │ %-9.0f │ %-7s │ %-8s │ %-8s │ %-9s │ %-9s │ %-4s │\n",
 			iter, len(curve), length, dimensionValue, fmt.Sprint(len(analysis.Samples)), rSquared, spread, delta, stable)
+
+		if progress != nil {
+			progress.Increment()
+		}
+	}
+
+	if progress != nil {
+		progress.Done()
 	}
 
 	fmt.Println("  └──────┴───────────┴───────────┴─────────┴──────────┴──────────┴───────────┴───────────┴──────┘")

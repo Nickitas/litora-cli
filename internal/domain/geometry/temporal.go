@@ -38,6 +38,10 @@ type TemporalParameters struct {
 
 	// MaxYearsPerStep - максимальное значение для валидации
 	MaxYearsPerStep float64
+
+	// ProgressCallback - функция обратного вызова для отчёта о прогрессе
+	// Вызывается с (текущий_год, целевые_года) на каждом шаге
+	ProgressCallback func(year, totalYears int)
 }
 
 // TemporalState состояние временной динамики для одного шага
@@ -252,6 +256,12 @@ func SimulateErosionWithDurationSeed(
 		// Статистика штормов
 		if state.IsStorm {
 			result.StormCount++
+		}
+
+		// Прогресс callback
+		if params.ProgressCallback != nil {
+			currentYear := int(math.Round(state.Year))
+			params.ProgressCallback(currentYear, targetYears)
 		}
 
 		// Модулированная эрозия

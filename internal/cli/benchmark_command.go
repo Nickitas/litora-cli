@@ -463,16 +463,50 @@ func runBenchmarkCalibrateAll(repo *benchmark.Repository, outputDir string, bath
 
 	config := benchmark.DefaultCalibrationConfig()
 	config.SpectrumSpreadDeg = spectrumSpread
+	runsPerSite := len(config.ErosionStrengths) * len(config.WaveDirections)
+
+	// Progress for all sites
+	var overallProgress *Progress
+	if IsTerminal() {
+		overallProgress = NewProgress(len(sites), "Calibrating sites")
+		defer overallProgress.Done()
+	}
 
 	for _, site := range sites {
+		// Progress for this site's calibration runs
+		var siteProgress *ParallelProgress
+		if IsTerminal() {
+			siteProgress = NewParallelProgress(runsPerSite, fmt.Sprintf("  %s", site.ID))
+			siteProgress.Workers(8)
+		}
+
 		var results []benchmark.CalibrationResultItem
 		var err error
 		if bathymetry != nil {
-			results, err = benchmark.CalibrateWithBathymetry(site, config, bathymetry)
+			if siteProgress != nil {
+				results, err = benchmark.CalibrateWithBathymetry(site, config, bathymetry, func(current, total int) {
+					siteProgress.Set(current)
+				})
+			} else {
+				results, err = benchmark.CalibrateWithBathymetry(site, config, bathymetry)
+			}
 		} else {
-			results, err = benchmark.Calibrate(site, config)
+			if siteProgress != nil {
+				results, err = benchmark.Calibrate(site, config, func(current, total int) {
+					siteProgress.Set(current)
+				})
+			} else {
+				results, err = benchmark.Calibrate(site, config)
+			}
+		}
+		if siteProgress != nil {
+			siteProgress.Done()
 		}
 		if err != nil {
+			if overallProgress != nil {
+				overallProgress.Done()
+				fmt.Println()
+			}
 			fmt.Printf("%-22s ERROR: %v\n", site.ID, err)
 			continue
 		}
@@ -483,10 +517,33 @@ func runBenchmarkCalibrateAll(repo *benchmark.Repository, outputDir string, bath
 		best := results[0]
 		allResults = append(allResults, siteCalibrationResult{Site: site, BestFit: best})
 
-		fmt.Printf("%-22s %-10.1f %-10.0f %-8.3f %-8.3f %+8.3f %-8.3f\n",
-			site.ID, best.ErosionStrength, best.WaveDirection,
-			best.ValidationMetrics.RMSE, best.ValidationMetrics.MAE,
-			best.ValidationMetrics.MBE, best.ValidationMetrics.RSquared)
+		if overallProgress != nil {
+			overallProgress.Increment()
+		} else {
+			fmt.Printf("%-22s %-10.1f %-10.0f %-8.3f %-8.3f %+8.3f %-8.3f\n",
+				site.ID, best.ErosionStrength, best.WaveDirection,
+				best.ValidationMetrics.RMSE, best.ValidationMetrics.MAE,
+				best.ValidationMetrics.MBE, best.ValidationMetrics.RSquared)
+		}
+	}
+
+	if overallProgress != nil {
+		overallProgress.Done()
+		fmt.Println()
+		// Reprint the header and results
+		fmt.Println("═══════════════════════════════════════════════════════════════════════")
+		fmt.Println("  CALIBRATION RESULTS")
+		fmt.Println("═══════════════════════════════════════════════════════════════════════")
+		fmt.Printf("%-22s %-10s %-10s %-8s %-8s %-8s %-8s\n",
+			"Site", "Strength", "WaveDir", "RMSE", "MAE", "MBE", "R²")
+		fmt.Println("───────────────────────────────────────────────────────────────────────")
+		for _, r := range allResults {
+			fmt.Printf("%-22s %-10.1f %-10.0f %-8.3f %-8.3f %+8.3f %-8.3f\n",
+				r.Site.ID, r.BestFit.ErosionStrength, r.BestFit.WaveDirection,
+				r.BestFit.ValidationMetrics.RMSE, r.BestFit.ValidationMetrics.MAE,
+				r.BestFit.ValidationMetrics.MBE, r.BestFit.ValidationMetrics.RSquared)
+		}
+		fmt.Println()
 	}
 
 	fmt.Println()
@@ -784,18 +841,43 @@ func runBenchmarkCalibrate(repo *benchmark.Repository, siteID string, outputPath
 	fmt.Println()
 
 	config := benchmark.DefaultCalibrationConfig()
-	fmt.Printf("Parameter space: %d erosion strengths × %d wave directions = %d runs\n\n",
+	totalRuns := len(config.ErosionStrengths) * len(config.WaveDirections)
+	fmt.Printf("Parameter space: %d erosion strengths × %d wave directions = %d runs\n",
 		len(config.ErosionStrengths), len(config.WaveDirections),
-		len(config.ErosionStrengths)*len(config.WaveDirections))
+		totalRuns)
+
+	// Setup progress bar if terminal
+	var progress *ParallelProgress
+	if IsTerminal() {
+		progress = NewParallelProgress(totalRuns, "Calibrating")
+		progress.Workers(8)
+		defer progress.Done()
+	}
 
 	var results []benchmark.CalibrationResultItem
 	if bathymetry != nil {
-		results, err = benchmark.CalibrateWithBathymetry(*site, config, bathymetry)
+		if progress != nil {
+			results, err = benchmark.CalibrateWithBathymetry(*site, config, bathymetry, func(current, total int) {
+				progress.Set(current)
+			})
+		} else {
+			results, err = benchmark.CalibrateWithBathymetry(*site, config, bathymetry)
+		}
 	} else {
-		results, err = benchmark.Calibrate(*site, config)
+		if progress != nil {
+			results, err = benchmark.Calibrate(*site, config, func(current, total int) {
+				progress.Set(current)
+			})
+		} else {
+			results, err = benchmark.Calibrate(*site, config)
+		}
 	}
 	if err != nil {
 		return fmt.Errorf("calibration failed: %w", err)
+	}
+	if progress != nil {
+		progress.Done()
+		fmt.Println()
 	}
 
 	if len(results) == 0 {
