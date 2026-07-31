@@ -1,10 +1,13 @@
 package geometry
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"math"
 	"os"
+	"runtime"
+	"sync"
 )
 
 // LithologyProfile represents the complete lithology profile for a region
@@ -67,6 +70,12 @@ type ErosionBaseline struct {
 	ErosionMYear    map[string]float64 `json:"erosion_m_year"`
 	Description     string             `json:"description"`
 	Note            string             `json:"note,omitempty"`
+}
+
+// pointDist represents a point with its distance from query location
+type pointDist struct {
+	point *LithologyPoint
+	dist  float64
 }
 
 // LoadLithologyProfile loads a lithology profile from JSON data
@@ -481,4 +490,384 @@ func CreateDefaultBlackSeaProfile() *LithologyProfile {
 			},
 		},
 	}
+}
+
+// findNearbyPointsParallel finds the N closest lithology points using parallel distance calculations
+func (p *LithologyProfile) findNearbyPointsParallel(ctx context.Context, lat, lon float64, n int) []*LithologyPoint {
+	if len(p.Points) == 0 {
+		return nil
+	}
+
+	if n > len(p.Points) {
+		n = len(p.Points)
+	}
+
+	numWorkers := lithologyMin(runtime.NumCPU(), 8)
+	chunkSize := (len(p.Points) + numWorkers - 1) / numWorkers
+
+	type chunkResult struct {
+		dists []pointDist
+	}
+
+	results := make(chan chunkResult, numWorkers)
+	var wg sync.WaitGroup
+
+	for w := 0; w < numWorkers; w++ {
+		start := w * chunkSize
+		end := start + chunkSize
+		if end > len(p.Points) {
+			end = len(p.Points)
+		}
+
+		wg.Add(1)
+		go func(startIdx, endIdx int) {
+			defer wg.Done()
+
+			if startIdx >= len(p.Points) {
+				results <- chunkResult{}
+				return
+			}
+
+			localDists := make([]pointDist, 0, endIdx-startIdx)
+
+			for i := startIdx; i < endIdx && i < len(p.Points); i++ {
+				select {
+				case <-ctx.Done():
+					results <- chunkResult{}
+					return
+				default:
+				}
+
+				dist := math.Sqrt(
+					math.Pow(p.Points[i].Lat-lat, 2) + math.Pow(p.Points[i].Lon-lon, 2),
+				)
+				localDists = append(localDists, pointDist{
+					point: &p.Points[i],
+					dist:  dist,
+				})
+			}
+
+			results <- chunkResult{dists: localDists}
+		}(start, end)
+	}
+
+	go func() {
+		wg.Wait()
+		close(results)
+	}()
+
+	allDists := make([]pointDist, 0, len(p.Points))
+	for res := range results {
+		if ctx.Err() != nil {
+			return nil
+		}
+		allDists = append(allDists, res.dists...)
+	}
+
+	if len(allDists) == 0 {
+		return nil
+	}
+
+	// Partial sort using nth_element approach
+	nth := n
+	if nth > len(allDists) {
+		nth = len(allDists)
+	}
+	quickselectLithology(allDists, nth)
+
+	result := make([]*LithologyPoint, nth)
+	for i := 0; i < nth; i++ {
+		result[i] = allDists[i].point
+	}
+
+	return result
+}
+
+// quickselectLithology performs partial sort to find n smallest elements
+func quickselectLithology(arr []pointDist, n int) {
+	if len(arr) <= 1 || n <= 0 {
+		return
+	}
+
+	left, right := 0, len(arr)-1
+	pivotIndex := partitionLithology(arr, left, right)
+
+	if pivotIndex == n-1 {
+		return
+	} else if pivotIndex > n-1 {
+		quickselectLithology(arr[:pivotIndex], n)
+	} else {
+		quickselectLithology(arr[pivotIndex+1:], n-pivotIndex-1)
+	}
+}
+
+// partitionLithology partitions array around pivot and returns final pivot index
+func partitionLithology(arr []pointDist, left, right int) int {
+	pivot := arr[right]
+	i := left
+
+	for j := left; j < right; j++ {
+		if arr[j].dist <= pivot.dist {
+			arr[i], arr[j] = arr[j], arr[i]
+			i++
+		}
+	}
+
+	arr[i], arr[right] = arr[right], arr[i]
+	return i
+}
+
+// GetLithologyAtParallel uses parallel nearest neighbor search with fallback
+func (p *LithologyProfile) GetLithologyAtParallel(ctx context.Context, lat, lon float64) LithologyState {
+	if lat < p.Metadata.Bounds.MinLat || lat > p.Metadata.Bounds.MaxLat ||
+		lon < p.Metadata.Bounds.MinLon || lon > p.Metadata.Bounds.MaxLon {
+		return p.getDefaultLithology()
+	}
+
+	if len(p.Points) == 0 {
+		return p.getDefaultLithology()
+	}
+
+	if len(p.Points) == 1 {
+		point := &p.Points[0]
+		if _, ok := p.Classes[point.Lithology]; !ok {
+			return p.getDefaultLithology()
+		}
+		return LithologyState{
+			Class:       point.Lithology,
+			Resistance:  point.Resistance,
+			Color:       point.Color,
+			Description: point.Description,
+		}
+	}
+
+	const parallelThreshold = 100
+	var nearby []*LithologyPoint
+
+	if len(p.Points) >= parallelThreshold {
+		nearby = p.findNearbyPointsParallel(ctx, lat, lon, 6)
+	} else {
+		nearby = p.findNearbyPoints(lat, lon, 6)
+	}
+
+	if len(nearby) == 0 {
+		return p.getDefaultLithology()
+	}
+
+	if len(nearby) == 1 {
+		point := nearby[0]
+		if _, ok := p.Classes[point.Lithology]; !ok {
+			return p.getDefaultLithology()
+		}
+		return LithologyState{
+			Class:       point.Lithology,
+			Resistance:  point.Resistance,
+			Color:       point.Color,
+			Description: point.Description,
+		}
+	}
+
+	return p.interpolateLithologyIDWFromPoints(lat, lon, nearby)
+}
+
+// interpolateLithologyIDWFromPoints performs IDW interpolation from pre-selected nearby points
+func (p *LithologyProfile) interpolateLithologyIDWFromPoints(lat, lon float64, nearby []*LithologyPoint) LithologyState {
+	const power = 2.0
+
+	weights := make([]float64, len(nearby))
+	weightSum := 0.0
+
+	for i, point := range nearby {
+		dist := math.Sqrt(math.Pow(point.Lat-lat, 2) + math.Pow(point.Lon-lon, 2))
+
+		if dist < 1e-6 {
+			if _, ok := p.Classes[point.Lithology]; ok {
+				return LithologyState{
+					Class:       point.Lithology,
+					Resistance:  point.Resistance,
+					Color:       point.Color,
+					Description: point.Description,
+				}
+			}
+			return p.getDefaultLithology()
+		}
+
+		weights[i] = 1.0 / math.Pow(dist, power)
+		weightSum += weights[i]
+	}
+
+	for i := range weights {
+		weights[i] /= weightSum
+	}
+
+	interpolatedResistance := 0.0
+	for i, point := range nearby {
+		interpolatedResistance += weights[i] * point.Resistance
+	}
+
+	maxWeightIdx := 0
+	for i := range weights {
+		if weights[i] > weights[maxWeightIdx] {
+			maxWeightIdx = i
+		}
+	}
+
+	dominantPoint := nearby[maxWeightIdx]
+
+	if _, ok := p.Classes[dominantPoint.Lithology]; !ok {
+		return p.getDefaultLithology()
+	}
+
+	return LithologyState{
+		Class:       dominantPoint.Lithology,
+		Resistance:  interpolatedResistance,
+		Color:       dominantPoint.Color,
+		Description: dominantPoint.Description,
+	}
+}
+
+// BatchGetLithologyAt retrieves lithology for multiple points efficiently
+func (p *LithologyProfile) BatchGetLithologyAt(ctx context.Context, coords []struct{ Lat, Lon float64 }) []LithologyState {
+	if len(coords) == 0 {
+		return []LithologyState{}
+	}
+
+	results := make([]LithologyState, len(coords))
+
+	numWorkers := lithologyMin(runtime.NumCPU(), 8)
+	chunkSize := (len(coords) + numWorkers - 1) / numWorkers
+
+	var wg sync.WaitGroup
+	for w := 0; w < numWorkers; w++ {
+		start := w * chunkSize
+		end := lithologyMin(start+chunkSize, len(coords))
+
+		wg.Add(1)
+		go func(workerID, s, e int) {
+			defer wg.Done()
+
+			for i := s; i < e && i < len(coords); i++ {
+				select {
+				case <-ctx.Done():
+					return
+				default:
+					results[i] = p.GetLithologyAt(coords[i].Lat, coords[i].Lon)
+				}
+			}
+		}(w, start, end)
+	}
+	wg.Wait()
+
+	return results
+}
+
+// ========== Additional Optimized Algorithms ==========
+
+// findNearbyPointsVectorized uses SIMD-friendly sequential processing for better cache locality
+// This is often faster than parallel for small datasets due to reduced overhead
+func (p *LithologyProfile) findNearbyPointsVectorized(lat, lon float64, n int) []*LithologyPoint {
+	if len(p.Points) == 0 {
+		return nil
+	}
+
+	if n > len(p.Points) {
+		n = len(p.Points)
+	}
+
+	pointDists := make([]pointDist, len(p.Points))
+
+	// Sequential computation with better cache locality
+	for i := range p.Points {
+		dLat := p.Points[i].Lat - lat
+		dLon := p.Points[i].Lon - lon
+		dist := dLat*dLat + dLon*dLon
+		pointDists[i] = pointDist{
+			point: &p.Points[i],
+			dist:  dist, // Keep squared distance to avoid sqrt until final selection
+		}
+	}
+
+	// Use nth_element approach for partial sort
+	nth := lithologyMin(n, len(pointDists))
+	partialSort(pointDists, nth)
+
+	result := make([]*LithologyPoint, nth)
+	for i := 0; i < nth; i++ {
+		result[i] = pointDists[i].point
+	}
+
+	return result
+}
+
+// partialSort performs heap-based partial sort (push n elements, then pop min)
+func partialSort(arr []pointDist, n int) {
+	if n <= 0 || len(arr) == 0 {
+		return
+	}
+
+	if n > len(arr) {
+		n = len(arr)
+	}
+
+	// Build max-heap of first n elements
+	heap := arr[:n]
+	for i := n/2 - 1; i >= 0; i-- {
+		heapify(heap, i, n-1, true)
+	}
+
+	// For remaining elements, if smaller than max, replace and reheap
+	for i := n; i < len(arr); i++ {
+		if arr[i].dist < heap[0].dist {
+			heap[0] = arr[i]
+			heapify(heap, 0, n-1, true)
+		}
+	}
+
+	// Sort the heap (extract min repeatedly)
+	for size := n - 1; size > 0; size-- {
+		heap[0], heap[size] = heap[size], heap[0]
+		heapify(heap[:size], 0, size-1, false)
+	}
+}
+
+// heapify maintains heap property
+func heapify(arr []pointDist, root, last int, isMaxHeap bool) {
+	for {
+		left := 2*root + 1
+		right := 2*root + 2
+		candidate := root
+
+		if isMaxHeap {
+			// Max heap: parent larger than children
+			if left <= last && arr[left].dist > arr[candidate].dist {
+				candidate = left
+			}
+			if right <= last && arr[right].dist > arr[candidate].dist {
+				candidate = right
+			}
+		} else {
+			// Min heap: parent smaller than children
+			if left <= last && arr[left].dist < arr[candidate].dist {
+				candidate = left
+			}
+			if right <= last && arr[right].dist < arr[candidate].dist {
+				candidate = right
+			}
+		}
+
+		if candidate == root {
+			break
+		}
+
+		arr[root], arr[candidate] = arr[candidate], arr[root]
+		root = candidate
+	}
+}
+
+// lithologyMin function for integers
+func lithologyMin(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }

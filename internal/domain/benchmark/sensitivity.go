@@ -1,9 +1,12 @@
 package benchmark
 
 import (
+	"context"
 	"fmt"
 	"math"
+	"runtime"
 	"sort"
+	"sync"
 
 	"coastal-geometry/internal/domain/geometry"
 )
@@ -52,6 +55,27 @@ type FullAnalysis struct {
 	StrengthCI      ConfidenceInterval    `json:"strength_ci"`
 	WaveDirectionCI ConfidenceInterval    `json:"wave_direction_ci"`
 	NullModel       NullModelComparison   `json:"null_model"`
+}
+
+// sensitivityIteration represents a single parameter test iteration
+type sensitivityIteration struct {
+	index   int
+	value   float64
+	lat     float64 // For wave direction sensitivity
+	lon     float64 // For wave direction sensitivity
+	steps   int
+	config  CalibrationConfig
+	site    BenchmarkSite
+	latGrid *geometry.BathymetryGrid
+}
+
+// sensitivityResultData holds iteration results
+type sensitivityResultData struct {
+	index  int
+	rmse   float64
+	mae    float64
+	rSq    float64
+	epsilon error // For error propagation
 }
 
 // AnalyzeSensitivity performs one-at-a-time sensitivity analysis
@@ -516,4 +540,382 @@ var prngState uint64 = 42
 func pseudoRandom() float64 {
 	prngState = prngState*6364136223846793005 + 1442695040888963407
 	return float64(prngState>>11) / float64(1<<53)
+}
+
+// ========== Parallel Optimized Versions ==========
+
+// sensitivityToStrengthParallel performs strength sensitivity analysis with parallel iterations
+func sensitivityToStrengthParallel(ctx context.Context, site BenchmarkSite, config CalibrationConfig, bestFit CalibrationResultItem, bathymetry *geometry.BathymetryGrid) SensitivityResult {
+	values := generateTestRange(bestFit.ErosionStrength, 0.1, 3.0, 12)
+
+	rmse := make([]float64, len(values))
+	mae := make([]float64, len(values))
+	rSq := make([]float64, len(values))
+
+	steps := int(float64(config.TotalYears) / config.YearsPerStep)
+	if steps < 1 {
+		steps = 1
+	}
+
+	results := make(chan sensitivityResultData, len(values))
+	numWorkers := sensitivityMin(runtime.NumCPU(), 4)
+
+	var wg sync.WaitGroup
+	for w := 0; w < numWorkers; w++ {
+		startIdx := w
+		wg.Add(1)
+		go func(workerID, start int) {
+			defer wg.Done()
+
+			for i := start; i < len(values); i += numWorkers {
+				select {
+				case <-ctx.Done():
+					results <- sensitivityResultData{
+						index:  i,
+						epsilon: ctx.Err(),
+					}
+					return
+				default:
+				}
+
+				var item CalibrationResultItem
+
+				if bathymetry != nil {
+					item = runCalibrationIterationWithBathymetry(site, config, values[i], bestFit.WaveDirection, steps, bathymetry)
+				} else {
+					item = runCalibrationIteration(site, config, values[i], bestFit.WaveDirection, steps)
+				}
+
+				results <- sensitivityResultData{
+					index: i,
+					rmse:  item.ValidationMetrics.RMSE,
+					mae:   item.ValidationMetrics.MAE,
+					rSq:   item.ValidationMetrics.RSquared,
+				}
+			}
+		}(w, startIdx)
+	}
+
+	go func() {
+		wg.Wait()
+		close(results)
+	}()
+
+	successCount := 0
+	for res := range results {
+		if res.epsilon != nil {
+			continue
+		}
+		rmse[res.index] = res.rmse
+		mae[res.index] = res.mae
+		rSq[res.index] = res.rSq
+		successCount++
+	}
+
+	if successCount < len(values)/2 {
+		return SensitivityResult{Parameter: "erosion_strength_m"}
+	}
+
+	return summarizeSensitivity("erosion_strength_m", values, rmse, mae, rSq)
+}
+
+// sensitivityToWaveDirectionParallel performs wave direction sensitivity analysis with parallel iterations
+func sensitivityToWaveDirectionParallel(ctx context.Context, site BenchmarkSite, config CalibrationConfig, bestFit CalibrationResultItem, bathymetry *geometry.BathymetryGrid) SensitivityResult {
+	values := generateTestRange(bestFit.WaveDirection, 0.1, 3.0, 12)
+
+	// Wrap to [0, 360)
+	for i := range values {
+		values[i] = math.Mod(math.Mod(values[i], 360)+360, 360)
+	}
+
+	rmse := make([]float64, len(values))
+	mae := make([]float64, len(values))
+	rSq := make([]float64, len(values))
+
+	steps := int(float64(config.TotalYears) / config.YearsPerStep)
+	if steps < 1 {
+		steps = 1
+	}
+
+	results := make(chan sensitivityResultData, len(values))
+	numWorkers := sensitivityMin(runtime.NumCPU(), 4)
+
+	var wg sync.WaitGroup
+	for w := 0; w < numWorkers; w++ {
+		startIdx := w
+		wg.Add(1)
+		go func(workerID, start int) {
+			defer wg.Done()
+
+			for i := start; i < len(values); i += numWorkers {
+				select {
+				case <-ctx.Done():
+					results <- sensitivityResultData{
+						index:  i,
+						epsilon: ctx.Err(),
+					}
+					return
+				default:
+				}
+
+				var item CalibrationResultItem
+
+				if bathymetry != nil {
+					item = runCalibrationIterationWithBathymetry(site, config, bestFit.ErosionStrength, values[i], steps, bathymetry)
+				} else {
+					item = runCalibrationIteration(site, config, bestFit.ErosionStrength, values[i], steps)
+				}
+
+				results <- sensitivityResultData{
+					index: i,
+					rmse:  item.ValidationMetrics.RMSE,
+					mae:   item.ValidationMetrics.MAE,
+					rSq:   item.ValidationMetrics.RSquared,
+				}
+			}
+		}(w, startIdx)
+	}
+
+	go func() {
+		wg.Wait()
+		close(results)
+	}()
+
+	successCount := 0
+	for res := range results {
+		if res.epsilon != nil {
+			continue
+		}
+		rmse[res.index] = res.rmse
+		mae[res.index] = res.mae
+		rSq[res.index] = res.rSq
+		successCount++
+	}
+
+	if successCount < len(values)/2 {
+		return SensitivityResult{Parameter: "wave_direction_deg"}
+	}
+
+	return summarizeSensitivity("wave_direction_deg", values, rmse, mae, rSq)
+}
+
+// AnalyzeSensitivityParallel performs parallel sensitivity analysis for both parameters
+func AnalyzeSensitivityParallel(ctx context.Context, site BenchmarkSite, config CalibrationConfig, bestFit CalibrationResultItem, bathymetry *geometry.BathymetryGrid) []SensitivityResult {
+	var results []SensitivityResult
+
+	// Use channels for concurrent parameter analysis
+	type paramResult struct {
+		sensitivity SensitivityResult
+		err         error
+		parameter   string
+	}
+
+	resultCh := make(chan paramResult, 2)
+
+	// Run both analyses in parallel
+	go func() {
+		configWithBath := config
+		if bathymetry != nil {
+			configWithBath.BathymetryGrid = bathymetry
+		}
+		strengthSens := sensitivityToStrengthParallel(ctx, site, configWithBath, bestFit, bathymetry)
+		resultCh <- paramResult{sensitivity: strengthSens, parameter: "erosion_strength_m"}
+	}()
+
+	go func() {
+		configWithBath := config
+		if bathymetry != nil {
+			configWithBath.BathymetryGrid = bathymetry
+		}
+		dirSens := sensitivityToWaveDirectionParallel(ctx, site, configWithBath, bestFit, bathymetry)
+		resultCh <- paramResult{sensitivity: dirSens, parameter: "wave_direction_deg"}
+	}()
+
+	// Collect results
+	for i := 0; i < 2; i++ {
+		select {
+		case <-ctx.Done():
+			return results
+		case res := <-resultCh:
+			results = append(results, res.sensitivity)
+		}
+	}
+
+	return results
+}
+
+// BootstrapConfidenceIntervalsParallel performs bootstrap CI calculation with parallel iterations
+func BootstrapConfidenceIntervalsParallel(
+	ctx context.Context,
+	site BenchmarkSite,
+	config CalibrationConfig,
+	bootstrapIterations int,
+	bathymetry *geometry.BathymetryGrid,
+) (ConfidenceInterval, ConfidenceInterval) {
+	if bootstrapIterations < 1 {
+		bootstrapIterations = 200
+	}
+
+	// Get original best fit
+	var origResults []CalibrationResultItem
+	var err error
+
+	if bathymetry != nil {
+		origResults, err = CalibrateWithBathymetry(site, config, bathymetry)
+	} else {
+		origResults, err = Calibrate(site, config)
+	}
+
+	if err != nil || len(origResults) == 0 {
+		return ConfidenceInterval{Parameter: "erosion_strength_m"}, ConfidenceInterval{Parameter: "wave_direction_deg"}
+	}
+	origBest := origResults[0]
+
+	// Storage with concurrent access
+	type accumulator struct {
+		mu        sync.Mutex
+		strengths []float64
+		directions []float64
+	}
+
+	acc := &accumulator{
+		strengths:  make([]float64, 0, bootstrapIterations),
+		directions: make([]float64, 0, bootstrapIterations),
+	}
+
+	nObs := len(site.ObservedErosion)
+
+	var wg sync.WaitGroup
+	for iter := 0; iter < bootstrapIterations; iter++ {
+		wg.Add(1)
+		go func(iteration int) {
+			defer wg.Done()
+
+			select {
+			case <-ctx.Done():
+				return
+			default:
+			}
+
+			resampled := resampleObservations(site.ObservedErosion, nObs, pseudoRandom)
+			if len(resampled) == 0 {
+				return
+			}
+
+			tempSite := site
+			tempSite.ObservedErosion = resampled
+
+			var results []CalibrationResultItem
+			var localErr error
+
+			if bathymetry != nil {
+				results, localErr = CalibrateWithBathymetry(tempSite, config, bathymetry)
+			} else {
+				results, localErr = Calibrate(tempSite, config)
+			}
+
+			if localErr != nil || len(results) == 0 {
+				return
+			}
+
+			acc.mu.Lock()
+			acc.strengths = append(acc.strengths, results[0].ErosionStrength)
+			acc.directions = append(acc.directions, results[0].WaveDirection)
+			acc.mu.Unlock()
+		}(iter)
+	}
+
+	wg.Wait()
+
+	if ctx.Err() != nil {
+		return ConfidenceInterval{Parameter: "erosion_strength_m"}, ConfidenceInterval{Parameter: "wave_direction_deg"}
+	}
+
+	strengthCI := computeCI("erosion_strength_m", acc.strengths, origBest.ErosionStrength)
+	dirCI := computeCIDirectional("wave_direction_deg", acc.directions, origBest.WaveDirection)
+
+	return strengthCI, dirCI
+}
+
+// RunFullAnalysisParallel runs full analysis with parallel components
+func RunFullAnalysisParallel(ctx context.Context, site BenchmarkSite, config CalibrationConfig, bathymetry *geometry.BathymetryGrid, bootstrapIter int) (FullAnalysis, error) {
+	// Phase 1: Get best fit
+	results, err := func() ([]CalibrationResultItem, error) {
+		if bathymetry != nil {
+			return CalibrateWithBathymetry(site, config, bathymetry)
+		}
+		return Calibrate(site, config)
+	}()
+
+	if err != nil {
+		return FullAnalysis{}, err
+	}
+	if len(results) == 0 {
+		return FullAnalysis{}, fmt.Errorf("no calibration results")
+	}
+	bestFit := results[0]
+
+	// Phase 2: Run sensitivity and CI in parallel
+	type analysisPhase struct {
+		sensitivities []SensitivityResult
+		strengthCI    ConfidenceInterval
+		dirCI         ConfidenceInterval
+	}
+
+	phaseCh := make(chan analysisPhase, 1)
+	errCh := make(chan error, 1)
+
+	go func() {
+		// Sensitivity analysis
+		sensitivities := AnalyzeSensitivityParallel(ctx, site, config, bestFit, bathymetry)
+
+		// Bootstrap CI
+		strengthCI, dirCI := BootstrapConfidenceIntervalsParallel(ctx, site, config, bootstrapIter, bathymetry)
+
+		select {
+		case phaseCh <- analysisPhase{
+			sensitivities: sensitivities,
+			strengthCI:    strengthCI,
+			dirCI:         dirCI,
+		}:
+		case <-ctx.Done():
+		}
+	}()
+
+	// Null model comparison (can run in parallel with above)
+	var observed, modeled []float64
+	for _, c := range bestFit.ComparisonPoints {
+		observed = append(observed, c.Observed)
+		modeled = append(modeled, c.Modeled)
+	}
+	nullModel := CompareWithNullModel(observed, modeled)
+
+	select {
+	case <-ctx.Done():
+		return FullAnalysis{}, ctx.Err()
+	case phase := <-phaseCh:
+		return FullAnalysis{
+			BestFit:         bestFit,
+			Sensitivities:   phase.sensitivities,
+			StrengthCI:      phase.strengthCI,
+			WaveDirectionCI: phase.dirCI,
+			NullModel:       nullModel,
+		}, nil
+	case err := <-errCh:
+		return FullAnalysis{}, err
+	}
+}
+
+// runCalibrationIterationWithBathymetry is a helper that runs calibration with bathymetry
+func runCalibrationIterationWithBathymetry(site BenchmarkSite, config CalibrationConfig, strength, waveDir float64, steps int, bathymetry *geometry.BathymetryGrid) CalibrationResultItem {
+	config.BathymetryGrid = bathymetry
+	return runCalibrationIteration(site, config, strength, waveDir, steps)
+}
+
+// Helper function for min (avoiding name conflicts)
+func sensitivityMin(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }

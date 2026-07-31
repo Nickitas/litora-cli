@@ -1,15 +1,22 @@
 package geometry
 
 import (
+	"context"
+	"log/slog"
 	"math"
 	"math/rand"
+	"runtime"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
 const (
-	erosionChunkSize = 512
-	metersPerDegLat  = 111194.9
+	erosionChunkSize     = 512
+	metersPerDegLat      = 111194.9
+	erosionWorkerCount   = 8 // Number of parallel workers for erosion
+	fetchWorkerCount     = 4 // Number of parallel workers for fetch distance calculation
+	fetchCacheSize       = 256 // Size of LRU cache for fetch distances
 )
 
 type WaveErosionOptions struct {
@@ -659,4 +666,539 @@ func clamp(value, min, max float64) float64 {
 
 func almostEqual(a, b float64) bool {
 	return math.Abs(a-b) <= 1e-9
+}
+
+// erosionJob represents a single point processing job
+type erosionJob struct {
+	index          int
+	point          pointXY
+	prev           pointXY
+	next           pointXY
+	lat            float64
+	lon            float64
+	leftNormal     pointXY
+	rightNormal    pointXY
+	mainDirection  pointXY
+	projected      []pointXY
+	closed         bool
+	options        WaveErosionOptions
+	seed           int64
+	step           int
+	localScale     float64
+}
+
+// erosionResult represents the result of processing a single point
+type erosionResult struct {
+	index int
+	point pointXY
+	valid bool
+}
+
+// fetchDistanceCache implements a thread-safe LRU cache for fetch distances
+type fetchDistanceCache struct {
+	mu      sync.RWMutex
+	entries map[uint64]float64
+	keys    []uint64
+	maxSize int
+	hits    atomic.Uint64
+	misses  atomic.Uint64
+}
+
+func newFetchDistanceCache(size int) *fetchDistanceCache {
+	return &fetchDistanceCache{
+		entries: make(map[uint64]float64, size),
+		keys:    make([]uint64, 0, size),
+		maxSize: size,
+	}
+}
+
+func (c *fetchDistanceCache) get(index int, directionKey uint64) (float64, bool) {
+	key := uint64(index)<<32 | directionKey
+	c.mu.RLock()
+	val, ok := c.entries[key]
+	c.mu.RUnlock()
+	if ok {
+		c.hits.Add(1)
+		return val, true
+	}
+	c.misses.Add(1)
+	return 0, false
+}
+
+func (c *fetchDistanceCache) put(index int, directionKey uint64, value float64) {
+	key := uint64(index)<<32 | directionKey
+	c.mu.Lock()
+	if len(c.entries) >= c.maxSize {
+		if len(c.keys) > 0 {
+			delete(c.entries, c.keys[0])
+			c.keys = c.keys[1:]
+		}
+	}
+	c.entries[key] = value
+	c.keys = append(c.keys, key)
+	c.mu.Unlock()
+}
+
+// waveErodeStepParallel is the optimized version of waveErodeStep using concurrency
+func waveErodeStepParallel(points []LatLon, options WaveErosionOptions, seed int64, step int) []LatLon {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+	defer cancel()
+	return waveErodeStepWithContext(ctx, points, options, seed, step)
+}
+
+// waveErodeStepWithContext performs wave erosion with context support
+func waveErodeStepWithContext(ctx context.Context, points []LatLon, options WaveErosionOptions, seed int64, step int) []LatLon {
+	if len(points) < 3 || options.StrengthMeters <= 0 {
+		return clonePoints(points)
+	}
+
+	closed := isClosedPolyline(points)
+	working := clonePoints(points)
+	if closed {
+		working = clonePoints(points[:len(points)-1])
+	}
+	if len(working) < 3 {
+		return clonePoints(points)
+	}
+
+	projected, ref := projectToMetersWithReference(working)
+	out := make([]pointXY, len(projected))
+	copy(out, projected)
+
+	mainDirection := directionFromNorthClockwise(options.WindSourceDirectionDeg)
+
+	numWorkers := erosionWorkerCount
+	if numCPUs := runtime.NumCPU(); numCPUs > 0 {
+		if numCPUs > numWorkers {
+			numWorkers = numCPUs
+		}
+	}
+	if len(projected) < numWorkers*4 {
+		if numWorkers := len(projected) / 4; numWorkers > 1 {
+			numWorkers = numWorkers
+		} else {
+			numWorkers = 1
+		}
+	}
+
+	jobs := make(chan erosionJob, len(projected))
+	results := make(chan erosionResult, len(projected))
+
+	var wg sync.WaitGroup
+	wg.Add(numWorkers)
+
+	done := ctx.Done()
+
+	for w := 0; w < numWorkers; w++ {
+		go func() {
+			defer wg.Done()
+			for {
+				select {
+				case <-done:
+					return
+				case job, ok := <-jobs:
+					if !ok {
+						return
+					}
+					result := processErosionJob(job)
+					results <- result
+				}
+			}
+		}()
+	}
+
+	numSkipped := atomic.Int32{}
+	for i := range projected {
+		if !closed && (i == 0 || i == len(projected)-1) {
+			continue
+		}
+
+		prevIndex, nextIndex := waveNeighborIndexes(i, len(projected), closed)
+		current := projected[i]
+		prev := projected[prevIndex]
+		next := projected[nextIndex]
+
+		tangent := normalizeXY(pointXY{X: next.X - prev.X, Y: next.Y - prev.Y})
+		if vectorLength(tangent) == 0 {
+			numSkipped.Add(1)
+			continue
+		}
+
+		leftNormal := pointXY{X: -tangent.Y, Y: tangent.X}
+		rightNormal := pointXY{X: tangent.Y, Y: -tangent.X}
+
+		lat := working[i].Lat
+		lon := working[i].Lon
+
+		localScale := 0.5 * (distanceXY(current, prev) + distanceXY(current, next))
+		if localScale <= 1e-6 {
+			numSkipped.Add(1)
+			continue
+		}
+
+		job := erosionJob{
+			index:         i,
+			point:         current,
+			prev:          prev,
+			next:          next,
+			lat:           lat,
+			lon:           lon,
+			leftNormal:    leftNormal,
+			rightNormal:   rightNormal,
+			mainDirection: mainDirection,
+			projected:     projected,
+			closed:        closed,
+			options:       options,
+			seed:          seed,
+			step:          step,
+			localScale:    localScale,
+		}
+
+		select {
+		case <-done:
+			break
+		case jobs <- job:
+		}
+	}
+	close(jobs)
+
+	go func() {
+		wg.Wait()
+		close(results)
+	}()
+
+	for result := range results {
+		if result.valid {
+			out[result.index] = result.point
+		}
+		select {
+		case <-done:
+			break
+		default:
+		}
+	}
+
+	if skipped := numSkipped.Load(); skipped > 0 {
+		slog.Debug("skipped erosion points", "count", skipped)
+	}
+
+	updated := make([]LatLon, len(out))
+	for i, point := range out {
+		updated[i] = projectFromMeters(point, ref)
+	}
+	if closed {
+		updated = append(updated, updated[0])
+	}
+	return updated
+}
+
+// processErosionJob processes a single erosion job
+func processErosionJob(job erosionJob) erosionResult {
+	type sideResult struct {
+		response waveSideResponse
+	}
+
+	leftCh := make(chan sideResult, 1)
+	rightCh := make(chan sideResult, 1)
+
+	go func() {
+		resp := sampleWaveSide(job.projected, job.index, job.leftNormal, job.mainDirection,
+			job.closed, job.options, job.lat, job.lon)
+		leftCh <- sideResult{response: resp}
+	}()
+
+	go func() {
+		resp := sampleWaveSide(job.projected, job.index, job.rightNormal, job.mainDirection,
+			job.closed, job.options, job.lat, job.lon)
+		rightCh <- sideResult{response: resp}
+	}()
+
+	leftResp := <-leftCh
+	rightResp := <-rightCh
+
+	seawardNormal := job.leftNormal
+	response := leftResp.response
+	if rightResp.response.Score > leftResp.response.Score ||
+		(almostEqual(rightResp.response.Score, leftResp.response.Score) &&
+			dotXY(job.rightNormal, job.mainDirection) > dotXY(job.leftNormal, job.mainDirection)) {
+		seawardNormal = job.rightNormal
+		response = rightResp.response
+	}
+
+	if response.Score <= 0 {
+		return erosionResult{index: job.index, valid: false}
+	}
+
+	shapeDelta := pointXY{
+		X: (job.prev.X+job.next.X)/2 - job.point.X,
+		Y: (job.prev.Y+job.next.Y)/2 - job.point.Y,
+	}
+
+	protrusion := clamp(-dotXY(shapeDelta, seawardNormal)/job.localScale, 0, 1.5)
+	bayShelter := clamp(dotXY(shapeDelta, seawardNormal)/job.localScale, 0, 1.2)
+
+	windFactor := math.Pow(job.options.WindSpeedMetersPerSecond/12.0, 2)
+	windFactor = clamp(windFactor, 0.1, 4.0)
+
+	retreatMeters := job.options.StrengthMeters * windFactor * response.Score
+	retreatMeters *= clamp(0.55+protrusion-bayShelter*0.35, 0.1, 1.75)
+	if job.options.MaxRetreatMeters > 0 {
+		retreatMeters = math.Min(retreatMeters, job.options.MaxRetreatMeters)
+	}
+
+	if job.options.EnableLithology && job.options.LithologyProfile != nil {
+		lithology := job.options.LithologyProfile.GetLithologyAt(job.lat, job.lon)
+		if lithology.Resistance > 0 {
+			retreatMeters /= lithology.Resistance
+		}
+	}
+
+	if job.options.EnableDynamicLithology && job.options.DynamicLithologyMap != nil {
+		if job.index < len(job.options.DynamicLithologyMap.Points) {
+			dynamicState := job.options.DynamicLithologyMap.Points[job.index]
+
+			if job.options.SimulationYears > 0 {
+				weatheredState := ApplyWeathering(
+					dynamicState.Static,
+					job.options.SimulationYears,
+					job.options.WeatheringProfile,
+					1.0,
+				)
+				retreatMeters = CalculateLithologyErosionInteraction(
+					retreatMeters,
+					weatheredState,
+					job.options.LithologyInteractionParams,
+					false,
+				)
+			} else {
+				if dynamicState.CurrentResistance > 0 {
+					retreatMeters /= dynamicState.CurrentResistance
+				}
+			}
+		}
+	}
+
+	if retreatMeters <= 0 {
+		return erosionResult{index: job.index, valid: false}
+	}
+
+	smoothingAlpha := math.Min(retreatMeters/job.localScale, 0.5)
+
+	if job.options.Irregularity > 0 {
+		rng := rand.New(rand.NewSource(job.seed + int64(job.step)*10_000 + int64(job.index)))
+		retreatMeters *= clamp(1+rng.NormFloat64()*job.options.Irregularity, 0.7, 1.3)
+	}
+
+	newPoint := pointXY{
+		X: job.point.X - seawardNormal.X*retreatMeters + shapeDelta.X*smoothingAlpha,
+		Y: job.point.Y - seawardNormal.Y*retreatMeters + shapeDelta.Y*smoothingAlpha,
+	}
+
+	return erosionResult{index: job.index, point: newPoint, valid: true}
+}
+
+// sampleWaveSideParallel is an optimized version using parallel fetch sampling
+func sampleWaveSideParallel(projected []pointXY, index int, normal, mainDirection pointXY,
+	closed bool, options WaveErosionOptions, lat, lon float64, cache *fetchDistanceCache) waveSideResponse {
+
+	normal = normalizeXY(normal)
+	if vectorLength(normal) == 0 {
+		return waveSideResponse{}
+	}
+
+	numSamples := options.FetchSamples
+	if numSamples <= 0 {
+		numSamples = 9
+	}
+
+	type sampleResult struct {
+		fetch float64
+		weight float64
+		valid bool
+	}
+
+	results := make([]sampleResult, numSamples)
+	var wg sync.WaitGroup
+	wg.Add(numSamples)
+
+	for sample := 0; sample < numSamples; sample++ {
+		go func(s int) {
+			defer wg.Done()
+
+			direction := sampleWaveDirection(mainDirection, options.FetchSpreadDeg, s, numSamples)
+			incidence := dotXY(normal, direction)
+
+			if incidence <= 0 {
+				results[s] = sampleResult{valid: false}
+				return
+			}
+
+			weight := math.Pow(incidence, options.ExposurePower)
+
+			directionKey := math.Float64bits(direction.X) ^ math.Float64bits(direction.Y)
+			cached, hit := cache.get(index, directionKey)
+
+			var fetch float64
+			if hit {
+				fetch = cached
+			} else {
+				fetch = rayFetchDistance(projected, index, direction, closed,
+					options.ProbeDistanceMeters, options.MaxFetchMeters)
+				cache.put(index, directionKey, fetch)
+			}
+
+			results[s] = sampleResult{
+				fetch:  fetch,
+				weight: weight,
+				valid:  true,
+			}
+		}(sample)
+	}
+
+	wg.Wait()
+
+	weightedFetch := 0.0
+	weightSum := 0.0
+
+	for _, r := range results {
+		if !r.valid {
+			continue
+		}
+		weightedFetch += r.fetch * r.weight
+		weightSum += r.weight
+	}
+
+	if weightSum == 0 {
+		return waveSideResponse{}
+	}
+
+	meanFetch := weightedFetch / weightSum
+
+	normalKey := math.Float64bits(normal.X) ^ math.Float64bits(normal.Y)
+	normalFetch, _ := cache.get(index, normalKey)
+	if normalFetch == 0 {
+		normalFetch = rayFetchDistance(projected, index, normal, closed,
+			options.ProbeDistanceMeters, options.MaxFetchMeters)
+		cache.put(index, normalKey, normalFetch)
+	}
+
+	fetchFactor := math.Sqrt(clamp(meanFetch/options.MaxFetchMeters, 0, 1))
+	exposure := clamp(weightSum/float64(numSamples), 0, 1)
+
+	var depthFactor float64
+	if options.BathymetryGrid != nil {
+		depth, err := options.BathymetryGrid.InterpolateDepth(lat, lon)
+		if err == nil {
+			depthFactor = physicalDepthFactor(depth, normalFetch, options.DepthScaleMeters)
+		} else {
+			depthFactor = 1 - math.Exp(-normalFetch/options.DepthScaleMeters)
+		}
+	} else {
+		depthFactor = 1 - math.Exp(-normalFetch/options.DepthScaleMeters)
+	}
+
+	score := fetchFactor * exposure * (0.35 + 0.65*depthFactor)
+
+	return waveSideResponse{
+		Score:       score,
+		MeanFetch:   meanFetch,
+		FetchFactor: fetchFactor,
+		Exposure:    exposure,
+		DepthFactor: depthFactor,
+	}
+}
+
+// rayFetchDistanceParallel computes fetch distance with parallel segment checking
+func rayFetchDistanceParallel(ctx context.Context, projected []pointXY, index int,
+	direction pointXY, closed bool, probeDistance, maxFetch float64) float64 {
+
+	direction = normalizeXY(direction)
+	if len(projected) < 2 || vectorLength(direction) == 0 || maxFetch <= 0 {
+		return 0
+	}
+	if probeDistance <= 0 {
+		probeDistance = 25
+	}
+	if probeDistance >= maxFetch {
+		probeDistance = maxFetch * 0.1
+	}
+	if probeDistance <= 0 {
+		probeDistance = 1
+	}
+
+	origin := pointXY{
+		X: projected[index].X + direction.X*probeDistance,
+		Y: projected[index].Y + direction.Y*probeDistance,
+	}
+
+	limit := maxFetch - probeDistance
+	if limit <= 0 {
+		return maxFetch
+	}
+
+	segmentCount := len(projected) - 1
+	if closed {
+		segmentCount = len(projected)
+	}
+
+	var bestDistance uint64 = math.Float64bits(limit)
+	var bestDistanceMu sync.Mutex
+
+	var wg sync.WaitGroup
+	numWorkers := runtime.NumCPU()
+	if numWorkers > 8 {
+		numWorkers = 8
+	}
+	chunkSize := (segmentCount + numWorkers - 1) / numWorkers
+
+	for w := 0; w < numWorkers; w++ {
+		start := w * chunkSize
+		end := start + chunkSize
+		if end > segmentCount {
+			end = segmentCount
+		}
+
+		wg.Add(1)
+		go func(workerID int) {
+			defer wg.Done()
+
+			localBest := limit
+
+			for segmentIndex := start; segmentIndex < end; segmentIndex++ {
+				select {
+				case <-ctx.Done():
+					return
+				default:
+				}
+
+				if segmentTouchesVertex(segmentIndex, index, len(projected), closed) {
+					continue
+				}
+
+				a := projected[segmentIndex]
+				b := projected[(segmentIndex+1)%len(projected)]
+				if !closed {
+					b = projected[segmentIndex+1]
+				}
+
+				distance, ok := raySegmentDistance(origin, direction, a, b)
+				if ok && distance < localBest {
+					localBest = distance
+				}
+			}
+
+			if localBest < math.Float64frombits(atomic.LoadUint64(&bestDistance)) {
+				bestDistanceMu.Lock()
+				currentBest := math.Float64frombits(atomic.LoadUint64(&bestDistance))
+				if localBest < currentBest {
+					atomic.StoreUint64(&bestDistance, math.Float64bits(localBest))
+				}
+				bestDistanceMu.Unlock()
+			}
+		}(w)
+	}
+
+	wg.Wait()
+
+	return probeDistance + math.Float64frombits(atomic.LoadUint64(&bestDistance))
 }

@@ -1,8 +1,11 @@
 package geometry
 
 import (
+	"context"
 	"fmt"
 	"math"
+	"runtime"
+	"sync"
 )
 
 // ApproximationMesh defines the mesh type and parameters for coastline approximation.
@@ -897,4 +900,538 @@ func (m *TINMesh) MeshDensity() float64 {
 	}
 
 	return float64(len(m.Triangles)) / meshArea
+}
+
+// insertPointParallel performs parallel point insertion using concurrent circumcircle checks
+func (m *TINMesh) insertPointParallel(ctx context.Context, idx int, p Point2D, triangles []Triangle, points []Point2D) []Triangle {
+	type badTriangle struct {
+		triangle Triangle
+		index    int
+	}
+
+	badTriangles := make([]Triangle, 0, len(triangles)/4)
+	var badMu sync.Mutex
+
+	numWorkers := runtime.NumCPU()
+	if numWorkers > 8 {
+		numWorkers = 8
+	}
+	chunkSize := (len(triangles) + numWorkers - 1) / numWorkers
+
+	var wg sync.WaitGroup
+	for w := 0; w < numWorkers; w++ {
+		start := w * chunkSize
+		end := start + chunkSize
+		if end > len(triangles) {
+			end = len(triangles)
+		}
+
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			localBad := make([]badTriangle, 0)
+
+			for i := start; i < end; i++ {
+				select {
+				case <-ctx.Done():
+					return
+				default:
+				}
+
+				tri := triangles[i]
+				if m.pointInCircumcircleOptimized(p, tri, points) {
+					localBad = append(localBad, badTriangle{triangle: tri, index: i})
+				}
+			}
+
+			badMu.Lock()
+			for _, bt := range localBad {
+				badTriangles = append(badTriangles, bt.triangle)
+			}
+			badMu.Unlock()
+		}()
+	}
+	wg.Wait()
+
+	if len(badTriangles) == 0 {
+		return triangles
+	}
+
+	polygon := m.findBoundary(badTriangles)
+	triangles = m.removeTriangles(triangles, badTriangles)
+
+	seen := make(map[[3]int]bool)
+	newTriangles := make([]Triangle, 0, len(polygon))
+
+	for _, edge := range polygon {
+		triKey := orderedTriangle(edge[0], edge[1], idx)
+		if seen[triKey] {
+			continue
+		}
+		seen[triKey] = true
+
+		newTri := Triangle{
+			V0: edge[0],
+			V1: edge[1],
+			V2: idx,
+		}
+		newTri.calculateCircumcircle(points)
+		newTri.Area = triangleArea(points[newTri.V0], points[newTri.V1], points[newTri.V2])
+		newTriangles = append(newTriangles, newTri)
+	}
+
+	triangles = append(triangles, newTriangles...)
+	return triangles
+}
+
+// pointInCircumcircleOptimized uses early-exit optimizations for faster checks
+func (m *TINMesh) pointInCircumcircleOptimized(p Point2D, tri Triangle, points []Point2D) bool {
+	v0 := points[tri.V0]
+	v1 := points[tri.V1]
+	v2 := points[tri.V2]
+
+	minX := v0.X
+	if v1.X < minX {
+		minX = v1.X
+	}
+	if v2.X < minX {
+		minX = v2.X
+	}
+	maxX := v0.X
+	if v1.X > maxX {
+		maxX = v1.X
+	}
+	if v2.X > maxX {
+		maxX = v2.X
+	}
+	minY := v0.Y
+	if v1.Y < minY {
+		minY = v1.Y
+	}
+	if v2.Y < minY {
+		minY = v2.Y
+	}
+	maxY := v0.Y
+	if v1.Y > maxY {
+		maxY = v1.Y
+	}
+	if v2.Y > maxY {
+		maxY = v2.Y
+	}
+
+	bboxPadding := tri.Circumradius + 1
+	if p.X < minX-bboxPadding || p.X > maxX+bboxPadding ||
+		p.Y < minY-bboxPadding || p.Y > maxY+bboxPadding {
+		return false
+	}
+
+	dx := p.X - tri.Circumcenter.X
+	dy := p.Y - tri.Circumcenter.Y
+	distSq := dx*dx + dy*dy
+
+	return distSq < tri.Circumradius*tri.Circumradius
+}
+
+// buildEdgeCountCacheParallel builds edge count cache using parallel processing
+func (m *TINMesh) buildEdgeCountCacheParallel(ctx context.Context) map[[2]int]int {
+	if len(m.Triangles) == 0 {
+		return make(map[[2]int]int)
+	}
+
+	edgeCount := make(map[[2]int]int, len(m.Triangles)*3)
+	var mu sync.Mutex
+
+	numWorkers := runtime.NumCPU()
+	if numWorkers > 8 {
+		numWorkers = 8
+	}
+	chunkSize := (len(m.Triangles) + numWorkers - 1) / numWorkers
+
+	var wg sync.WaitGroup
+	for w := 0; w < numWorkers; w++ {
+		start := w * chunkSize
+		end := start + chunkSize
+		if end > len(m.Triangles) {
+			end = len(m.Triangles)
+		}
+
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			localCounts := make(map[[2]int]int)
+
+			for i := start; i < end; i++ {
+				select {
+				case <-ctx.Done():
+					return
+				default:
+				}
+
+				tri := m.Triangles[i]
+				edges := [][2]int{
+					orderedEdge(tri.V0, tri.V1),
+					orderedEdge(tri.V1, tri.V2),
+					orderedEdge(tri.V2, tri.V0),
+				}
+				for _, e := range edges {
+					localCounts[e]++
+				}
+			}
+
+			mu.Lock()
+			for edge, count := range localCounts {
+				edgeCount[edge] += count
+			}
+			mu.Unlock()
+		}()
+	}
+	wg.Wait()
+
+	return edgeCount
+}
+
+// calculateBoundsParallel computes mesh bounds in parallel
+func (m *TINMesh) calculateBoundsParallel(ctx context.Context, projected []Point2D) {
+	if len(projected) == 0 {
+		return
+	}
+
+	numWorkers := runtime.NumCPU()
+	if numWorkers > 4 {
+		numWorkers = 4
+	}
+	chunkSize := (len(projected) + numWorkers - 1) / numWorkers
+
+	var boundsMu sync.Mutex
+	var minLat, maxLat, minLon, maxLon, minX, maxX, minY, maxY float64
+
+	minLat = m.Vertices[0].Lat
+	maxLat = m.Vertices[0].Lat
+	minLon = m.Vertices[0].Lon
+	maxLon = m.Vertices[0].Lon
+	minX = projected[0].X
+	maxX = projected[0].X
+	minY = projected[0].Y
+	maxY = projected[0].Y
+
+	var wg sync.WaitGroup
+	for w := 0; w < numWorkers; w++ {
+		start := w * chunkSize
+		end := start + chunkSize
+		if end > len(projected) {
+			end = len(projected)
+		}
+
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			localMinLat, localMaxLat, localMinLon, localMaxLon := minLat, maxLat, minLon, maxLon
+			localMinX, localMaxX, localMinY, localMaxY := minX, maxX, minY, maxY
+
+			for i := start; i < end && i < len(projected); i++ {
+				select {
+				case <-ctx.Done():
+					return
+				default:
+				}
+
+				p := projected[i]
+				v := m.Vertices[i]
+
+				if p.X < localMinX {
+					localMinX = p.X
+				}
+				if p.X > localMaxX {
+					localMaxX = p.X
+				}
+				if p.Y < localMinY {
+					localMinY = p.Y
+				}
+				if p.Y > localMaxY {
+					localMaxY = p.Y
+				}
+				if v.Lat < localMinLat {
+					localMinLat = v.Lat
+				}
+				if v.Lat > localMaxLat {
+					localMaxLat = v.Lat
+				}
+				if v.Lon < localMinLon {
+					localMinLon = v.Lon
+				}
+				if v.Lon > localMaxLon {
+					localMaxLon = v.Lon
+				}
+			}
+
+			boundsMu.Lock()
+			if localMinX < minX {
+				minX = localMinX
+			}
+			if localMaxX > maxX {
+				maxX = localMaxX
+			}
+			if localMinY < minY {
+				minY = localMinY
+			}
+			if localMaxY > maxY {
+				maxY = localMaxY
+			}
+			if localMinLat < minLat {
+				minLat = localMinLat
+			}
+			if localMaxLat > maxLat {
+				maxLat = localMaxLat
+			}
+			if localMinLon < minLon {
+				minLon = localMinLon
+			}
+			if localMaxLon > maxLon {
+				maxLon = localMaxLon
+			}
+			boundsMu.Unlock()
+		}()
+	}
+	wg.Wait()
+
+	m.Bounds.MinLat = minLat
+	m.Bounds.MaxLat = maxLat
+	m.Bounds.MinLon = minLon
+	m.Bounds.MaxLon = maxLon
+	m.Bounds.MinX = minX
+	m.Bounds.MaxX = maxX
+	m.Bounds.MinY = minY
+	m.Bounds.MaxY = maxY
+}
+
+// calculateStatsParallel computes mesh statistics in parallel
+func (m *TINMesh) calculateStatsParallel(ctx context.Context) {
+	m.Stats.VertexCount = len(m.Vertices)
+	m.Stats.TriangleCount = len(m.Triangles)
+
+	if len(m.Triangles) == 0 {
+		return
+	}
+
+	numWorkers := runtime.NumCPU()
+	if numWorkers > 4 {
+		numWorkers = 4
+	}
+	chunkSize := (len(m.Triangles) + numWorkers - 1) / numWorkers
+
+	var statsMu sync.Mutex
+	var minArea, maxArea, totalArea float64
+	minArea = math.MaxFloat64
+	maxArea = 0
+
+	var wg sync.WaitGroup
+	for w := 0; w < numWorkers; w++ {
+		start := w * chunkSize
+		end := start + chunkSize
+		if end > len(m.Triangles) {
+			end = len(m.Triangles)
+		}
+
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			localMinArea := math.MaxFloat64
+			localMaxArea := 0.0
+			localTotal := 0.0
+
+			for i := start; i < end && i < len(m.Triangles); i++ {
+				select {
+				case <-ctx.Done():
+					return
+				default:
+				}
+
+				area := m.Triangles[i].Area
+				localTotal += area
+
+				if area < localMinArea {
+					localMinArea = area
+				}
+				if area > localMaxArea {
+					localMaxArea = area
+				}
+			}
+
+			statsMu.Lock()
+			if localMinArea < minArea {
+				minArea = localMinArea
+			}
+			if localMaxArea > maxArea {
+				maxArea = localMaxArea
+			}
+			totalArea += localTotal
+			statsMu.Unlock()
+		}()
+	}
+	wg.Wait()
+
+	m.Stats.MinTriangleArea = minArea
+	m.Stats.MaxTriangleArea = maxArea
+	m.Stats.AvgTriangleArea = totalArea / float64(len(m.Triangles))
+
+	m.Stats.EdgeCount = (len(m.Triangles)*3 + len(m.Vertices)) / 2
+	m.Stats.HullVertexCount = m.calculateConvexHullCount()
+	m.edgeCountCache = m.buildEdgeCountCacheParallel(ctx)
+}
+
+// BuildTINMeshParallel creates a TIN mesh using parallel Delaunay triangulation
+func BuildTINMeshParallel(ctx context.Context, points []LatLon, opts ApproximationOptions) (*TINMesh, error) {
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	default:
+	}
+
+	if len(points) < opts.MinPoints {
+		return nil, fmt.Errorf("need at least %d points for triangulation, got %d",
+			opts.MinPoints, len(points))
+	}
+
+	vertices := clonePoints(points)
+	projected, _ := projectToMetersWithRef(vertices)
+
+	mesh := &TINMesh{
+		Vertices:  vertices,
+		Projected: projected,
+		Options:   opts,
+	}
+
+	mesh.calculateBoundsParallel(ctx, projected)
+
+	if err := mesh.buildDelaunayParallel(ctx); err != nil {
+		return nil, fmt.Errorf("delaunay triangulation failed: %w", err)
+	}
+
+	if opts.MeshType == "adaptive" {
+		mesh.refineAdaptiveParallel(ctx)
+	}
+
+	mesh.calculateStatsParallel(ctx)
+
+	return mesh, nil
+}
+
+// buildDelaunayParallel implements parallel Bowyer-Watson algorithm
+func (m *TINMesh) buildDelaunayParallel(ctx context.Context) error {
+	superTri, superPoints := m.createSuperTriangle()
+	triangles := []Triangle{superTri}
+
+	workingPoints := make([]Point2D, len(superPoints)+len(m.Projected))
+	copy(workingPoints, superPoints)
+	copy(workingPoints[len(superPoints):], m.Projected)
+
+	offset := len(superPoints)
+
+	for i := 0; i < len(m.Projected); i++ {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+
+		triangles = m.insertPointParallel(ctx, i+offset, workingPoints[i+offset], triangles, workingPoints)
+	}
+
+	m.Triangles = m.removeSuperTriangle(triangles, offset)
+
+	if len(m.Triangles) == 0 {
+		return fmt.Errorf("triangulation produced no valid triangles")
+	}
+
+	for i := range m.Triangles {
+		m.Triangles[i].V0 -= offset
+		m.Triangles[i].V1 -= offset
+		m.Triangles[i].V2 -= offset
+	}
+
+	return nil
+}
+
+// refineAdaptiveParallel performs mesh refinement in parallel
+func (m *TINMesh) refineAdaptiveParallel(ctx context.Context) {
+	maxArea := m.Options.MaxTriangleArea * 1e6
+	if maxArea <= 0 {
+		return
+	}
+
+	iterations := 0
+	maxIterations := 5
+
+	for iterations < maxIterations {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
+
+		refined := false
+		var newTriangles []Triangle
+		var mu sync.Mutex
+
+		numWorkers := runtime.NumCPU()
+		if numWorkers > 4 {
+			numWorkers = 4
+		}
+		chunkSize := (len(m.Triangles) + numWorkers - 1) / numWorkers
+
+		var wg sync.WaitGroup
+		for w := 0; w < numWorkers; w++ {
+			start := w * chunkSize
+			end := start + chunkSize
+			if end > len(m.Triangles) {
+				end = len(m.Triangles)
+			}
+
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+
+				localTriangles := make([]Triangle, 0)
+				localRefined := false
+
+				for i := start; i < end; i++ {
+					select {
+					case <-ctx.Done():
+						return
+					default:
+					}
+
+					tri := m.Triangles[i]
+					if tri.Area > maxArea {
+						split := m.splitTriangle(tri)
+						localTriangles = append(localTriangles, split...)
+						localRefined = true
+					} else {
+						localTriangles = append(localTriangles, tri)
+					}
+				}
+
+				mu.Lock()
+				if localRefined {
+					refined = true
+				}
+				newTriangles = append(newTriangles, localTriangles...)
+				mu.Unlock()
+			}()
+		}
+		wg.Wait()
+
+		if !refined {
+			break
+		}
+
+		m.Triangles = newTriangles
+		iterations++
+	}
+
+	m.Stats.RefinementSteps = iterations
 }
