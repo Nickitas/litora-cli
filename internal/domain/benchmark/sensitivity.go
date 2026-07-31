@@ -71,10 +71,10 @@ type sensitivityIteration struct {
 
 // sensitivityResultData holds iteration results
 type sensitivityResultData struct {
-	index  int
-	rmse   float64
-	mae    float64
-	rSq    float64
+	index   int
+	rmse    float64
+	mae     float64
+	rSq     float64
 	epsilon error // For error propagation
 }
 
@@ -571,7 +571,7 @@ func sensitivityToStrengthParallel(ctx context.Context, site BenchmarkSite, conf
 				select {
 				case <-ctx.Done():
 					results <- sensitivityResultData{
-						index:  i,
+						index:   i,
 						epsilon: ctx.Err(),
 					}
 					return
@@ -651,7 +651,7 @@ func sensitivityToWaveDirectionParallel(ctx context.Context, site BenchmarkSite,
 				select {
 				case <-ctx.Done():
 					results <- sensitivityResultData{
-						index:  i,
+						index:   i,
 						epsilon: ctx.Err(),
 					}
 					return
@@ -773,8 +773,8 @@ func BootstrapConfidenceIntervalsParallel(
 
 	// Storage with concurrent access
 	type accumulator struct {
-		mu        sync.Mutex
-		strengths []float64
+		mu         sync.Mutex
+		strengths  []float64
 		directions []float64
 	}
 

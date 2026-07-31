@@ -12,11 +12,11 @@ import (
 )
 
 const (
-	erosionChunkSize     = 512
-	metersPerDegLat      = 111194.9
-	erosionWorkerCount   = 8 // Number of parallel workers for erosion
-	fetchWorkerCount     = 4 // Number of parallel workers for fetch distance calculation
-	fetchCacheSize       = 256 // Size of LRU cache for fetch distances
+	erosionChunkSize   = 512
+	metersPerDegLat    = 111194.9
+	erosionWorkerCount = 8   // Number of parallel workers for erosion
+	fetchWorkerCount   = 4   // Number of parallel workers for fetch distance calculation
+	fetchCacheSize     = 256 // Size of LRU cache for fetch distances
 )
 
 type WaveErosionOptions struct {
@@ -670,21 +670,21 @@ func almostEqual(a, b float64) bool {
 
 // erosionJob represents a single point processing job
 type erosionJob struct {
-	index          int
-	point          pointXY
-	prev           pointXY
-	next           pointXY
-	lat            float64
-	lon            float64
-	leftNormal     pointXY
-	rightNormal    pointXY
-	mainDirection  pointXY
-	projected      []pointXY
-	closed         bool
-	options        WaveErosionOptions
-	seed           int64
-	step           int
-	localScale     float64
+	index         int
+	point         pointXY
+	prev          pointXY
+	next          pointXY
+	lat           float64
+	lon           float64
+	leftNormal    pointXY
+	rightNormal   pointXY
+	mainDirection pointXY
+	projected     []pointXY
+	closed        bool
+	options       WaveErosionOptions
+	seed          int64
+	step          int
+	localScale    float64
 }
 
 // erosionResult represents the result of processing a single point
@@ -774,8 +774,9 @@ func waveErodeStepWithContext(ctx context.Context, points []LatLon, options Wave
 		}
 	}
 	if len(projected) < numWorkers*4 {
-		if numWorkers := len(projected) / 4; numWorkers > 1 {
-			numWorkers = numWorkers
+		adjustedWorkers := len(projected) / 4
+		if adjustedWorkers > 1 {
+			numWorkers = adjustedWorkers
 		} else {
 			numWorkers = 1
 		}
@@ -1012,9 +1013,9 @@ func sampleWaveSideParallel(projected []pointXY, index int, normal, mainDirectio
 	}
 
 	type sampleResult struct {
-		fetch float64
+		fetch  float64
 		weight float64
-		valid bool
+		valid  bool
 	}
 
 	results := make([]sampleResult, numSamples)

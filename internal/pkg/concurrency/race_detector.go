@@ -220,14 +220,14 @@ func (sfa *SafeFloat64Accumulator) Reset() {
 
 // SafeMap provides a concurrent map with fine-grained locking
 type SafeMap[K comparable, V any] struct {
-	mu    sync.RWMutex
+	mu     sync.RWMutex
 	shards []mapShard[K, V]
-	size  int
+	size   int
 }
 
 type mapShard[K comparable, V any] struct {
-	mu    sync.RWMutex
-	data  map[K]V
+	mu   sync.RWMutex
+	data map[K]V
 }
 
 // NewSafeMap creates a new concurrent map

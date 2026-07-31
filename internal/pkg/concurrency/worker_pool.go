@@ -33,8 +33,8 @@ type Result interface {
 
 // WorkerPoolConfig configures a worker pool
 type WorkerPoolConfig struct {
-	WorkerCount int           // Number of worker goroutines (0 = auto-detect based on CPUs)
-	BufferSize  int           // Size of job buffer (0 = unbounded)
+	WorkerCount int             // Number of worker goroutines (0 = auto-detect based on CPUs)
+	BufferSize  int             // Size of job buffer (0 = unbounded)
 	Context     context.Context // Context for cancellation
 }
 
@@ -269,9 +269,9 @@ func ParallelReduce[T any](ctx context.Context, input []T, neutral T, combine fu
 
 // BatchProcessor processes items in batches with concurrency control
 type BatchProcessor[T any, R any] struct {
-	batchSize   int
+	batchSize     int
 	maxConcurrent int
-	processFn   func(ctx context.Context, batch []T) ([]R, error)
+	processFn     func(ctx context.Context, batch []T) ([]R, error)
 }
 
 // NewBatchProcessor creates a new batch processor
