@@ -57,7 +57,7 @@ func TestLoadFromJSONRejectsInvalidLatitude(t *testing.T) {
 		t.Fatal("expected error for invalid latitude, got nil")
 	}
 
-	if !strings.Contains(err.Error(), "invalid latitude") {
+	if !strings.Contains(err.Error(), "недопустимую широту") {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
@@ -152,7 +152,7 @@ func TestSanityCheckWarningForBlackSea(t *testing.T) {
 	if result.Valid {
 		t.Fatalf("expected invalid sanity result, got %+v", result)
 	}
-	if !strings.Contains(result.Warning, "WARNING: coastline length likely incorrect") {
+	if !strings.Contains(result.Warning, "ПРЕДУПРЕЖДЕНИЕ: длина береговой линии, вероятно, неверна") {
 		t.Fatalf("expected sanity warning, got %q", result.Warning)
 	}
 }

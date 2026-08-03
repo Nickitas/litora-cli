@@ -11,38 +11,38 @@ import (
 
 const metersPerDegLat = 111194.9
 
-// CalibrationConfig configures a calibration run
+// CalibrationConfig настраивает запуск калибровки
 type CalibrationConfig struct {
-	// Parameter space to search
-	ErosionStrengths []float64 // values of erosion-strength to try (m/step)
-	WaveDirections   []float64 // dominant wave directions to try (deg from N)
+	// Пространство параметров для поиска
+	ErosionStrengths []float64 // проверяемые значения силы эрозии (м/шаг)
+	WaveDirections   []float64 // проверяемые направления доминирующих волн (град. от севера)
 
-	// Optional: wave spectrum spread (degrees) - if >0, each direction becomes a Gaussian spectrum
-	// 0 = single direction (legacy mode)
-	// 30 = mild directional spreading
-	// 60 = wide directional spreading
+	// Опционально: разброс спектра волн (градусы) - если >0, каждое направление становится гауссовским спектром
+	// 0 = одиночное направление (устаревший режим)
+	// 30 = слабое направленное распространение
+	// 60 = широкое направленное распространение
 	SpectrumSpreadDeg float64
 
-	// Simulation parameters
-	YearsPerStep   float64 // years per simulation step
-	TotalYears     int     // total years to simulate
-	WindSpeed      float64 // wind speed (m/s)
+	// Параметры симуляции
+	YearsPerStep   float64 // лет за шаг симуляции
+	TotalYears     int     // всего лет для симуляции
+	WindSpeed      float64 // скорость ветра (м/с)
 	BathymetryGrid *geometry.BathymetryGrid
 
-	// Matching
-	MaxDistanceKm float64 // max distance from observation to coastline point
+	// Сопоставление
+	MaxDistanceKm float64 // макс. расстояние от наблюдения до точки побережья
 }
 
-// DefaultCalibrationConfig returns a reasonable starting config for Black Sea sites
+// DefaultCalibrationConfig возвращает разумную начальную конфигурацию для участков Чёрного моря
 func DefaultCalibrationConfig() CalibrationConfig {
 	return CalibrationConfig{
-		// Finer strength range focused on lower values (best fits tend to be 5-30)
+		// Более точный диапазон сил, сфокусированный на меньших значениях (лучшая подгонка обычно 5-30)
 		ErosionStrengths: []float64{2, 5, 10, 15, 20, 30, 50, 80},
-		// 16 compass directions for better resolution
+		// 16 румбов для лучшего разрешения
 		WaveDirections: []float64{0, 22.5, 45, 67.5, 90, 112.5, 135, 157.5,
 			180, 202.5, 225, 247.5, 270, 292.5, 315, 337.5},
-		// Spectrum spread = 0 means single direction (legacy mode)
-		// Set to e.g. 30 to enable Gaussian directional spreading
+		// Разброс спектра = 0 означает одиночное направление (устаревший режим)
+		// Установите, например, 30 для включения гауссовского направленного распределения
 		SpectrumSpreadDeg: 0,
 		YearsPerStep:      1.0,
 		TotalYears:        10,
@@ -51,7 +51,7 @@ func DefaultCalibrationConfig() CalibrationConfig {
 	}
 }
 
-// CalibrationResultItem represents one parameter combination and its validation
+// CalibrationResultItem представляет одну комбинацию параметров и её валидацию
 type CalibrationResultItem struct {
 	ErosionStrength   float64           `json:"erosion_strength"`
 	WaveDirection     float64           `json:"wave_direction"`
@@ -59,7 +59,7 @@ type CalibrationResultItem struct {
 	ComparisonPoints  []ComparisonPoint `json:"comparison_points,omitempty"`
 }
 
-// ComparisonPoint shows modeled vs observed at a single observation location
+// ComparisonPoint показывает модельные и наблюдаемые значения в одной точке наблюдения
 type ComparisonPoint struct {
 	LatLon            geometry.LatLon `json:"lat_lon"`
 	Observed          float64         `json:"observed_m_per_year"`
@@ -67,31 +67,31 @@ type ComparisonPoint struct {
 	DistanceToCoastKm float64         `json:"distance_to_coast_km"`
 }
 
-// Calibrate runs the calibration for a benchmark site
+// Calibrate выполняет калибровку для эталонного участка
 //
-// Algorithm:
-//  1. For each (erosion_strength, wave_direction) combination:
-//     a. Run wave erosion simulation (with bathymetry if provided)
-//     b. For each observed erosion point:
-//     - Find nearest coastline segment
-//     - Compute modeled retreat rate (m/year) at that segment
-//     c. Compute validation metrics (RMSE, MAE, R²)
-//  2. Return results sorted by RMSE (best first)
+// Алгоритм:
+//  1. Для каждой комбинации (erosion_strength, wave_direction):
+//     a. Запускаем симуляцию волновой эрозии (с батиметрией, если предоставлена)
+//     b. Для каждой точки наблюдаемой эрозии:
+//     - Находим ближайший сегмент побережья
+//     - Вычисляем модельную скорость отступления (м/год) на этом сегменте
+//     c. Вычисляем метрики валидации (RMSE, MAE, R²)
+//  2. Возвращаем результаты, отсортированные по RMSE (лучшие первые)
 func Calibrate(site BenchmarkSite, config CalibrationConfig, progress ...ProgressFunc) ([]CalibrationResultItem, error) {
 	if len(site.ObservedErosion) == 0 {
-		return nil, fmt.Errorf("site %q has no observed erosion data", site.ID)
+		return nil, fmt.Errorf("на участке %q нет данных о наблюдаемой эрозии", site.ID)
 	}
 	if len(site.Coastline) < 3 {
-		return nil, fmt.Errorf("site %q has too few coastline points (%d)", site.ID, len(site.Coastline))
+		return nil, fmt.Errorf("на участке %q слишком мало точек береговой линии (%d)", site.ID, len(site.Coastline))
 	}
 
-	// Compute steps from years
+	// Вычисляем количество шагов из лет
 	steps := int(float64(config.TotalYears) / config.YearsPerStep)
 	if steps < 1 {
 		steps = 1
 	}
 
-	// Build parameter combinations for parallel execution
+	// Формируем комбинации параметров для параллельного выполнения
 	type combo struct {
 		strength float64
 		waveDir  float64
@@ -112,7 +112,7 @@ func Calibrate(site BenchmarkSite, config CalibrationConfig, progress ...Progres
 		results[i] = runCalibrationIteration(site, config, c.strength, c.waveDir, steps)
 	}, progressFn)
 
-	// Sort by RMSE ascending (best first)
+	// Сортируем по RMSE по возрастанию (лучшие первые)
 	sort.Slice(results, func(i, j int) bool {
 		return results[i].ValidationMetrics.RMSE < results[j].ValidationMetrics.RMSE
 	})
@@ -120,11 +120,11 @@ func Calibrate(site BenchmarkSite, config CalibrationConfig, progress ...Progres
 	return results, nil
 }
 
-// ProgressFunc is a callback for progress reporting during calibration
+// ProgressFunc - обратный вызов для отчёта о прогрессе во время калибровки
 type ProgressFunc func(current, total int)
 
-// parallelCalibrate runs calibration iterations in parallel
-// Uses up to 8 workers (calibration is CPU-bound)
+// parallelCalibrate выполняет итерации калибровки параллельно
+// Использует до 8 воркеров (калибровка ограничена CPU)
 func parallelCalibrate[T any](items []T, fn func(i int, item T), progress ProgressFunc) {
 	const maxWorkers = 8
 	n := len(items)
@@ -163,7 +163,7 @@ func parallelCalibrate[T any](items []T, fn func(i int, item T), progress Progre
 	}
 }
 
-// atomicInt64 is a simple atomic counter
+// atomicInt64 - простой атомарный счётчик
 type atomicInt64 struct {
 	v int64
 }
@@ -172,23 +172,23 @@ func (a *atomicInt64) Add(delta int64) int64 {
 	return atomic.AddInt64(&a.v, delta)
 }
 
-// CalibrateWithBathymetry runs calibration with bathymetry data integrated
-// This typically produces significantly better results than flat-bottom calibration
+// CalibrateWithBathymetry выполняет калибровку с интегрированными данными батиметрии
+// Обычно даёт значительно лучшие результаты, чем калибровка на плоском дне
 func CalibrateWithBathymetry(site BenchmarkSite, config CalibrationConfig, bathymetry *geometry.BathymetryGrid, progress ...ProgressFunc) ([]CalibrationResultItem, error) {
 	if len(site.ObservedErosion) == 0 {
-		return nil, fmt.Errorf("site %q has no observed erosion data", site.ID)
+		return nil, fmt.Errorf("на участке %q нет данных о наблюдаемой эрозии", site.ID)
 	}
 	if len(site.Coastline) < 3 {
-		return nil, fmt.Errorf("site %q has too few coastline points (%d)", site.ID, len(site.Coastline))
+		return nil, fmt.Errorf("на участке %q слишком мало точек береговой линии (%d)", site.ID, len(site.Coastline))
 	}
 
-	// Inject bathymetry into config
+	// Внедряем батиметрию в конфигурацию
 	config.BathymetryGrid = bathymetry
 
 	return Calibrate(site, config, progress...)
 }
 
-// runCalibrationIteration runs a single model run and computes validation
+// runCalibrationIteration выполняет одиночный прогон модели и вычисляет валидацию
 func runCalibrationIteration(
 	site BenchmarkSite,
 	config CalibrationConfig,
@@ -196,8 +196,8 @@ func runCalibrationIteration(
 	waveDir float64,
 	steps int,
 ) CalibrationResultItem {
-	// If spectrum spread is enabled, run model with multiple weighted directions
-	// and aggregate retreat rates
+	// Если включен разброс спектра, запускаем модель с несколькими взвешенными направлениями
+	// и агрегируем скорости отступления
 	if config.SpectrumSpreadDeg > 0 {
 		return runCalibrationWithSpectrum(site, config, strength, waveDir, steps)
 	}
@@ -231,8 +231,8 @@ func runCalibrationIteration(
 	}
 }
 
-// runCalibrationWithSpectrum uses Gaussian directional spreading
-// instead of single wave direction
+// runCalibrationWithSpectrum использует гауссовское направленное распределение
+// вместо одиночного направления волны
 func runCalibrationWithSpectrum(
 	site BenchmarkSite,
 	config CalibrationConfig,
@@ -240,11 +240,11 @@ func runCalibrationWithSpectrum(
 	centerDir float64,
 	steps int,
 ) CalibrationResultItem {
-	// Build spectrum: 8 bins with Gaussian weights centered at centerDir
+	// Формируем спектр: 8 бинов с гауссовскими весами, центрированными на centerDir
 	spectrum := geometry.NewGaussianSpectrum(centerDir, config.SpectrumSpreadDeg, 8)
 
-	// Aggregate retreat per coastline point across all spectrum bins
-	// Approach: run model for each bin independently, sum weighted retreat
+	// Агрегируем отступление для каждой точки побережья по всем бинам спектра
+	// Подход: запускаем модель для каждого бина независимо, суммируем взвешенное отступление
 	nCoast := len(site.Coastline)
 	if nCoast < 3 {
 		return CalibrationResultItem{
@@ -262,9 +262,9 @@ func runCalibrationWithSpectrum(
 			continue
 		}
 
-		// Run erosion for this direction
-		// Scale strength by weight so contributions sum properly
-		binStrength := strength * bin.Weight * 2 // factor 2 because each direction contributes partially
+		// Запускаем эрозию для этого направления
+		// Масштабируем силу по весу, чтобы вклады суммировались правильно
+		binStrength := strength * bin.Weight * 2 // множитель 2, т.к. каждое направление вносит частичный вклад
 		if binStrength < 0.1 {
 			continue
 		}
@@ -286,7 +286,7 @@ func runCalibrationWithSpectrum(
 		initial := snapshots[0]
 		final := snapshots[len(snapshots)-1]
 
-		// Compute retreat at each point
+		// Вычисляем отступление для каждой точки
 		for i := range site.Coastline {
 			if i >= len(initial) || i >= len(final) {
 				continue
@@ -299,8 +299,8 @@ func runCalibrationWithSpectrum(
 		totalWeight += bin.Weight
 	}
 
-	// Build a synthetic final coastline using aggregated retreat
-	// Use the per-point accumulated retreat directly for comparison
+	// Формируем синтетическую конечную линию побережья с использованием агрегированного отступления
+	// Используем накопленное на точках отступление напрямую для сравнения
 	comparisons := computeComparisonsFromRetreats(
 		site.Coastline, totalRetreat, totalWeight,
 		site.ObservedErosion, config.TotalYears,
@@ -315,7 +315,7 @@ func runCalibrationWithSpectrum(
 	}
 }
 
-// computeComparisonsFromRetreats builds comparison points from pre-computed retreats
+// computeComparisonsFromRetreats строит точки сравнения из предварительно вычисленных отступлений
 func computeComparisonsFromRetreats(
 	coastline []geometry.LatLon,
 	retreats []float64,
@@ -334,7 +334,7 @@ func computeComparisonsFromRetreats(
 			continue
 		}
 
-		// Normalize: weighted retreat / total weight / years
+		// Нормализация: взвешенное отступление / общий вес / годы
 		modeledRate := retreats[segIdx] / totalWeight / float64(totalYears)
 		dist := haversineKm(coastline[segIdx], obs.LatLon)
 
@@ -348,8 +348,8 @@ func computeComparisonsFromRetreats(
 	return comparisons
 }
 
-// computeComparisons matches observations to nearest coastline segments
-// and computes modeled retreat rates
+// computeComparions сопоставляет наблюдения с ближайшими сегментами побережья
+// и вычисляет модельные скорости отступления
 func computeComparisons(
 	initial, final []geometry.LatLon,
 	observations []ErosionObservation,
@@ -365,10 +365,10 @@ func computeComparisons(
 			continue
 		}
 
-		// Compute modeled retreat (m) at this segment
-		// Retreat = perpendicular displacement of segment midpoint
+		// Вычисляем модельное отступление (м) на этом сегменте
+		// Отступление = перпендикулярное смещение средней точки сегмента
 		modeledRetreat := computeSegmentRetreat(initial, final, segIdx)
-		// Convert retreat to rate per year (positive = erosion)
+		// Преобразуем отступление в скорость в год (положительное = эрозия)
 		modeledRate := modeledRetreat / float64(totalYears)
 
 		dist := haversineKm(initial[segIdx], obs.LatLon)
@@ -402,24 +402,24 @@ func nearestSegmentIndex(coastline []geometry.LatLon, target geometry.LatLon) in
 	return bestIdx
 }
 
-// computeSegmentRetreat estimates how much a coastline point retreated (m)
-// Positive value = erosion (retreat landward)
+// computeSegmentRetreat оценивает, насколько отступила точка побережья (м)
+// Положительное значение = эрозия (отступление в сторону суши)
 func computeSegmentRetreat(initial, final []geometry.LatLon, idx int) float64 {
 	if idx >= len(initial) || idx >= len(final) {
 		return 0
 	}
 
-	// Get segment orientation using neighboring points
-	// and compute perpendicular displacement
+	// Получаем ориентацию сегмента, используя соседние точки
+	// и вычисляем перпендикулярное смещение
 	prev := (idx - 1 + len(initial)) % len(initial)
 	next := (idx + 1) % len(initial)
 
-	// Direction of segment at this point
+	// Направление сегмента в этой точке
 	dx := initial[next].Lon - initial[prev].Lon
 	dy := initial[next].Lat - initial[prev].Lat
 
-	// Outward normal (perpendicular, pointing away from coast)
-	// Rotate tangent by 90° (counter-clockwise gives outward normal for CCW ring)
+	// Внешняя нормаль (перпендикуляр, направленный от побережья)
+	// Поворачиваем касательную на 90° (против часовой стрелки даёт внешнюю нормаль для CCW кольца)
 	nx := -dy
 	ny := dx
 	nlen := math.Sqrt(nx*nx + ny*ny)
@@ -429,15 +429,15 @@ func computeSegmentRetreat(initial, final []geometry.LatLon, idx int) float64 {
 	nx /= nlen
 	ny /= nlen
 
-	// Convert displacement to meters using local meters-per-degree
+	// Преобразуем смещение в метры, используя локальные метры на градус
 	refLat := initial[idx].Lat
 	metersPerDegLon := metersPerDegLat * math.Cos(refLat*math.Pi/180)
 
-	// Displacement of this point
+	// Смещение этой точки
 	dLon := final[idx].Lon - initial[idx].Lon
 	dLat := final[idx].Lat - initial[idx].Lat
 
-	// Project displacement onto outward normal
+	// Проецируем смещение на внешнюю нормаль
 	dMetersX := dLon * metersPerDegLon
 	dMetersY := dLat * metersPerDegLat
 	nMetersX := nx * metersPerDegLon
@@ -447,14 +447,14 @@ func computeSegmentRetreat(initial, final []geometry.LatLon, idx int) float64 {
 		return 0
 	}
 
-	// Scalar projection (negative = landward retreat = erosion)
+	// Скалярная проекция (отрицательное = отступление в сторону суши = эрозия)
 	projection := (dMetersX*nMetersX + dMetersY*nMetersY) / nlenMeters
 
-	// Retreat (positive erosion) = -projection (because outward is +)
+	// Отступление (положительная эрозия) = -projection (т.к. внешнее направление +)
 	return -projection
 }
 
-// haversineKm computes great-circle distance between two points in km
+// haversineKm вычисляет ортодромическое расстояние между двумя точками в км
 func haversineKm(a, b geometry.LatLon) float64 {
 	const earthRadiusKm = 6371.0
 	dLat := (b.Lat - a.Lat) * math.Pi / 180
@@ -468,7 +468,7 @@ func haversineKm(a, b geometry.LatLon) float64 {
 	return 2 * earthRadiusKm * math.Asin(math.Sqrt(math.Min(1, h)))
 }
 
-// computeValidationMetrics computes RMSE, MAE, MBE, R², and significance
+// computeValidationMetrics вычисляет RMSE, MAE, MBE, R² и значимость
 func computeValidationMetrics(comparisons []ComparisonPoint) ValidationMetrics {
 	n := len(comparisons)
 	if n == 0 {
@@ -505,7 +505,7 @@ func computeValidationMetrics(comparisons []ComparisonPoint) ValidationMetrics {
 		rSquared = 1 - ssRes/ssTot
 	}
 
-	// Pearson correlation for significance test
+	// Корреляция Пирсона для проверки значимости
 	r := pearsonCorrelation(comparisons)
 	pValue := computePValue(r, n)
 	significant := pValue < 0.05
@@ -521,7 +521,7 @@ func computeValidationMetrics(comparisons []ComparisonPoint) ValidationMetrics {
 	}
 }
 
-// pearsonCorrelation computes Pearson r between observed and modeled
+// pearsonCorrelation вычисляет корреляцию Пирсона между наблюдаемыми и модельными значениями
 func pearsonCorrelation(comparisons []ComparisonPoint) float64 {
 	n := len(comparisons)
 	if n < 2 {
@@ -546,8 +546,8 @@ func pearsonCorrelation(comparisons []ComparisonPoint) float64 {
 	return num / (denX * denY)
 }
 
-// computePValue approximates two-tailed p-value for Pearson r
-// Uses t-distribution approximation
+// computePValue аппроксимирует двустороннее p-значение для корреляции Пирсона r
+// Использует аппроксимацию t-распределения
 func computePValue(r float64, n int) float64 {
 	if n < 3 {
 		return 1.0
@@ -557,16 +557,16 @@ func computePValue(r float64, n int) float64 {
 	if math.IsNaN(tStat) {
 		return 1.0
 	}
-	// Approximate p-value using normal distribution for large df
-	// For df >= 30, t ~ z; otherwise, use conservative upper bound
+	// Аппроксимируем p-значение, используя нормальное распределение для больших df
+	// Для df >= 30, t ~ z; иначе используем консервативную верхнюю границу
 	if df >= 30 {
 		return 2 * (1 - normalCDF(math.Abs(tStat)))
 	}
-	// Small sample approximation: just use normal as conservative estimate
+	// Аппроксимация малой выборки: просто используем нормальное как консервативную оценку
 	return 2 * (1 - normalCDF(math.Abs(tStat)))
 }
 
-// normalCDF computes standard normal CDF using error function approximation
+// normalCDF вычисляет стандартную нормальную функцию распределения, используя аппроксимацию функции ошибок
 func normalCDF(x float64) float64 {
 	return 0.5 * (1 + math.Erf(x/math.Sqrt(2)))
 }

@@ -6,7 +6,8 @@ import (
 	"fmt"
 )
 
-// buildEnhancedOptions creates enhanced SVG options from config
+// buildEnhancedOptions создаёт расширенные настройки SVG из конфигурации
+// Функция формирует опции для отображения сетки, компаса, маркеров и изолиний
 func buildEnhancedOptions(cfg config, points []geometry.LatLon, waveDir float64) *svgrender.EnhancedDocument {
 	if !cfg.EnableEnhanced {
 		return nil
@@ -54,7 +55,7 @@ func buildEnhancedOptions(cfg config, points []geometry.LatLon, waveDir float64)
 			},
 		}
 
-		// Add end marker if different from start
+		// Добавляем маркер конца если отличается от начала
 		lastIdx := len(points) - 1
 		if lastIdx > 0 {
 			lastPoint := points[lastIdx]
@@ -103,7 +104,8 @@ func buildEnhancedOptions(cfg config, points []geometry.LatLon, waveDir float64)
 	}
 }
 
-// wrapDocumentForEnhanced converts Document to EnhancedDocument with config options
+// wrapDocumentForEnhanced преобразует Document в EnhancedDocument с настройками конфигурации
+// Добавляет визуализацию транспорта наносов, если доступны данные
 func wrapDocumentForEnhanced(doc svgrender.Document, cfg config, points []geometry.LatLon, waveDir float64, sedimentResult *geometry.SedimentTransportResult, renderPoints []geometry.LatLon) svgrender.EnhancedDocument {
 	enhanced := buildEnhancedOptions(cfg, points, waveDir)
 	if enhanced == nil {
@@ -112,19 +114,19 @@ func wrapDocumentForEnhanced(doc svgrender.Document, cfg config, points []geomet
 
 	enhanced.Document = doc
 
-	// Add sediment transport visualization if data is available
+	// Добавляем визуализацию транспорта наносов если доступны данные
 	if sedimentResult != nil && len(sedimentResult.States) > 0 && cfg.EnableEnhanced {
-		// Use render points if available, otherwise use original points
+		// Используем точки рендера если доступны, иначе исходные точки
 		displayPoints := renderPoints
 		if len(displayPoints) == 0 {
 			displayPoints = points
 		}
 
 		// Debug output
-		fmt.Printf("🔧 Adding sediment transport visualization: %d states, %d points\n",
+		fmt.Printf("🔧 Добавление визуализации транспорта наносов: %d состояний, %d точек\n",
 			len(sedimentResult.States), len(displayPoints))
 
-		// Count accumulation and erosion points
+		// Подсчёт точек аккумуляции и эрозии
 		accumCount := 0
 		erosionCount := 0
 		for _, state := range sedimentResult.States {
@@ -135,7 +137,7 @@ func wrapDocumentForEnhanced(doc svgrender.Document, cfg config, points []geomet
 				erosionCount++
 			}
 		}
-		fmt.Printf("   📊 Sediment stats: %d accumulation, %d erosion points\n",
+		fmt.Printf("   📊 Статистика наносов: %d аккумуляция, %d эрозия точек\n",
 			accumCount, erosionCount)
 
 		enhanced.SedimentTransportOptions = &svgrender.SedimentTransportOptions{
@@ -152,7 +154,7 @@ func wrapDocumentForEnhanced(doc svgrender.Document, cfg config, points []geomet
 			MarkerSize:           8,
 		}
 	} else {
-		fmt.Printf("⚠️  Sediment transport visualization skipped: result=%v, states=%d, enhanced=%v\n",
+		fmt.Printf("⚠️  Визуализация транспорта наносов пропущена: результат=%v, состояний=%d, улучшено=%v\n",
 			sedimentResult != nil,
 			func() int {
 				if sedimentResult != nil {

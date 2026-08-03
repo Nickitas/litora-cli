@@ -8,8 +8,8 @@ import (
 	"strconv"
 )
 
-// writeErosionCSV exports erosion metrics to CSV format
-// Supports two formats: "long" (one row per step) and "wide" (one row with step columns)
+// writeErosionCSV экспортирует метрики эрозии в формат CSV
+// Поддерживает два формата: "long" (одна строка на шаг) и "wide" (одна строка с колонками шагов)
 func writeErosionCSV(
 	snapshots [][]geometry.LatLon,
 	temporalResult *geometry.TemporalResult,
@@ -18,10 +18,10 @@ func writeErosionCSV(
 	outputPathManager *OutputPathManager,
 ) error {
 	if outputPath == "" {
-		return fmt.Errorf("output CSV path cannot be empty")
+		return fmt.Errorf("путь к выходному CSV файлу не может быть пустым")
 	}
 
-	// Resolve the output path using the OutputPathManager
+	// Разрешаем путь вывода с помощью OutputPathManager
 	resolvedPath := outputPathManager.ResolveUserPath(outputPath, "csv")
 	if resolvedPath == "" {
 		resolvedPath = outputPathManager.CSVPath(outputPath)
@@ -29,7 +29,7 @@ func writeErosionCSV(
 
 	file, err := os.Create(resolvedPath)
 	if err != nil {
-		return fmt.Errorf("create CSV file %q: %w", resolvedPath, err)
+		return fmt.Errorf("создать CSV файл %q: %w", resolvedPath, err)
 	}
 	defer file.Close()
 
@@ -42,30 +42,30 @@ func writeErosionCSV(
 	case "wide":
 		return writeWideFormatCSV(writer, snapshots, temporalResult)
 	default:
-		return fmt.Errorf("unsupported CSV format: %s", format)
+		return fmt.Errorf("неподдерживаемый формат CSV: %s", format)
 	}
 }
 
-// writeLongFormatCSV creates CSV with one row per step
-// Columns: year,step,length_km,area_km2,eroded_m3,deposited_m3,net_change_m3,storm_event,sea_level_m
+// writeLongFormatCSV создаёт CSV с одной строкой на шаг
+// Колонки: year,step,length_km,area_km2,eroded_m3,deposited_m3,net_change_m3,storm_event,sea_level_m
 func writeLongFormatCSV(
 	writer *csv.Writer,
 	snapshots [][]geometry.LatLon,
 	temporalResult *geometry.TemporalResult,
 ) error {
-	// Write header
+	// Записываем заголовок
 	header := []string{
-		"year", "step", "length_km", "area_km2",
-		"eroded_m3", "deposited_m3", "net_change_m3",
-		"storm_event", "sea_level_m",
+		"год", "шаг", "длина_км", "площадь_км2",
+		"эродировано_м3", "отложено_м3", "чистое_изменение_м3",
+		"штормовое_событие", "уровень_моря_м",
 	}
 	if err := writer.Write(header); err != nil {
-		return fmt.Errorf("write CSV header: %w", err)
+		return fmt.Errorf("запись заголовка CSV: %w", err)
 	}
 
-	// Write data rows
+	// Записываем строки данных
 	for i, snapshot := range snapshots {
-		// Get temporal state if available
+		// Получаем временное состояние если доступно
 		var state geometry.TemporalState
 		var hasTemporalState bool
 		if temporalResult != nil && i < len(temporalResult.TemporalStates) {
@@ -73,45 +73,45 @@ func writeLongFormatCSV(
 			hasTemporalState = true
 		}
 
-		// Calculate metrics
+		// Вычисляем метрики
 		lengthKm := geometry.PolylineLength(snapshot)
 		areaKm2 := geometry.Area(snapshot)
 
-		// Calculate erosion/deposition volumes (simplified)
+		// Вычисляем объёмы эрозии/аккумуляции (упрощённо)
 		var erodedM3, depositedM3, netChangeM3 float64
 		if i > 0 && len(snapshots[i-1]) > 0 && len(snapshot) > 0 {
-			// Simple estimation based on length change
+			// Простая оценка на основе изменения длины
 			prevLength := geometry.PolylineLength(snapshots[i-1])
 			lengthChange := prevLength - lengthKm
 
-			// Convert to volume (very rough approximation)
-			// Assume average coastline retreat of 1m depth
-			erodedM3 = lengthChange * 1000 * 1 // km to m, assuming 1m depth
+			// Конвертируем в объём (очень грубое приближение)
+			// Предполагаем средний отступ береговой линии на 1м глубины
+			erodedM3 = lengthChange * 1000 * 1 // км в м, предполагая 1м глубины
 
-			// For simplicity, assume no deposition in this model
+			// Для простоты предполагаем отсутствие аккумуляции в этой модели
 			depositedM3 = 0
 			netChangeM3 = erodedM3 - depositedM3
 		}
 
-		// Storm event indicator
-		stormEvent := "false"
+		// Индикатор штормового события
+		stormEvent := "ложь"
 		if hasTemporalState && state.IsStorm {
-			stormEvent = "true"
+			stormEvent = "истина"
 		}
 
-		// Sea level
+		// Уровень моря
 		seaLevelM := 0.0
 		if hasTemporalState && state.SeaLevelOffset > 0 {
 			seaLevelM = state.SeaLevelOffset
 		}
 
-		// Get year
+		// Получаем год
 		year := 0.0
 		if hasTemporalState {
 			year = state.Year
 		}
 
-		// Write row
+		// Записываем строку
 		row := []string{
 			fmt.Sprintf("%.1f", year),
 			strconv.Itoa(i),
@@ -125,41 +125,41 @@ func writeLongFormatCSV(
 		}
 
 		if err := writer.Write(row); err != nil {
-			return fmt.Errorf("write CSV row %d: %w", i, err)
+			return fmt.Errorf("запись строки CSV %d: %w", i, err)
 		}
 	}
 
 	return nil
 }
 
-// writeWideFormatCSV creates CSV with one row and columns for each step
+// writeWideFormatCSV создаёт CSV с одной строкой и колонками для каждого шага
 func writeWideFormatCSV(
 	writer *csv.Writer,
 	snapshots [][]geometry.LatLon,
 	temporalResult *geometry.TemporalResult,
 ) error {
-	// Determine number of metrics columns per step
+	// Определяем количество колонок метрик на шаг
 	numSteps := len(snapshots)
 
-	// Build header: metric_name,step_0,step_1,...,step_N
-	header := []string{"metric_name"}
+	// Формируем заголовок: metric_name,step_0,step_1,...,step_N
+	header := []string{"метрика"}
 	for i := 0; i < numSteps; i++ {
-		header = append(header, fmt.Sprintf("step_%d", i))
+		header = append(header, fmt.Sprintf("шаг_%d", i))
 	}
 	if err := writer.Write(header); err != nil {
-		return fmt.Errorf("write CSV header: %w", err)
+		return fmt.Errorf("запись заголовка CSV: %w", err)
 	}
 
-	// Prepare data arrays
+	// Подготавливаем массивы данных
 	years := make([]string, numSteps)
 	lengths := make([]string, numSteps)
 	areas := make([]string, numSteps)
 	storms := make([]string, numSteps)
 	seaLevels := make([]string, numSteps)
 
-	// Extract data for each step
+	// Извлекаем данные для каждого шага
 	for i, snapshot := range snapshots {
-		// Get temporal state if available
+		// Получаем временное состояние если доступно
 		var state geometry.TemporalState
 		var hasTemporalState bool
 		if temporalResult != nil && i < len(temporalResult.TemporalStates) {
@@ -167,25 +167,25 @@ func writeWideFormatCSV(
 			hasTemporalState = true
 		}
 
-		// Year
+		// Год
 		if hasTemporalState {
 			years[i] = fmt.Sprintf("%.1f", state.Year)
 		} else {
 			years[i] = fmt.Sprintf("%d", i)
 		}
 
-		// Length and area
+		// Длина и площадь
 		lengths[i] = fmt.Sprintf("%.1f", geometry.PolylineLength(snapshot))
 		areas[i] = fmt.Sprintf("%.1f", geometry.Area(snapshot))
 
-		// Storm indicator
+		// Индикатор шторма
 		if hasTemporalState && state.IsStorm {
-			storms[i] = "true"
+			storms[i] = "истина"
 		} else {
-			storms[i] = "false"
+			storms[i] = "ложь"
 		}
 
-		// Sea level
+		// Уровень моря
 		if hasTemporalState && state.SeaLevelOffset > 0 {
 			seaLevels[i] = fmt.Sprintf("%.4f", state.SeaLevelOffset)
 		} else {
@@ -193,22 +193,22 @@ func writeWideFormatCSV(
 		}
 	}
 
-	// Write rows for each metric
+	// Записываем строки для каждой метрики
 	metrics := []struct {
 		name   string
 		values []string
 	}{
-		{"year", years},
-		{"length_km", lengths},
-		{"area_km2", areas},
-		{"storm_event", storms},
-		{"sea_level_m", seaLevels},
+		{"год", years},
+		{"длина_км", lengths},
+		{"площадь_км2", areas},
+		{"штормовое_событие", storms},
+		{"уровень_моря_м", seaLevels},
 	}
 
 	for _, metric := range metrics {
 		row := append([]string{metric.name}, metric.values...)
 		if err := writer.Write(row); err != nil {
-			return fmt.Errorf("write CSV metric %s: %w", metric.name, err)
+			return fmt.Errorf("запись метрики CSV %s: %w", metric.name, err)
 		}
 	}
 

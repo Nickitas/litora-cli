@@ -7,52 +7,52 @@ import (
 	"coastal-geometry/internal/domain/geometry"
 )
 
-// SiteSpec defines parameters for creating a new benchmark site
+// SiteSpec определяет параметры для создания нового сайта калибровки
 type SiteSpec struct {
-	Name              string
-	ID                string
-	Region            string
-	Country           string
-	Description       string
-	Bounds            Bounds
-	CoastType         CoastType
-	DominantLithology string
-	MeanWaveHeight    float64
-	MeanWavePeriod    float64
-	MeanWaveDirection float64
-	DataQuality       Quality
-	ObservationYears  Range
-	DataSource        string
-	References        []string
+	Name              string    // название сайта
+	ID                string    // идентификатор
+	Region            string    // регион
+	Country           string    // страна
+	Description       string    // описание
+	Bounds            Bounds    // географические границы
+	CoastType         CoastType // тип берега
+	DominantLithology string    // доминирующая литология
+	MeanWaveHeight    float64   // средняя высота волны (м)
+	MeanWavePeriod    float64   // средний период волны (с)
+	MeanWaveDirection float64   // среднее направление волны (град)
+	DataQuality       Quality   // качество данных
+	ObservationYears  Range     // годы наблюдений
+	DataSource        string    // источник данных
+	References        []string  // ссылки на источники
 }
 
-// Validate returns an error if spec is incomplete or inconsistent
+// Validate проверяет корректность спецификации сайта и возвращает ошибку при некорректных данных
 func (s *SiteSpec) Validate() error {
 	if strings.TrimSpace(s.Name) == "" {
-		return fmt.Errorf("name is required")
+		return fmt.Errorf("необходимо указать название")
 	}
 	if strings.TrimSpace(s.ID) == "" {
-		// Auto-generate ID from name
+		// Автоматическая генерация ID из названия
 		s.ID = slugifyID(s.Name)
 	}
 	if s.Bounds.MinLat >= s.Bounds.MaxLat {
-		return fmt.Errorf("bounds: min_lat must be < max_lat")
+		return fmt.Errorf("границы: минимальная широта должна быть меньше максимальной")
 	}
 	if s.Bounds.MinLon >= s.Bounds.MaxLon {
-		return fmt.Errorf("bounds: min_lon must be < max_lon")
+		return fmt.Errorf("границы: минимальная долгота должна быть меньше максимальной")
 	}
 	if s.Bounds.MinLat < -90 || s.Bounds.MaxLat > 90 {
-		return fmt.Errorf("bounds: lat out of range [-90, 90]")
+		return fmt.Errorf("границы: широта вне диапазона [-90, 90]")
 	}
 	if s.Bounds.MinLon < -180 || s.Bounds.MaxLon > 180 {
-		return fmt.Errorf("bounds: lon out of range [-180, 180]")
+		return fmt.Errorf("границы: долгота вне диапазона [-180, 180]")
 	}
 	if s.ObservationYears.Min == 0 && s.ObservationYears.Max == 0 {
-		// Default to recent decade
+		// Значение по умолчанию - последнее десятилетие
 		s.ObservationYears = Range{Min: 2000, Max: 2024}
 	}
 	if s.ObservationYears.Min > s.ObservationYears.Max {
-		return fmt.Errorf("observation_years: min must be <= max")
+		return fmt.Errorf("годы_наблюдений: минимум должен быть меньше или равен максимуму")
 	}
 	if s.CoastType == "" {
 		s.CoastType = CoastTypeMixed
@@ -63,8 +63,8 @@ func (s *SiteSpec) Validate() error {
 	return nil
 }
 
-// Build constructs a BenchmarkSite from the spec by extracting coastline from
-// the provided full coastline
+// Build создаёт BenchmarkSite из спецификации, извлекая береговую линию из
+// предоставленной полной береговой линии
 func (s *SiteSpec) Build(fullCoastline []geometry.LatLon) BenchmarkSite {
 	site := BenchmarkSite{
 		ID:                s.ID,
@@ -92,8 +92,8 @@ func (s *SiteSpec) Build(fullCoastline []geometry.LatLon) BenchmarkSite {
 	return site
 }
 
-// slugifyID converts a name to a valid ID slug
-// Example: "San Francisco Bay" -> "san-francisco-bay"
+// slugifyID преобразует название в валидный ID
+// Пример: "San Francisco Bay" -> "san-francisco-bay"
 func slugifyID(name string) string {
 	var b strings.Builder
 	prevDash := true // allow trimming leading dashes
@@ -113,18 +113,18 @@ func slugifyID(name string) string {
 	return strings.Trim(b.String(), "-")
 }
 
-// ParseBounds parses "min_lat,max_lat,min_lon,max_lon" string into Bounds
+// ParseBounds разбирает строку "мин_шир,макс_шир,мин_долг,макс_долг" в структуру Bounds
 func ParseBounds(s string) (Bounds, error) {
 	parts := strings.Split(s, ",")
 	if len(parts) != 4 {
-		return Bounds{}, fmt.Errorf("bounds must have 4 comma-separated values, got %d", len(parts))
+		return Bounds{}, fmt.Errorf("границы должны содержать 4 значения через запятую, получено %d", len(parts))
 	}
 	var values [4]float64
 	for i, p := range parts {
 		p = strings.TrimSpace(p)
 		_, err := fmt.Sscanf(p, "%f", &values[i])
 		if err != nil {
-			return Bounds{}, fmt.Errorf("invalid bound %q: %w", p, err)
+			return Bounds{}, fmt.Errorf("некорректное значение границы %q: %w", p, err)
 		}
 	}
 	return Bounds{
@@ -135,7 +135,7 @@ func ParseBounds(s string) (Bounds, error) {
 	}, nil
 }
 
-// PresetCoastType returns a CoastType from a string
+// PresetCoastType возвращает CoastType из строкового представления
 func PresetCoastType(s string) (CoastType, error) {
 	switch strings.ToLower(strings.TrimSpace(s)) {
 	case "sandy":
@@ -153,11 +153,11 @@ func PresetCoastType(s string) (CoastType, error) {
 	case "":
 		return CoastTypeMixed, nil
 	default:
-		return "", fmt.Errorf("unknown coast type %q (valid: sandy, cliff, rocky, muddy, mixed, artificial)", s)
+		return "", fmt.Errorf("неизвестный тип берега %q (допустимые: sandy, cliff, rocky, muddy, mixed, artificial)", s)
 	}
 }
 
-// PresetQuality returns a Quality from a string
+// PresetQuality возвращает Quality из строкового представления
 func PresetQuality(s string) (Quality, error) {
 	switch strings.ToLower(strings.TrimSpace(s)) {
 	case "high":
@@ -169,6 +169,6 @@ func PresetQuality(s string) (Quality, error) {
 	case "":
 		return QualityMedium, nil
 	default:
-		return "", fmt.Errorf("unknown quality %q (valid: high, medium, low)", s)
+		return "", fmt.Errorf("неизвестное качество %q (допустимые: high, medium, low)", s)
 	}
 }

@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"text/tabwriter"
 	"time"
 )
 
@@ -711,35 +712,34 @@ func resolveSeriesOutputDir(output string) (string, error) {
 	return filepath.Abs(output)
 }
 
-// printMeshQuality displays TIN mesh quality metrics in console.
+// printMeshQuality выводит метрики качества TIN-триангуляции в консоль
 func printMeshQuality(quality *geometry.MeshQuality) {
 	if quality == nil {
 		return
 	}
 
 	fmt.Println("\n  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-	fmt.Println("  TIN MESH QUALITY METRICS")
+	fmt.Println("  МЕТРИКИ КАЧЕСТВА TIN-MESH")
 	fmt.Println("  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 
-	fmt.Println("  ┌─────────────────┬─────────────────┬──────────────────┐")
-	fmt.Println("  │ Metric          │ Value           │ Assessment       │")
-	fmt.Println("  ├─────────────────┼─────────────────┼──────────────────┤")
-
-	fmt.Printf("  │ Triangles       │ %-15d │                  │\n", quality.TriangleCount)
-	fmt.Printf("  │ Vertices        │ %-15d │                  │\n", quality.VertexCount)
+	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+	fmt.Fprintln(w, "  Метрика\tЗначение\tОценка")
+	fmt.Fprintln(w, "  -------\t-------\t-----")
 
 	minAngleAssessment := angleQualityAssessment(quality.MinAngle)
 	maxAngleAssessment := angleQualityAssessment(quality.MaxAngle)
 	avgAngleAssessment := angleQualityAssessment(quality.AvgAngle)
 
-	fmt.Printf("  │ Min Angle       │ %-15.1f° │ %-16s │\n", quality.MinAngle, minAngleAssessment)
-	fmt.Printf("  │ Max Angle       │ %-15.1f° │ %-16s │\n", quality.MaxAngle, maxAngleAssessment)
-	fmt.Printf("  │ Avg Angle       │ %-15.1f° │ %-16s │\n", quality.AvgAngle, avgAngleAssessment)
+	fmt.Fprintf(w, "  Треугольников\t%d\t\n", quality.TriangleCount)
+	fmt.Fprintf(w, "  Вершин\t%d\t\n", quality.VertexCount)
+	fmt.Fprintf(w, "  Мин. угол\t%.1f°\t%s\n", quality.MinAngle, minAngleAssessment)
+	fmt.Fprintf(w, "  Макс. угол\t%.1f°\t%s\n", quality.MaxAngle, maxAngleAssessment)
+	fmt.Fprintf(w, "  Ср. угол\t%.1f°\t%s\n", quality.AvgAngle, avgAngleAssessment)
 
-	fmt.Println("  └─────────────────┴─────────────────┴──────────────────┘")
+	w.Flush()
 	fmt.Println()
 
-	// Quality indicators
+	// Индикаторы качества
 	minAngle := quality.MinAngle
 	maxAngle := quality.MaxAngle
 	if minAngle >= 20 && maxAngle <= 120 {
@@ -752,7 +752,7 @@ func printMeshQuality(quality *geometry.MeshQuality) {
 	fmt.Println()
 }
 
-// angleQualityAssessment returns quality assessment for an angle.
+// angleQualityAssessment возвращает оценку качества для угла треугольника
 func angleQualityAssessment(angle float64) string {
 	const (
 		minAngle   = 20.0
@@ -770,7 +770,7 @@ func angleQualityAssessment(angle float64) string {
 	return "❌ плохо"
 }
 
-// makeMeshQualityStatCard creates a StatCard for mesh quality metrics.
+// makeMeshQualityStatCard создаёт статистическую карточку для метрик качества mesh
 func makeMeshQualityStatCard(quality *geometry.MeshQuality) svgrender.StatCard {
 	if quality == nil {
 		return svgrender.StatCard{}
@@ -812,7 +812,7 @@ func makeMeshQualityStatCard(quality *geometry.MeshQuality) svgrender.StatCard {
 	}
 }
 
-// qualityToneForAngle returns color tone based on angle quality.
+// qualityToneForAngle возвращает цветовой тон на основе качества угла
 func qualityToneForAngle(angle, minIdeal, maxIdeal float64) string {
 	const (
 		warningMin = 15.0
@@ -829,4 +829,62 @@ func qualityToneForAngle(angle, minIdeal, maxIdeal float64) string {
 		return warning
 	}
 	return bad
+}
+
+// Публичные функции-обёртки для cobra-команд
+
+// WriteCoastlineSVG создаёт SVG-визуализацию береговой линии
+func WriteCoastlineSVG(points []geometry.LatLon, validation coastline.ValidationReport, outputPathManager *OutputPathManager) error {
+	if len(points) == 0 {
+		return fmt.Errorf("нет точек для рендеринга")
+	}
+
+	ctx := exportContext{
+		Command:    "source",
+		Dataset:    "coastline",
+		Source:     "unknown",
+		Validation: validation,
+		Config:     config{},
+	}
+
+	renderPoints := simplifyForSeriesSVG(points)
+	if len(renderPoints.Points) == 0 {
+		renderPoints.Points = points
+	}
+
+	return writeCoastlineSVG(points, renderPoints.Points, "", "coastline.svg", ctx, outputPathManager)
+}
+
+// WriteDimensionSVGSeries создаёт SVG-файлы для каждой итерации фрактальной размерности
+func WriteDimensionSVGSeries(basePoints []geometry.LatLon, iterations int, opts koch.OrganicOptions, outputPathManager *OutputPathManager) error {
+	if len(basePoints) == 0 {
+		return fmt.Errorf("нет базовых точек")
+	}
+
+	ctx := exportContext{
+		Command:    "dimension",
+		Dataset:    "coastline",
+		Source:     "unknown",
+		Validation: coastline.ValidationReport{},
+		Config:     config{},
+	}
+
+	return writeOrganicKochSVGSeries(nil, basePoints, iterations, "", opts, 0, "dimension", "dimension", true, ctx, outputPathManager)
+}
+
+// WriteErosionSVGSeries создаёт SVG-файлы для каждого шага эрозии
+func WriteErosionSVGSeries(originalBase []geometry.LatLon, snapshots [][]geometry.LatLon, steps int, strength float64, seed int64, waveOptions geometry.WaveErosionOptions, outputPathManager *OutputPathManager) error {
+	if len(originalBase) == 0 && len(snapshots) == 0 {
+		return fmt.Errorf("нет данных для рендеринга")
+	}
+
+	ctx := exportContext{
+		Command:    "erosion",
+		Dataset:    "coastline",
+		Source:     "unknown",
+		Validation: coastline.ValidationReport{},
+		Config:     config{},
+	}
+
+	return writeErosionSVGSeries(originalBase, nil, snapshots, steps, strength, seed, waveOptions, "", ctx, outputPathManager, nil)
 }

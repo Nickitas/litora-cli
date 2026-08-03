@@ -7,7 +7,7 @@ import (
 	"coastal-geometry/internal/domain/geometry"
 )
 
-// Hotspot represents a segment of coastline with significant erosion
+// Hotspot представляет сегмент побережья со значительной эрозией
 type Hotspot struct {
 	Center          geometry.LatLon `json:"center"`
 	StartIdx        int             `json:"start_idx"`
@@ -15,10 +15,10 @@ type Hotspot struct {
 	MeanRetreatRate float64         `json:"mean_retreat_rate_m_per_year"`
 	MaxRetreatRate  float64         `json:"max_retreat_rate_m_per_year"`
 	LengthKm        float64         `json:"length_km"`
-	Rank            int             `json:"rank"` // 1 = hottest
+	Rank            int             `json:"rank"` // 1 = самый активный
 }
 
-// SegmentRate represents modeled retreat rate for each coastline segment
+// SegmentRate представляет модельную скорость отступления для каждого сегмента побережья
 type SegmentRate struct {
 	Index          int             `json:"index"`
 	Center         geometry.LatLon `json:"center"`
@@ -28,8 +28,8 @@ type SegmentRate struct {
 	DistanceKm     float64         `json:"distance_km_to_nearest_observation,omitempty"`
 }
 
-// SegmentRates returns modeled retreat rates for every coastline segment
-// using a single model run with given parameters
+// SegmentRates возвращает модельные скорости отступления для всех сегментов побережья
+// используя одиночный прогон модели с заданными параметрами
 func SegmentRates(site BenchmarkSite, config CalibrationConfig, strength, waveDir float64) []SegmentRate {
 	steps := int(float64(config.TotalYears) / config.YearsPerStep)
 	if steps < 1 {
@@ -53,16 +53,16 @@ func SegmentRates(site BenchmarkSite, config CalibrationConfig, strength, waveDi
 	initial := snapshots[0]
 	final := snapshots[len(snapshots)-1]
 
-	// Compute retreat per point
+	// Вычисляем отступление для каждой точки
 	retreats := make([]float64, len(initial))
 	for i := range initial {
 		retreats[i] = computeSegmentRetreat(initial, final, i) / float64(config.TotalYears)
 	}
 
-	// Build segment rates
+	// Формируем скорости сегментов
 	rates := make([]SegmentRate, len(initial))
 	for i := range initial {
-		// Check if any observation is near
+		// Проверяем, есть ли рядом наблюдения
 		var obsRate float64
 		hasObs := false
 		var minDist float64 = math.Inf(1)
@@ -70,7 +70,7 @@ func SegmentRates(site BenchmarkSite, config CalibrationConfig, strength, waveDi
 			d := haversineKm(initial[i], obs.LatLon)
 			if d < minDist {
 				minDist = d
-				if d < 2.0 { // within 2 km
+				if d < 2.0 { // в пределах 2 км
 					obsRate = obs.ShorelineChangeRate
 					hasObs = true
 				}
@@ -92,8 +92,8 @@ func SegmentRates(site BenchmarkSite, config CalibrationConfig, strength, waveDi
 	return rates
 }
 
-// FindHotspots identifies the top-N erosion hotspots along the coast
-// Hotspots are contiguous segments of high retreat rate (above threshold)
+// FindHotspots выделяет топ-N участков активной эрозии вдоль побережья
+// Участки - это непрерывные сегменты с высокой скоростью отступления (выше порога)
 func FindHotspots(rates []SegmentRate, coastline []geometry.LatLon, topN int, thresholdPercentile float64) []Hotspot {
 	if len(rates) < 2 || topN < 1 {
 		return nil
@@ -102,7 +102,7 @@ func FindHotspots(rates []SegmentRate, coastline []geometry.LatLon, topN int, th
 		thresholdPercentile = 0.75
 	}
 
-	// Sort retreat rates to find threshold
+	// Сортируем скорости отступления для нахождения порога
 	sortedRates := make([]float64, len(rates))
 	for i, r := range rates {
 		sortedRates[i] = r.RetreatRate
@@ -111,7 +111,7 @@ func FindHotspots(rates []SegmentRate, coastline []geometry.LatLon, topN int, th
 	thresholdIdx := int(float64(len(sortedRates)-1) * thresholdPercentile)
 	threshold := sortedRates[thresholdIdx]
 
-	// Find contiguous segments above threshold
+	// Находим непрерывные сегменты выше порога
 	var hotspots []Hotspot
 	i := 0
 	for i < len(rates) {
@@ -120,7 +120,7 @@ func FindHotspots(rates []SegmentRate, coastline []geometry.LatLon, topN int, th
 			continue
 		}
 
-		// Start of a hotspot
+		// Начало участка активной эрозии
 		start := i
 		maxRate := rates[i].RetreatRate
 		var sumRate float64
@@ -133,16 +133,16 @@ func FindHotspots(rates []SegmentRate, coastline []geometry.LatLon, topN int, th
 		}
 		end := i - 1
 
-		// Compute hotspot properties
+		// Вычисляем свойства участка
 		hotspots = append(hotspots, buildHotspot(coastline, rates, start, end, sumRate, maxRate))
 	}
 
-	// Sort by mean retreat rate descending
+	// Сортируем по средней скорости отступления по убыванию
 	sort.Slice(hotspots, func(a, b int) bool {
 		return hotspots[a].MeanRetreatRate > hotspots[b].MeanRetreatRate
 	})
 
-	// Assign ranks and limit to top N
+	// Присваиваем рейтинги и ограничиваем топ-N
 	for i := range hotspots {
 		hotspots[i].Rank = i + 1
 	}
@@ -156,11 +156,11 @@ func buildHotspot(coastline []geometry.LatLon, rates []SegmentRate, start, end i
 	n := end - start + 1
 	meanRate := sumRate / float64(n)
 
-	// Center is midpoint
+	// Центр - это средняя точка
 	centerIdx := (start + end) / 2
 	center := coastline[centerIdx]
 
-	// Length along coastline
+	// Длина вдоль побережья
 	var lengthM float64
 	for i := start; i < end && i+1 < len(coastline); i++ {
 		lengthM += haversineKm(coastline[i], coastline[i+1]) * 1000

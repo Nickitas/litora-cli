@@ -197,7 +197,7 @@ func TestLoadFallsBackToLocalJSONWhenRemoteFails(t *testing.T) {
 	if len(result.LoadWarnings) != 1 {
 		t.Fatalf("expected one load warning, got %+v", result.LoadWarnings)
 	}
-	if !strings.Contains(result.LoadWarnings[0], "using local fallback") {
+	if !strings.Contains(result.LoadWarnings[0], "используется локальная копия") {
 		t.Fatalf("unexpected load warning: %+v", result.LoadWarnings)
 	}
 }
@@ -250,7 +250,7 @@ func TestLoadUsesCacheWithoutRemoteRequest(t *testing.T) {
 	if len(result.Points) != 4 {
 		t.Fatalf("expected 4 cached points, got %d", len(result.Points))
 	}
-	if !strings.Contains(result.Source, "cached copy") {
+	if !strings.Contains(result.Source, "кешированная копия") {
 		t.Fatalf("expected cached source label, got %q", result.Source)
 	}
 }
@@ -362,10 +362,10 @@ func TestLoadUsesStaleCacheWhenRefreshFails(t *testing.T) {
 		t.Fatalf("Load returned error: %v", err)
 	}
 
-	if !strings.Contains(result.Source, "cached copy") {
+	if !strings.Contains(result.Source, "кешированная копия") {
 		t.Fatalf("expected stale cache source, got %q", result.Source)
 	}
-	if len(result.LoadWarnings) != 1 || !strings.Contains(result.LoadWarnings[0], "using cached GeoJSON") {
+	if len(result.LoadWarnings) != 1 || !strings.Contains(result.LoadWarnings[0], "используется кэшированный GeoJSON") {
 		t.Fatalf("expected cached warning, got %+v", result.LoadWarnings)
 	}
 	if len(result.Points) != 3 {
@@ -514,7 +514,7 @@ func TestInspectSourceFallsBackToLocalAndGeneratesSnapshot(t *testing.T) {
 	if result.Metadata.Format != "point-array" {
 		t.Fatalf("expected point-array format, got %q", result.Metadata.Format)
 	}
-	if len(result.LoadWarnings) != 1 || !strings.Contains(result.LoadWarnings[0], "using local fallback") {
+	if len(result.LoadWarnings) != 1 || !strings.Contains(result.LoadWarnings[0], "используется локальная копия") {
 		t.Fatalf("expected local fallback warning, got %+v", result.LoadWarnings)
 	}
 	if !strings.HasPrefix(result.SnapshotPath, snapshotDir) {

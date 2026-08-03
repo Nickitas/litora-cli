@@ -1,30 +1,30 @@
 {
-  "generated_at": "2026-07-03T09:17:15Z",
-  "command": "model dimension",
-  "dataset": "Black Sea",
-  "source": "data\\cache\\black-sea.geojson (cached copy of https://geo.vliz.be/geoserver/MarineRegions/wfs?cql_filter=mrgid%3D3319\u0026outputFormat=application%2Fjson\u0026request=GetFeature\u0026service=WFS\u0026typeName=iho\u0026version=1.0.0)",
+  "generated_at": "2026-08-01T21:39:42Z",
+  "command": "lito dimension",
+  "dataset": "coastline",
+  "source": "unknown",
   "title": "Фрактальная размерность (органическая модель)",
   "output_dir": "output",
   "reference_coastline": {
     "points_count": 9635,
-    "length_km": 6391.057193562525
+    "length_km": 6398.216681057437
   },
   "reference_render": {
-    "points_count": 1800,
-    "length_km": 5949.039321836947
+    "points_count": 9635,
+    "length_km": 6398.216681057437
   },
   "model_base": {
-    "points_count": 391,
-    "length_km": 5334.126834246317
+    "points_count": 9635,
+    "length_km": 6398.216681057437
   },
   "model_simplification": {
-    "applied": true,
+    "applied": false,
     "points_before": 9635,
-    "points_after": 391,
-    "length_before_km": 6391.057193562525,
-    "length_after_km": 5334.126834246317,
-    "length_delta_km": -1056.9303593162076,
-    "length_delta_percent": -16.537645139223827
+    "points_after": 9635,
+    "length_before_km": 6398.216681057437,
+    "length_after_km": 6398.216681057437,
+    "length_delta_km": 0,
+    "length_delta_percent": 0
   },
   "erosion_seed": 42,
   "organic_options": {
@@ -35,103 +35,86 @@
   "iterations": [
     {
       "iteration": 0,
-      "svg_file": "output\\svg\\dimension_iter_0.svg",
-      "points_count": 391,
-      "render_points_count": 391,
-      "length_km": 5334.126834246317,
+      "svg_file": "output/svg/dimension_0.svg",
+      "points_count": 9635,
+      "render_points_count": 9635,
+      "length_km": 6398.216681057437,
       "relative_to_model_base": 1,
-      "relative_to_reference": 0.8346235486077618,
+      "relative_to_reference": 1,
       "dimension": {
         "valid": true,
-        "dimension": 1.0846949822678185,
-        "regression_r_squared": 0.9999026706695365,
+        "dimension": 1.1059828127274343,
+        "regression_r_squared": 0.9999463248971273,
         "stable_across_scales": true,
-        "stability_spread": 0.1152650761106162,
+        "stability_spread": 0.0970793828153027,
         "sample_count": 13
       }
     },
     {
       "iteration": 1,
-      "svg_file": "output\\svg\\dimension_iter_1.svg",
-      "points_count": 1561,
-      "render_points_count": 1561,
-      "length_km": 7544.041019148017,
-      "relative_to_model_base": 1.4142972699324552,
-      "relative_to_reference": 1.1804058062172953,
+      "svg_file": "output/svg/dimension_1.svg",
+      "points_count": 38537,
+      "render_points_count": 38537,
+      "length_km": 8931.303069841639,
+      "relative_to_model_base": 1.3959050646539775,
+      "relative_to_reference": 1.3959050646539775,
       "dimension": {
         "valid": true,
-        "dimension": 1.1591237557985976,
-        "regression_r_squared": 0.9999339139236753,
+        "dimension": 1.1192720550530775,
+        "regression_r_squared": 0.9999641067355892,
         "stable_across_scales": true,
-        "stability_spread": 0.17600056470449776,
+        "stability_spread": 0.10338485448627455,
         "sample_count": 13
       }
     },
     {
       "iteration": 2,
-      "svg_file": "output\\svg\\dimension_iter_2.svg",
-      "points_count": 6241,
-      "render_points_count": 1800,
-      "length_km": 10175.305395029945,
-      "relative_to_model_base": 1.907585948219707,
-      "relative_to_reference": 1.592116153377434,
+      "svg_file": "output/svg/dimension_2.svg",
+      "points_count": 154145,
+      "render_points_count": 154145,
+      "length_km": 12067.46362921606,
+      "relative_to_model_base": 1.8860667324604679,
+      "relative_to_reference": 1.8860667324604679,
       "dimension": {
         "valid": true,
-        "dimension": 1.2057703301161449,
-        "regression_r_squared": 0.9999090553346344,
+        "dimension": 1.1204544652899964,
+        "regression_r_squared": 0.9999700166648223,
         "stable_across_scales": true,
-        "stability_spread": 0.0976794688502689,
+        "stability_spread": 0.10338485448627455,
         "sample_count": 13
       }
     },
     {
       "iteration": 3,
-      "svg_file": "output\\svg\\dimension_iter_3.svg",
-      "points_count": 24961,
-      "render_points_count": 1800,
-      "length_km": 13624.238135021504,
-      "relative_to_model_base": 2.5541646380717404,
-      "relative_to_reference": 2.1317659539558953,
+      "svg_file": "output/svg/dimension_3.svg",
+      "points_count": 616577,
+      "render_points_count": 616577,
+      "length_km": 16165.906055366178,
+      "relative_to_model_base": 2.5266268495137036,
+      "relative_to_reference": 2.5266268495137036,
       "dimension": {
         "valid": true,
-        "dimension": 1.218119247539667,
-        "regression_r_squared": 0.9997890847073255,
+        "dimension": 1.120876600826462,
+        "regression_r_squared": 0.9999716656319368,
         "stable_across_scales": true,
-        "stability_spread": 0.13004066252645363,
+        "stability_spread": 0.10338485448627455,
         "sample_count": 13
       }
     },
     {
       "iteration": 4,
-      "svg_file": "output\\svg\\dimension_iter_4.svg",
-      "points_count": 99841,
-      "render_points_count": 1800,
-      "length_km": 18189.506991654704,
-      "relative_to_model_base": 3.4100252125378607,
-      "relative_to_reference": 2.8460873437302863,
+      "svg_file": "output/svg/dimension_4.svg",
+      "points_count": 2466305,
+      "render_points_count": 2466305,
+      "length_km": 21595.44076013028,
+      "relative_to_model_base": 3.375228104428809,
+      "relative_to_reference": 3.375228104428809,
       "dimension": {
         "valid": true,
-        "dimension": 1.220325188964111,
-        "regression_r_squared": 0.9997485554566318,
+        "dimension": 1.121021317590583,
+        "regression_r_squared": 0.9999719420300418,
         "stable_across_scales": true,
-        "stability_spread": 0.13191320948360086,
-        "sample_count": 13
-      }
-    },
-    {
-      "iteration": 5,
-      "svg_file": "output\\svg\\dimension_iter_5.svg",
-      "points_count": 399361,
-      "render_points_count": 1799,
-      "length_km": 24283.32241059497,
-      "relative_to_model_base": 4.552445632655465,
-      "relative_to_reference": 3.7995783287708114,
-      "dimension": {
-        "valid": true,
-        "dimension": 1.22122715152457,
-        "regression_r_squared": 0.9997475150927022,
-        "stable_across_scales": true,
-        "stability_spread": 0.13945934293851225,
+        "stability_spread": 0.10338485448627455,
         "sample_count": 13
       }
     }

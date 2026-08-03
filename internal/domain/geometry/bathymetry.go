@@ -7,15 +7,15 @@ import (
 	"strconv"
 )
 
-// BathymetryPoint represents a single depth measurement at a location.
-// Depth is negative for underwater (e.g., -100 = 100 meters below sea level).
+// BathymetryPoint представляет одно измерение глубины в точке.
+// Глубина отрицательна для подводных участков (напр., -100 = 100 метров под уровнем моря).
 type BathymetryPoint struct {
 	Lat   float64 `json:"lat"`
 	Lon   float64 `json:"lon"`
 	Depth float64 `json:"depth"`
 }
 
-// BathymetryGrid stores depth data in a regular latitude-longitude grid.
+// BathymetryGrid хранит данные глубин в регулярной сетке широта-долгота.
 type BathymetryGrid struct {
 	Points     map[string]BathymetryPoint
 	Resolution float64
@@ -25,7 +25,7 @@ type BathymetryGrid struct {
 	}
 }
 
-// BathymetryLoadOptions controls how bathymetry data is loaded.
+// BathymetryLoadOptions управляет загрузкой данных батиметрии.
 type BathymetryLoadOptions struct {
 	LocalPath  string
 	RemoteURL  string
@@ -34,7 +34,7 @@ type BathymetryLoadOptions struct {
 	Resolution float64
 }
 
-// BathymetryLoadResult contains metadata from loading bathymetry.
+// BathymetryLoadResult содержит метаданные из загрузки батиметрии.
 type BathymetryLoadResult struct {
 	Grid         *BathymetryGrid
 	PointCount   int
@@ -43,8 +43,8 @@ type BathymetryLoadResult struct {
 	LoadWarnings []string
 }
 
-// LoadBathymetryFromJSON loads bathymetry data from a JSON byte slice.
-// The JSON should be an array of objects with lat, lon, and depth fields.
+// LoadBathymetryFromJSON загружает данные батиметрии из JSON-массива байтов.
+// JSON должен быть массивом объектов с полями lat, lon и depth.
 func LoadBathymetryFromJSON(data []byte, options BathymetryLoadOptions) (*BathymetryGrid, error) {
 	if options.Resolution <= 0 {
 		options.Resolution = 0.01
@@ -77,7 +77,7 @@ func LoadBathymetryFromJSON(data []byte, options BathymetryLoadOptions) (*Bathym
 	return grid, nil
 }
 
-// BuildGrid creates a BathymetryGrid from a slice of points.
+// BuildGrid создаёт BathymetryGrid из набора точек.
 func BuildGrid(points []BathymetryPoint, resolution float64) (*BathymetryGrid, error) {
 	if len(points) == 0 {
 		return nil, fmt.Errorf("cannot build grid from empty points")
@@ -117,8 +117,8 @@ func BuildGrid(points []BathymetryPoint, resolution float64) (*BathymetryGrid, e
 	return grid, nil
 }
 
-// InterpolateDepth returns the depth at a given location using bilinear interpolation.
-// Returns an error if the location is outside the grid bounds.
+// InterpolateDepth возвращает глубину в заданной точке с использованием билинейной интерполяции.
+// Возвращает ошибку, если точка находится за пределами сетки.
 func (g *BathymetryGrid) InterpolateDepth(lat, lon float64) (float64, error) {
 	if lat < g.bounds.MinLat || lat > g.bounds.MaxLat ||
 		lon < g.bounds.MinLon || lon > g.bounds.MaxLon {

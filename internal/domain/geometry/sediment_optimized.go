@@ -111,11 +111,6 @@ type OptimizedSedimentCache struct {
 	mu          sync.RWMutex
 }
 
-// Vector2D 2D вектор
-type Vector2D struct {
-	X, Y float64
-}
-
 // NewOptimizedCache создаёт новый кэш
 func NewOptimizedCache() *OptimizedSedimentCache {
 	return &OptimizedSedimentCache{

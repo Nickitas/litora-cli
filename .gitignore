@@ -1,5 +1,6 @@
 lito-*
-.cloude
+lito.exe
+
 .DS_Store
 .claude
 build/

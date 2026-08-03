@@ -32,12 +32,16 @@
 
 ```
 internal/domain/fractal/
-└── dimension.go          # Box-counting анализ
+├── constants.go    # Константы и параметры алгоритма
+├── types.go        # Основные типы данных
+├── doc.go          # Документация пакета (godoc)
+├── dimension.go    # Основная логика box-counting
+└── README.md       # Документация (этот файл)
 ```
 
 Зависимости:
 - `internal/domain/geometry` — `LatLon`, `Haversine`
-- `internal/domain/generators/koch` — генерация тестовых кривых Коха
+- `gonum.org/v1/gonum/stat` — линейная регрессия и статистика
 
 ---
 

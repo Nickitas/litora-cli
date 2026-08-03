@@ -7,7 +7,7 @@ import (
 	"sort"
 )
 
-// printModelQualityMetrics рассчитывает и выводит метрики качества модели
+// printModelQualityMetrics рассчитывает и выводит метрики качества модели эрозии
 func printModelQualityMetrics(snapshots [][]geometry.LatLon, sedimentResult *geometry.SedimentTransportResult, temporalResult *geometry.TemporalResult) error {
 	if len(snapshots) < 2 {
 		fmt.Println("\n  ⚠️  Недостаточно данных для расчёта метрик качества (нужно ≥ 2 snapshots)")
@@ -24,13 +24,13 @@ func printModelQualityMetrics(snapshots [][]geometry.LatLon, sedimentResult *geo
 		// Используем данные из TemporalResult
 		erosionMetrics = geometry.CalculateErosionMetrics(*temporalResult)
 	} else {
-		// Создаём простые метрики из snapshots
+		// Создаём простые метрики из снимков
 		erosionMetrics = make([]geometry.ErosionMetrics, len(snapshots))
 		for i, snapshot := range snapshots {
 			length := geometry.PolylineLength(snapshot)
 			area := geometry.Area(snapshot)
 
-			// Рассчитываем retreat meters если есть предыдущий snapshot
+			// Рассчитываем отступание в метрах если есть предыдущий снимок
 			var meanRetreat, maxRetreat float64
 			if i > 0 && len(snapshots[i-1]) > 0 && len(snapshot) > 0 {
 				retreats := calculateRetreatMeters(snapshots[i-1], snapshot)
@@ -40,7 +40,7 @@ func printModelQualityMetrics(snapshots [][]geometry.LatLon, sedimentResult *geo
 				}
 			}
 
-			// Эродированный объём (упрощённо: изменение длины × глубина 1м)
+			// Эродированный объём (упрощённо: изменение длины × глубина 1 м)
 			var erodedM3 float64
 			if i > 0 {
 				prevLen := geometry.PolylineLength(snapshots[i-1])
@@ -61,7 +61,7 @@ func printModelQualityMetrics(snapshots [][]geometry.LatLon, sedimentResult *geo
 		}
 	}
 
-	// 2. Рассчитываем фрактальные размерности для последних snapshots
+	// 2. Рассчитываем фрактальные размерности для последних снимков
 	for i := range erosionMetrics {
 		if i == 0 || i == len(erosionMetrics)-1 || i%3 == 0 {
 			if len(snapshots[i]) > 10 {
@@ -75,7 +75,7 @@ func printModelQualityMetrics(snapshots [][]geometry.LatLon, sedimentResult *geo
 	if sedimentResult != nil {
 		finalSedimentResult = sedimentResult
 	} else {
-		// Создаём упрощённый sediment result (без реального транспорта наносов)
+		// Создаём упрощённый результат транспорта наносов (без реального расчёта)
 		// Примечание: для корректной валидации нужен CalculateSedimentTransport
 		totalEroded := 0.0
 		totalDeposited := 0.0
@@ -88,12 +88,12 @@ func printModelQualityMetrics(snapshots [][]geometry.LatLon, sedimentResult *geo
 			}
 		}
 
-		// Рассчитываем MassBalance правильно (с учетом transport)
+		// Рассчитываем MassBalance правильно (с учётом транспорта)
 		// Формула: |eroded - (deposited + transport)| / eroded
-		// В упрощенном случае transport = 0
+		// В упрощённом случае transport = 0
 		var massBalance float64
 		if totalEroded > 0 {
-			totalAccountedFor := totalDeposited // transport = 0 в упрощенном случае
+			totalAccountedFor := totalDeposited // transport = 0 в упрощённом случае
 			massBalance = math.Abs(totalEroded-totalAccountedFor) / totalEroded
 		} else {
 			massBalance = 0
@@ -106,7 +106,7 @@ func printModelQualityMetrics(snapshots [][]geometry.LatLon, sedimentResult *geo
 			TotalBudget: geometry.SedimentBudget{
 				ErodedVolume:    totalEroded,
 				DepositedVolume: totalDeposited,
-				TransportVolume: 0, // не считается в упрощенном случае
+				TransportVolume: 0, // не считается в упрощённом случае
 				NetChange:       totalEroded - totalDeposited,
 			},
 			MassBalance: massBalance,
@@ -117,27 +117,23 @@ func printModelQualityMetrics(snapshots [][]geometry.LatLon, sedimentResult *geo
 	// 4. Рассчитываем метрики качества модели
 	qualityMetrics := geometry.CalculateModelQualityMetrics(erosionMetrics, *finalSedimentResult)
 
-	// 5. Выводим базовые метрики
-	printQualityMetric("Dimension Stability", qualityMetrics.DimensionStability, 0.7, true,
+	// 5. Выводим все метрики качества
+	printQualityMetric("Стабильность размерности", qualityMetrics.DimensionStability, 0.7, true,
 		map[bool]string{true: "стабильная геометрия", false: "нестабильная геометрия"})
-	printQualityMetric("Mass Balance", qualityMetrics.MassBalance, 0.15, false,
+	printQualityMetric("Баланс массы", qualityMetrics.MassBalance, 0.15, false,
 		map[bool]string{true: "сохранение массы", false: "нарушение баланса массы"})
-	printQualityMetric("Spatial Autocorr", qualityMetrics.SpatialAutocorr, 0.0, true,
+	printQualityMetric("Пространственная автокорреляция", qualityMetrics.SpatialAutocorr, 0.0, true,
 		map[bool]string{true: "нормальный паттерн", false: "аномальный паттерн"})
-	printQualityMetric("Convergence Rate", qualityMetrics.ConvergenceRate, 0.5, true,
+	printQualityMetric("Скорость сходимости", qualityMetrics.ConvergenceRate, 0.5, true,
 		map[bool]string{true: "модель сходится", false: "модель не сходится"})
+	printQualityMetric("Скорость транспорта наносов", qualityMetrics.SedimentTransportRate, 0.0, true,
+		map[bool]string{true: "активный транспорт", false: "низкий транспорт"})
+	printQualityMetric("Индекс аккумуляции", qualityMetrics.AccumulationIndex*100, 50.0, false,
+		map[bool]string{true: "нормальная аккумуляция", false: "чрезмерная аккумуляция"})
 
-	fmt.Println()
-
-	// 5.1. Выводим расширенные метрики (Extended Metrics v2.0)
-	fmt.Println("  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-	fmt.Println("  РАСШИРЕННЫЕ МЕТРИКИ (v2.0)")
-	fmt.Println("  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-
-	fmt.Printf("  Sediment Transport Rate: %.2f m³/step\n", qualityMetrics.SedimentTransportRate)
-	fmt.Printf("  Accumulation Index: %.2f%%\n", qualityMetrics.AccumulationIndex*100)
-	fmt.Printf("  Erosion Hotspots: %d\n", qualityMetrics.ErosionHotspots)
-	fmt.Printf("  Shoreline Change Rate: %.2f m/step\n", qualityMetrics.ShorelineChangeRate)
+	// Дополнительные метрики без пороговых значений
+	fmt.Printf("  • Очаги эрозии: %d\n", qualityMetrics.ErosionHotspots)
+	fmt.Printf("  • Скорость изменения береговой линии: %.2f м/шаг\n", qualityMetrics.ShorelineChangeRate)
 
 	fmt.Println()
 
@@ -163,7 +159,7 @@ func printModelQualityMetrics(snapshots [][]geometry.LatLon, sedimentResult *geo
 	return nil
 }
 
-// printQualityMetric выводит одну метрику качества с визуальным индикатором
+// printQualityMetric выводит одну метрику качества с визуальным индикатором и статусом
 func printQualityMetric(name string, value, threshold float64, higherIsBetter bool, statusMap map[bool]string) {
 	// Определяем валидность
 	valid := false
@@ -190,7 +186,7 @@ func printQualityMetric(name string, value, threshold float64, higherIsBetter bo
 	fmt.Printf("  %s %s: %.2f (%s)\n", indicator, name, value, status)
 }
 
-// calculateRetreatMeters рассчитывает отступание для каждой точки
+// calculateRetreatMeters рассчитывает отступание береговой линии в метрах для каждой точки
 func calculateRetreatMeters(prev, current []geometry.LatLon) []float64 {
 	if len(prev) != len(current) || len(prev) == 0 {
 		return nil
@@ -207,7 +203,7 @@ func calculateRetreatMeters(prev, current []geometry.LatLon) []float64 {
 	return retreats
 }
 
-// mean и max - вспомогательные функции
+// mean вычисляет среднее значение массива чисел
 func mean(values []float64) float64 {
 	if len(values) == 0 {
 		return 0
@@ -219,6 +215,7 @@ func mean(values []float64) float64 {
 	return sum / float64(len(values))
 }
 
+// maxFloat64 вычисляет максимальное значение в массиве чисел
 func maxFloat64(values []float64) float64 {
 	if len(values) == 0 {
 		return 0
@@ -232,14 +229,14 @@ func maxFloat64(values []float64) float64 {
 	return maximum
 }
 
-// fractalDimensionBoxCounting - proxy для расчёта фрактальной размерности
-// Используем упрощённую версию для performance
+// fractalDimensionBoxCounting вычисляет фрактальную размерность методом box-counting
+// Используем упрощённую версию для производительности
 func fractalDimensionBoxCounting(points []geometry.LatLon, maxScales int) float64 {
 	if len(points) < 4 {
-		return 1.0 // minimum dimension for line
+		return 1.0 // минимальная размерность для линии
 	}
 
-	// Simple implementation: calculate dimension using scale variation
+	// Простая реализация: вычисляем размерность используя вариацию масштаба
 	scales := []int{2, 4, 8, 16, 32}
 	if len(scales) > maxScales {
 		scales = scales[:maxScales]
@@ -260,7 +257,7 @@ func fractalDimensionBoxCounting(points []geometry.LatLon, maxScales int) float6
 		return 1.0
 	}
 
-	// Linear regression to estimate dimension
+	// Линейная регрессия для оценки размерности
 	n := float64(len(logScales))
 	sumX := 0.0
 	sumY := 0.0
@@ -277,7 +274,7 @@ func fractalDimensionBoxCounting(points []geometry.LatLon, maxScales int) float6
 	slope := (n*sumXY - sumX*sumY) / (n*sumX2 - sumX*sumX)
 	dimension := -slope // D = -slope
 
-	// constrain to [1, 2]
+	// Ограничиваем диапазон [1, 2]
 	if dimension < 1.0 {
 		return 1.0
 	}
@@ -287,13 +284,13 @@ func fractalDimensionBoxCounting(points []geometry.LatLon, maxScales int) float6
 	return dimension
 }
 
-// countBoxes подсчитывает число занятых box'ов для box-counting
+// countBoxes подсчитывает количество занятых ячеек для метода box-counting
 func countBoxes(points []geometry.LatLon, scale int) int {
 	if len(points) < 2 {
 		return 0
 	}
 
-	// Find bounds
+	// Находим границы
 	minLat, maxLat := points[0].Lat, points[0].Lat
 	minLon, maxLon := points[0].Lon, points[0].Lon
 
@@ -312,7 +309,7 @@ func countBoxes(points []geometry.LatLon, scale int) int {
 		}
 	}
 
-	// Simple box counting
+	// Простое подсчитывание ячеек
 	latRange := maxLat - minLat
 	lonRange := maxLon - minLon
 
@@ -320,11 +317,11 @@ func countBoxes(points []geometry.LatLon, scale int) int {
 		return 0
 	}
 
-	// Calculate box size
+	// Вычисляем размер ячейки
 	boxSizeLat := latRange / float64(scale)
 	boxSizeLon := lonRange / float64(scale)
 
-	// Count occupied boxes
+	// Подсчитываем занятые ячейки
 	occupied := make(map[string]bool)
 	for _, p := range points {
 		boxLat := int((p.Lat - minLat) / boxSizeLat)

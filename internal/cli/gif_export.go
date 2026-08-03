@@ -25,14 +25,14 @@ type GIFConfig struct {
 	ScaleBarKM      float64                  // длина scale bar в км (0 = auto)
 	ShowColorLegend bool                     // показывать цветовую легенду
 	ColorLegendPos  string                   // позиция легенды (bottom|right|none)
-	GeoLabels       string                   // geographic labels (none|major|all)
+	GeoLabels       string                   // географические метки (none|major|all)
 	TemporalStates  []geometry.TemporalState // временные состояния для меток
 	Colors          int                      // количество цветов в палитре
 	Compression     string                   // уровень сжатия (low|medium|high)
 	ShowTimeStamp   bool                     // показывать временные метки
 }
 
-// DefaultGIFConfig возвращает настройки по умолчанию
+// DefaultGIFConfig возвращает настройки по умолчанию для GIF анимации
 func DefaultGIFConfig() GIFConfig {
 	return GIFConfig{
 		OutputPath:     "erosion_animation.gif",
@@ -53,7 +53,7 @@ func DefaultGIFConfig() GIFConfig {
 	}
 }
 
-// GenerateErosionGIF создает GIF анимацию эрозии
+// GenerateErosionGIF создаёт GIF анимацию эрозии с базовыми настройками
 func GenerateErosionGIF(snapshots [][]geometry.LatLon, outputPath string, fps int, skipEvery int) error {
 	config := DefaultGIFConfig()
 	config.OutputPath = outputPath
@@ -63,7 +63,7 @@ func GenerateErosionGIF(snapshots [][]geometry.LatLon, outputPath string, fps in
 	return GenerateErosionGIFWithConfig(snapshots, config)
 }
 
-// GenerateErosionGIFWithConfig создает GIF с настройками
+// GenerateErosionGIFWithConfig создаёт GIF анимацию с пользовательскими настройками
 func GenerateErosionGIFWithConfig(snapshots [][]geometry.LatLon, config GIFConfig) error {
 	if len(snapshots) == 0 {
 		return nil
@@ -137,14 +137,14 @@ func GenerateErosionGIFWithConfig(snapshots [][]geometry.LatLon, config GIFConfi
 	return gif.EncodeAll(file, gifFile)
 }
 
-// SegmentChangeInfo хранит информацию об изменении сегмента
+// SegmentChangeInfo хранит информацию об изменении сегмента береговой линии
 type SegmentChangeInfo struct {
 	ErosionPerStep float64 // средняя эрозия за шаг
 	TotalErosion   float64 // общая эрозия
-	Variance       float64 // вариативность
+	Variance       float64 // вариативность изменений
 }
 
-// analyzeChanges анализирует изменения сегментов
+// analyzeChanges анализирует изменения сегментов береговой линии между снимками
 func analyzeChanges(snapshots [][]geometry.LatLon) []SegmentChangeInfo {
 	if len(snapshots) < 2 {
 		return []SegmentChangeInfo{}
@@ -297,7 +297,7 @@ func drawColoredCoastline(img *image.Paletted, current, initial []geometry.LatLo
 	}
 }
 
-// drawEnhancedMetrics рисует улучшенные метрики
+// drawEnhancedMetrics рисует улучшенные метрики на кадре GIF
 func drawEnhancedMetrics(img *image.Paletted, frameIndex int, snapshots [][]geometry.LatLon, config GIFConfig) {
 	if len(snapshots) == 0 {
 		return
@@ -306,7 +306,7 @@ func drawEnhancedMetrics(img *image.Paletted, frameIndex int, snapshots [][]geom
 	current := snapshots[frameIndex]
 	lengthKm := geometry.PolylineLength(current)
 
-	// Вычисляем accumulated erosion
+	// Вычисляем накопленную эрозию
 	accumulatedErosion := 0.0
 	if frameIndex > 0 && len(snapshots[0]) > 0 {
 		initialLength := geometry.PolylineLength(snapshots[0])
@@ -316,15 +316,15 @@ func drawEnhancedMetrics(img *image.Paletted, frameIndex int, snapshots [][]geom
 	// Формируем компактные метрики
 	metricsY := config.Height - 40
 
-	line1 := fmt.Sprintf("Frame: %d/%d | Length: %.1f km", frameIndex+1, len(snapshots), lengthKm)
-	line2 := fmt.Sprintf("Erosion: %.1f m | Step: %.1f m", accumulatedErosion, accumulatedErosion/float64(frameIndex))
+	line1 := fmt.Sprintf("Кадр: %d/%d | Длина: %.1f км", frameIndex+1, len(snapshots), lengthKm)
+	line2 := fmt.Sprintf("Эрозия: %.1f м | Шаг: %.1f м", accumulatedErosion, accumulatedErosion/float64(frameIndex))
 
 	// Рисуем метрики (упрощенно)
 	drawSimpleText(img, line1, 20, metricsY, 13)
 	drawSimpleText(img, line2, 20, metricsY+15, 13)
 }
 
-// drawThickLine рисует линию заданной толщины
+// drawThickLine рисует линию заданной толщины с использованием алгоритма Брезенхэма
 func drawThickLine(img *image.Paletted, x0, y0, x1, y1 int, colorIndex uint8, thickness int) {
 	for t := 0; t < thickness; t++ {
 		offset := t - thickness/2
@@ -405,13 +405,6 @@ func computeBounds(snapshots []geometry.LatLon) (minLat, maxLat, minLon, maxLon 
 	return
 }
 
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
 func abs(x int) int {
 	if x < 0 {
 		return -x
@@ -445,7 +438,7 @@ func computeDelay(fps int) int {
 	return delay
 }
 
-// drawScaleBar рисует масштабную линейку на GIF
+// drawScaleBar рисует масштабную линейку на изображении GIF
 func drawScaleBar(img *image.Paletted, minLat, maxLat, minLon, maxLon float64, config GIFConfig) {
 	if !config.ShowScaleBar {
 		return
@@ -514,9 +507,9 @@ func drawScaleBar(img *image.Paletted, minLat, maxLat, minLon, maxLon float64, c
 	// Формируем текст масштаба
 	var scaleText string
 	if targetKm >= 1.0 {
-		scaleText = fmt.Sprintf("%.0f km", targetKm)
+		scaleText = fmt.Sprintf("%.0f км", targetKm)
 	} else {
-		scaleText = fmt.Sprintf("%.1f km", targetKm)
+		scaleText = fmt.Sprintf("%.1f км", targetKm)
 	}
 
 	// Рисуем текст (упрощенно)
@@ -524,7 +517,7 @@ func drawScaleBar(img *image.Paletted, minLat, maxLat, minLon, maxLon float64, c
 	drawSimpleText(img, scaleText, int(barX), textY, 13)
 }
 
-// calculateNiceScaleBarLength вычисляет "красивое" число для scale bar
+// calculateNiceScaleBarLength вычисляет эстетичное значение длины для масштабной линейки
 func calculateNiceScaleBarLength(spanKm float64) float64 {
 	// Идеальные числа: 10, 25, 50, 100, 250, 500 км
 	niceNumbers := []float64{10, 25, 50, 100, 250, 500}
@@ -548,12 +541,12 @@ func calculateNiceScaleBarLength(spanKm float64) float64 {
 	return niceNumbers[closestIdx]
 }
 
-// drawEnhancedColoredCoastline улучшенная версия отрисовки с scale bar
+// drawEnhancedColoredCoastline улучшенная версия отрисовки береговой линии с масштабной линейкой
 func drawEnhancedColoredCoastline(img *image.Paletted, current, initial []geometry.LatLon, changes []SegmentChangeInfo, minLat, maxLat, minLon, maxLon float64, config GIFConfig) {
-	// Сначала рисуем coastline (используем существующую логику)
+	// Сначала рисуем береговую линию (используем существующую логику)
 	drawColoredCoastlineInternal(img, current, initial, changes, minLat, maxLat, minLon, maxLon, config)
 
-	// Затем рисуем scale bar
+	// Затем рисуем масштабную линейку
 	drawScaleBar(img, minLat, maxLat, minLon, maxLon, config)
 }
 
@@ -663,7 +656,7 @@ func drawColoredCoastlineInternal(img *image.Paletted, current, initial []geomet
 	}
 }
 
-// drawColorLegend рисует цветовую легенду для интерпретации цветов
+// drawColorLegend рисует цветовую легенду для интерпретации цветов на GIF
 func drawColorLegend(img *image.Paletted, maxErosion, maxDeposition float64, config GIFConfig) {
 	if !config.ShowColorLegend || config.ColorLegendPos == "none" {
 		return
@@ -747,9 +740,9 @@ func drawVerticalColorLegend(img *image.Paletted, legendX, legendY, legendWidth,
 	}
 
 	// Заголовки
-	legendTitle := "Erosion"
+	legendTitle := "Эрозия"
 	if maxDeposition > maxErosion {
-		legendTitle = "Changes"
+		legendTitle = "Изменения"
 	}
 
 	drawSimpleText(img, legendTitle, int(legendX+5), int(legendY+5), 13)
@@ -758,17 +751,17 @@ func drawVerticalColorLegend(img *image.Paletted, legendX, legendY, legendWidth,
 	axisY := int(gradientStart - 5)
 	axisY2 := int(gradientEnd + 5)
 
-	drawSimpleText(img, "Max", int(gradientX-25), axisY, 13)  // сильная эрозия
-	drawSimpleText(img, "Min", int(gradientX-25), axisY2, 13) // слабая эрозия
+	drawSimpleText(img, "Макс", int(gradientX-25), axisY, 13) // сильная эрозия
+	drawSimpleText(img, "Мин", int(gradientX-25), axisY2, 13) // слабая эрозия
 
 	// Численные значения (в метрах)
 	drawSimpleText(img, formatMeters(maxErosion), int(legendX+25), axisY, 13)
-	drawSimpleText(img, "0m", int(gradientX+25), axisY2, 13)
+	drawSimpleText(img, "0 м", int(gradientX+25), axisY2, 13)
 
 	// Если есть аккумуляция, добавляем подписи
 	if maxDeposition > 0 {
 		accY := int(gradientEnd + 10)
-		drawSimpleText(img, "Dep.", int(legendX-25), accY, 13)
+		drawSimpleText(img, "Акк.", int(legendX-25), accY, 13)
 		drawSimpleText(img, formatMeters(maxDeposition), int(legendX+25), int(legendY+float64(legendHeight)-25), 13)
 	}
 }
@@ -791,12 +784,12 @@ func drawHorizontalColorLegend(img *image.Paletted, legendX, legendY, legendWidt
 	}
 
 	// Заголовок
-	drawSimpleText(img, "Erosion intensity:", int(legendX), int(legendY), 13)
+	drawSimpleText(img, "Интенсивность эрозии:", int(legendX), int(legendY), 13)
 
 	// Подписи под градиентом
 	labelY := int(gradientTop + gradientHeight + 5)
-	drawSimpleText(img, "Weak", int(gradientStart), labelY, 13)
-	drawSimpleText(img, "Strong", int(gradientEnd-30), labelY, 13)
+	drawSimpleText(img, "Слабая", int(gradientStart), labelY, 13)
+	drawSimpleText(img, "Сильная", int(gradientEnd-30), labelY, 13)
 
 	// Численные значения
 	drawSimpleText(img, formatMeters(maxErosion), int(gradientStart), labelY+15, 13)
@@ -805,13 +798,13 @@ func drawHorizontalColorLegend(img *image.Paletted, legendX, legendY, legendWidt
 	// Если есть аккумуляция, добавляем справа
 	if maxDeposition > 0 {
 		accStart := gradientEnd + 20
-		drawSimpleText(img, "Deposition:", int(accStart), int(gradientTop), 13)
+		drawSimpleText(img, "Аккумуляция:", int(accStart), int(gradientTop), 13)
 		drawRect(img, int(accStart+70), int(gradientTop), int(30), int(gradientHeight), 9) // голубой
 		drawSimpleText(img, formatMeters(maxDeposition), int(accStart+70), int(gradientTop)+int(gradientHeight)+5, 13)
 	}
 }
 
-// drawRect рисует прямоугольник
+// drawRect рисует закрашенный прямоугольник на изображении
 func drawRect(img *image.Paletted, x, y, width, height int, colorIndex uint8) {
 	for i := x; i < x+width; i++ {
 		for j := y; j < y+height; j++ {
@@ -822,15 +815,15 @@ func drawRect(img *image.Paletted, x, y, width, height int, colorIndex uint8) {
 	}
 }
 
-// formatMeters форматирует метры в понятный формат
+// formatMeters форматирует метры в понятный текстовый формат
 func formatMeters(meters float64) string {
 	if math.Abs(meters) < 1.0 {
-		return fmt.Sprintf("%.1fm", meters)
+		return fmt.Sprintf("%.1f м", meters)
 	}
-	return fmt.Sprintf("%.0fm", meters)
+	return fmt.Sprintf("%.0f м", meters)
 }
 
-// computeMaxErosion вычисляет максимальную эрозию и аккумуляцию
+// computeMaxErosion вычисляет максимальные значения эрозии и аккумуляции
 func computeMaxErosion(changes []SegmentChangeInfo) (maxErosion, maxDeposition float64) {
 	maxErosion = 0.0
 	maxDeposition = 0.0
@@ -847,41 +840,41 @@ func computeMaxErosion(changes []SegmentChangeInfo) (maxErosion, maxDeposition f
 	return maxErosion, maxDeposition
 }
 
-// GeoPoint представляет географическую точку с меткой
+// GeoPoint представляет географическую точку с меткой для отображения на GIF
 type GeoPoint struct {
 	Name     string
 	Lat      float64
 	Lon      float64
-	Category string // "city", "cape", "bay"
-	Priority int    // 1 = major, 2 = minor
+	Category string // "city" (город), "cape" (мыс), "bay" (залив)
+	Priority int    // 1 = основная, 2 = второстепенная
 }
 
 // blackSeaPoints содержит базу данных географических точек Черного моря
 var blackSeaPoints = []GeoPoint{
-	// Основные города (major)
-	{Name: "Odessa", Lat: 46.4825, Lon: 30.7233, Category: "city", Priority: 1},
-	{Name: "Sevastopol", Lat: 44.6167, Lon: 33.5250, Category: "city", Priority: 1},
-	{Name: "Batumi", Lat: 41.6423, Lon: 41.6339, Category: "city", Priority: 1},
-	{Name: "Varna", Lat: 43.2050, Lon: 27.9100, Category: "city", Priority: 1},
-	{Name: "Constanta", Lat: 44.1800, Lon: 28.6300, Category: "city", Priority: 1},
+	// Основные города
+	{Name: "Одесса", Lat: 46.4825, Lon: 30.7233, Category: "city", Priority: 1},
+	{Name: "Севастополь", Lat: 44.6167, Lon: 33.5250, Category: "city", Priority: 1},
+	{Name: "Батуми", Lat: 41.6423, Lon: 41.6339, Category: "city", Priority: 1},
+	{Name: "Варна", Lat: 43.2050, Lon: 27.9100, Category: "city", Priority: 1},
+	{Name: "Констанца", Lat: 44.1800, Lon: 28.6300, Category: "city", Priority: 1},
 
-	// Дополнительные города (minor)
-	{Name: "Yalta", Lat: 44.4930, Lon: 34.1650, Category: "city", Priority: 2},
-	{Name: "Sochi", Lat: 43.6028, Lon: 39.7342, Category: "city", Priority: 2},
-	{Name: "Trabzon", Lat: 41.0027, Lon: 39.7168, Category: "city", Priority: 2},
-	{Name: "Samsun", Lat: 41.2867, Lon: 36.3300, Category: "city", Priority: 2},
+	// Дополнительные города
+	{Name: "Ялта", Lat: 44.4930, Lon: 34.1650, Category: "city", Priority: 2},
+	{Name: "Сочи", Lat: 43.6028, Lon: 39.7342, Category: "city", Priority: 2},
+	{Name: "Трабзон", Lat: 41.0027, Lon: 39.7168, Category: "city", Priority: 2},
+	{Name: "Самсун", Lat: 41.2867, Lon: 36.3300, Category: "city", Priority: 2},
 
-	// Мысы (major)
-	{Name: "Kerch Cape", Lat: 45.3500, Lon: 36.4500, Category: "cape", Priority: 1},
-	{Name: "Taman Cape", Lat: 45.3330, Lon: 36.6700, Category: "cape", Priority: 1},
-	{Name: "Crimean Cape", Lat: 45.1500, Lon: 33.4500, Category: "cape", Priority: 1},
+	// Мысы
+	{Name: "Керченский мыс", Lat: 45.3500, Lon: 36.4500, Category: "cape", Priority: 1},
+	{Name: "Таманский мыс", Lat: 45.3330, Lon: 36.6700, Category: "cape", Priority: 1},
+	{Name: "Крымский мыс", Lat: 45.1500, Lon: 33.4500, Category: "cape", Priority: 1},
 
-	// Заливы (major)
-	{Name: "Karkinit Bay", Lat: 45.7000, Lon: 33.0000, Category: "bay", Priority: 1},
-	{Name: "Kalamit Bay", Lat: 45.4000, Lon: 32.8000, Category: "bay", Priority: 1},
+	// Заливы
+	{Name: "Каркинитский залив", Lat: 45.7000, Lon: 33.0000, Category: "bay", Priority: 1},
+	{Name: "Каламитский залив", Lat: 45.4000, Lon: 32.8000, Category: "bay", Priority: 1},
 }
 
-// drawGeoLabels рисует географические метки на изображении
+// drawGeoLabels рисует географические метки на изображении GIF
 func drawGeoLabels(img *image.Paletted, minLat, maxLat, minLon, maxLon float64, config GIFConfig) {
 	if config.GeoLabels == "none" {
 		return
@@ -961,7 +954,7 @@ func drawMarker(img *image.Paletted, x, y int, colorIndex uint8) {
 	}
 }
 
-// drawTimeStamp рисует временные метки на изображении
+// drawTimeStamp рисует временные метки на изображении GIF
 func drawTimeStamp(img *image.Paletted, frameIndex int, config GIFConfig) {
 	if !config.ShowTimeStamp || len(config.TemporalStates) == 0 {
 		return
@@ -980,26 +973,26 @@ func drawTimeStamp(img *image.Paletted, frameIndex int, config GIFConfig) {
 	lineHeight := 14
 
 	// Показываем год
-	yearText := fmt.Sprintf("Year: %.1f", state.Year)
+	yearText := fmt.Sprintf("Год: %.1f", state.Year)
 	drawSimpleText(img, yearText, marginX, marginY, 13)
 
 	// Показываем индикатор шторма
 	if state.IsStorm {
-		stormText := "⛈️ Storm"
+		stormText := "⛈️ Шторм"
 		drawSimpleText(img, stormText, marginX, marginY+lineHeight, 10) // красный цвет для шторма
 	}
 
-	// Показываем的其他 временные параметры
+	// Показываем другие временные параметры
 	if state.SeaLevelOffset > 0 {
-		slrText := fmt.Sprintf("SLR: %.3f m/yr", state.SeaLevelOffset)
+		slrText := fmt.Sprintf("УМ: %.3f м/год", state.SeaLevelOffset)
 		drawSimpleText(img, slrText, marginX, marginY+lineHeight*2, 13)
 	}
 }
 
-// createOptimizedPalette создает оптимизированную палитру на основе настроек
+// createOptimizedPalette создаёт оптимизированную палитру на основе настроек конфигурации
 func createOptimizedPalette(config GIFConfig) color.Palette {
 	// Определяем количество цветов
-	colors := 16 // default
+	colors := 16 // по умолчанию
 	if config.Colors > 0 {
 		colors = config.Colors
 	}
@@ -1030,13 +1023,13 @@ func createOptimizedPalette(config GIFConfig) color.Palette {
 
 // getBasePaletteForSize возвращает базовую палитру для указанного размера
 func getBasePaletteForSize(size int) color.Palette {
-	// Научная палитра для эрозии
+	// Научная палитра для визуализации эрозии
 	if size <= 8 {
 		// Минимальная палитра для очень маленького размера
 		return color.Palette{
-			color.RGBA{0, 30, 60, 255},     // 0: темно-синяя вода
+			color.RGBA{0, 30, 60, 255},     // 0: тёмно-синяя вода
 			color.RGBA{240, 240, 240, 255}, // 1: белый берег
-			color.RGBA{34, 139, 34, 255},   // 2: зеленая эрозия
+			color.RGBA{34, 139, 34, 255},   // 2: зелёная эрозия
 			color.RGBA{255, 140, 0, 255},   // 3: оранжевая эрозия
 			color.RGBA{178, 34, 34, 255},   // 4: красная эрозия
 			color.RGBA{135, 206, 235, 255}, // 5: голубая аккумуляция
@@ -1049,7 +1042,7 @@ func getBasePaletteForSize(size int) color.Palette {
 	return createHighQualityPalette()
 }
 
-// reducePalette уменьшает палитру до указанного размера
+// reducePalette уменьшает палитру до указанного размера, сохраняя важные цвета
 func reducePalette(palette color.Palette, targetSize int) color.Palette {
 	if len(palette) <= targetSize {
 		return palette
@@ -1080,7 +1073,7 @@ func reducePalette(palette color.Palette, targetSize int) color.Palette {
 		}
 	}
 
-	// Если еще не достигли целевого размера, добавляем оставшиеся
+	// Если ещё не достигли целевого размера, добавляем оставшиеся
 	for i := 0; i < len(palette) && len(result) < targetSize; i++ {
 		if !added[i] {
 			result = append(result, palette[i])
@@ -1090,7 +1083,7 @@ func reducePalette(palette color.Palette, targetSize int) color.Palette {
 	return result
 }
 
-// createHighQualityPalette создает научную палитру высокого качества
+// createHighQualityPalette создаёт научную палитру высокого качества для визуализации эрозии
 func createHighQualityPalette() color.Palette {
 	return color.Palette{
 		// Фон и вода
@@ -1098,13 +1091,13 @@ func createHighQualityPalette() color.Palette {
 		color.RGBA{25, 50, 80, 255}, // 1: вода
 
 		// Цвета эрозии (градиент от слабой к сильной)
-		color.RGBA{100, 200, 100, 255}, // 2: стабильный/слабая эрозия (светло-зеленый)
-		color.RGBA{150, 180, 80, 255},  // 3: слабая эрозия (желто-зеленый)
+		color.RGBA{100, 200, 100, 255}, // 2: стабильный/слабая эрозия (светло-зелёный)
+		color.RGBA{150, 180, 80, 255},  // 3: слабая эрозия (желто-зелёный)
 		color.RGBA{200, 160, 60, 255},  // 4: умеренная эрозия (желто-оранжевый)
 		color.RGBA{230, 120, 40, 255},  // 5: средняя эрозия (оранжевый)
 		color.RGBA{250, 80, 30, 255},   // 6: сильная эрозия (красно-оранжевый)
 		color.RGBA{255, 40, 20, 255},   // 7: очень сильная эрозия (ярко-красный)
-		color.RGBA{200, 30, 10, 255},   // 8: экстремальная эрозия (темно-красный)
+		color.RGBA{200, 30, 10, 255},   // 8: экстремальная эрозия (тёмно-красный)
 
 		// Цвета аккумуляции
 		color.RGBA{50, 150, 200, 255}, // 9: слабая аккумуляция (светло-голубой)
@@ -1115,7 +1108,7 @@ func createHighQualityPalette() color.Palette {
 		color.RGBA{120, 120, 120, 255}, // 12: начальная линия
 
 		// Текст
-		color.RGBA{255, 255, 240, 255}, // 13: текст (теплый белый)
-		color.RGBA{40, 40, 40, 255},    // 14: темный текст
+		color.RGBA{255, 255, 240, 255}, // 13: текст (тёплый белый)
+		color.RGBA{40, 40, 40, 255},    // 14: тёмный текст
 	}
 }

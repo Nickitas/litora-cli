@@ -7,7 +7,7 @@ import (
 	"coastal-geometry/internal/domain/geometry"
 )
 
-// ScenarioConfig defines parameters for one simulation scenario
+// ScenarioConfig определяет параметры одного сценария симуляции
 type ScenarioConfig struct {
 	Name             string  `json:"name"`
 	Description      string  `json:"description"`
@@ -21,7 +21,7 @@ type ScenarioConfig struct {
 	TotalYears       int     `json:"total_years"`
 }
 
-// ScenarioResult represents the outcome of running one scenario
+// ScenarioResult представляет результат выполнения одного сценария
 type ScenarioResult struct {
 	Config          ScenarioConfig `json:"config"`
 	SegmentRetreats []float64      `json:"segment_retreats_m_per_year"`
@@ -34,25 +34,25 @@ type ScenarioResult struct {
 	CoastChangeKm   float64        `json:"coast_change_km"` // negative = shortening
 }
 
-// ScenarioDiff compares two scenarios (typically baseline vs modified)
+// ScenarioDiff сравнивает два сценария (обычно базовый и изменённый)
 type ScenarioDiff struct {
 	Baseline             ScenarioConfig `json:"baseline"`
 	Modified             ScenarioConfig `json:"modified"`
 	MeanRetreatDelta     float64        `json:"mean_retreat_delta_m_per_year"`
 	MaxRetreatDelta      float64        `json:"max_retreat_delta_m_per_year"`
 	ErodingFractionDelta float64        `json:"eroding_fraction_delta"`
-	HotspotShiftKm       float64        `json:"hotspot_shift_km"` // average shift of top hotspot
+	HotspotShiftKm       float64        `json:"hotspot_shift_km"` // среднее смещение топового участка
 	NewHotspotCount      int            `json:"new_hotspot_count"`
 	LostHotspotCount     int            `json:"lost_hotspot_count"`
 }
 
-// DefaultScenarios returns predefined climate scenarios for Black Sea
-// These represent typical conditions plus climate change projections
+// DefaultScenarios возвращает предопределённые климатические сценарии для Чёрного моря
+// Это типичные условия плюс прогнозы климатических изменений
 func DefaultScenarios(strength, waveDir float64) []ScenarioConfig {
 	return []ScenarioConfig{
 		{
 			Name:             "baseline",
-			Description:      "Current conditions (no climate change)",
+			Description:      "Текущие условия (без изменения климата)",
 			ErosionStrength:  strength,
 			WaveDirection:    waveDir,
 			WindSpeed:        12,
@@ -64,11 +64,11 @@ func DefaultScenarios(strength, waveDir float64) []ScenarioConfig {
 		},
 		{
 			Name:             "rcp45_2050",
-			Description:      "RCP4.5 scenario for 2050: moderate climate change",
+			Description:      "Сценарий RCP4.5 на 2050 год: умеренное изменение климата",
 			ErosionStrength:  strength,
 			WaveDirection:    waveDir,
-			WindSpeed:        13,    // +8% wind by 2050
-			SeaLevelRise:     0.005, // 5mm/year
+			WindSpeed:        13,    // +8% ветра к 2050 году
+			SeaLevelRise:     0.005, // 5мм/год
 			StormProbability: 0.1,
 			StormIntensity:   1.2,
 			YearsPerStep:     1.0,
@@ -76,11 +76,11 @@ func DefaultScenarios(strength, waveDir float64) []ScenarioConfig {
 		},
 		{
 			Name:             "rcp85_2050",
-			Description:      "RCP8.5 scenario for 2050: high emissions pathway",
+			Description:      "Сценарий RCP8.5 на 2050 год: высокий уровень выбросов",
 			ErosionStrength:  strength,
 			WaveDirection:    waveDir,
-			WindSpeed:        14,    // +17% wind
-			SeaLevelRise:     0.008, // 8mm/year
+			WindSpeed:        14,    // +17% ветра
+			SeaLevelRise:     0.008, // 8мм/год
 			StormProbability: 0.15,
 			StormIntensity:   1.5,
 			YearsPerStep:     1.0,
@@ -88,11 +88,11 @@ func DefaultScenarios(strength, waveDir float64) []ScenarioConfig {
 		},
 		{
 			Name:             "rcp85_2100",
-			Description:      "RCP8.5 scenario for 2100: extreme warming",
+			Description:      "Сценарий RCP8.5 на 2100 год: экстремальное потепление",
 			ErosionStrength:  strength,
 			WaveDirection:    waveDir,
-			WindSpeed:        16,    // +33% wind
-			SeaLevelRise:     0.012, // 12mm/year
+			WindSpeed:        16,    // +33% ветра
+			SeaLevelRise:     0.012, // 12мм/год
 			StormProbability: 0.2,
 			StormIntensity:   2.0,
 			YearsPerStep:     1.0,
@@ -100,10 +100,10 @@ func DefaultScenarios(strength, waveDir float64) []ScenarioConfig {
 		},
 		{
 			Name:             "storm_surge",
-			Description:      "Major storm surge event (1-in-100 year)",
+			Description:      "Крупное событие штормового нагона (1 раз в 100 лет)",
 			ErosionStrength:  strength,
 			WaveDirection:    waveDir,
-			WindSpeed:        25, // extreme wind
+			WindSpeed:        25, // экстремальный ветер
 			SeaLevelRise:     0.0,
 			StormProbability: 0.5,
 			StormIntensity:   3.0,
@@ -113,10 +113,10 @@ func DefaultScenarios(strength, waveDir float64) []ScenarioConfig {
 	}
 }
 
-// RunScenario executes one scenario and returns its results
+// RunScenario выполняет один сценарий и возвращает его результаты
 func RunScenario(site BenchmarkSite, scenario ScenarioConfig, bathymetry *geometry.BathymetryGrid) (ScenarioResult, error) {
 	if len(site.Coastline) < 3 {
-		return ScenarioResult{}, fmt.Errorf("site %q has too few coastline points", site.ID)
+		return ScenarioResult{}, fmt.Errorf("на участке %q слишком мало точек береговой линии", site.ID)
 	}
 
 	steps := int(float64(scenario.TotalYears) / scenario.YearsPerStep)
@@ -137,10 +137,10 @@ func RunScenario(site BenchmarkSite, scenario ScenarioConfig, bathymetry *geomet
 		BathymetryGrid:           bathymetry,
 	}
 
-	// Note: SLR and storm parameters affect baseline; the core model uses these as
-	// modifiers on the retreat calculation. For now we encode them as wind speed
-	// multipliers since the underlying model doesn't yet have direct SLR support.
-	// TODO: When model has SLR/storm fields, pass them directly
+	// Примечание: параметры SLR и штормов влияют на базовую линию; основная модель использует их как
+	// модификаторы при расчёте отступления. В настоящее время мы кодируем их как множители скорости ветра,
+	// т.к. базовая модель ещё не имеет прямой поддержки SLR.
+	// TODO: Когда модель будет иметь поля SLR/штормов, передавать их напрямую
 	stormEffect := 1.0 + scenario.StormProbability*(scenario.StormIntensity-1.0)
 	slrEffect := 1.0 + scenario.SeaLevelRise*float64(scenario.TotalYears)*0.5
 	options.WindSpeedMetersPerSecond *= stormEffect * slrEffect
@@ -157,7 +157,7 @@ func RunScenario(site BenchmarkSite, scenario ScenarioConfig, bathymetry *geomet
 		retreats[i] = computeSegmentRetreat(initial, final, i) / float64(scenario.TotalYears)
 	}
 
-	// Aggregate metrics
+	// Агрегированные метрики
 	var sumRetreat, maxRetreat float64
 	var erodingCount int
 	for _, r := range retreats {
@@ -180,7 +180,7 @@ func RunScenario(site BenchmarkSite, scenario ScenarioConfig, bathymetry *geomet
 		meanRetreat = sumRetreat / float64(erodingCount)
 	}
 
-	// Coast length change
+	// Изменение длины побережья
 	var initialLen, finalLen float64
 	for i := 0; i+1 < len(initial); i++ {
 		initialLen += haversineKm(initial[i], initial[i+1])
@@ -189,7 +189,7 @@ func RunScenario(site BenchmarkSite, scenario ScenarioConfig, bathymetry *geomet
 		finalLen += haversineKm(final[i], final[i+1])
 	}
 
-	// Count hotspots using rates (simplified)
+	// Подсчитываем участки активной эрозии по скоростям (упрощённо)
 	rates := make([]SegmentRate, len(retreats))
 	for i, r := range retreats {
 		rates[i] = SegmentRate{Index: i, RetreatRate: r, Center: initial[i]}
@@ -209,21 +209,21 @@ func RunScenario(site BenchmarkSite, scenario ScenarioConfig, bathymetry *geomet
 	}, nil
 }
 
-// RunScenarios runs all provided scenarios for a site and returns their results
+// RunScenarios выполняет все предоставленные сценарии для участка и возвращает их результаты
 func RunScenarios(site BenchmarkSite, scenarios []ScenarioConfig, bathymetry *geometry.BathymetryGrid) ([]ScenarioResult, error) {
 	results := make([]ScenarioResult, 0, len(scenarios))
 	for _, sc := range scenarios {
 		res, err := RunScenario(site, sc, bathymetry)
 		if err != nil {
-			return nil, fmt.Errorf("run scenario %q: %w", sc.Name, err)
+			return nil, fmt.Errorf("выполнить сценарий %q: %w", sc.Name, err)
 		}
 		results = append(results, res)
 	}
 	return results, nil
 }
 
-// CompareScenarios produces diffs between baseline and all other scenarios
-// coastline is needed to compute hotspot positions; if nil, hotspot shift is 0
+// CompareScenarios создаёт сравнения между базовым и всеми остальными сценариями
+// Побережье нужно для вычисления позиций участков; если nil, смещение = 0
 func CompareScenarios(results []ScenarioResult, coastline []geometry.LatLon) []ScenarioDiff {
 	if len(results) < 2 {
 		return nil
@@ -268,14 +268,7 @@ func ratesToSegmentRates(rates []float64, cfg ScenarioConfig) []SegmentRate {
 	return result
 }
 
-func max(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
-}
-
-// SortScenariosByImpact sorts scenarios by mean retreat rate (descending)
+// SortScenariosByImpact сортирует сценарии по средней скорости отступления (по убыванию)
 func SortScenariosByImpact(results []ScenarioResult) {
 	sort.Slice(results, func(i, j int) bool {
 		return results[i].MeanRetreatRate > results[j].MeanRetreatRate

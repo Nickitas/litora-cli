@@ -243,7 +243,7 @@ func prepareLithologyStates(
 				Class:       "sediment",
 				Resistance:  2.0, // средняя сопротивляемость
 				Color:       "#d4a574",
-				Description: "Medium resistance sediment",
+				Description: "Осадок средней стойкости",
 			}
 		}
 	}

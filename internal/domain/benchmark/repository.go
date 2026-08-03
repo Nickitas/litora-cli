@@ -13,16 +13,16 @@ import (
 )
 
 const (
-	// DefaultBenchmarkDir is the default directory for benchmark site data
+	// DefaultBenchmarkDir - каталог по умолчанию для данных эталонных участков
 	DefaultBenchmarkDir = "data/benchmarks"
 )
 
-// Repository handles loading and saving benchmark sites
+// Repository обрабатывает загрузку и сохранение эталонных участков
 type Repository struct {
 	baseDir string
 }
 
-// NewRepository creates a new benchmark repository
+// NewRepository создаёт новое хранилище эталонов
 func NewRepository(baseDir string) *Repository {
 	if baseDir == "" {
 		baseDir = DefaultBenchmarkDir
@@ -30,7 +30,7 @@ func NewRepository(baseDir string) *Repository {
 	return &Repository{baseDir: baseDir}
 }
 
-// Load loads a benchmark site by ID
+// Load загружает эталонный участок по ID
 func (r *Repository) Load(id string) (*BenchmarkSite, error) {
 	path := r.sitePath(id)
 	data, err := os.ReadFile(path)
@@ -46,14 +46,14 @@ func (r *Repository) Load(id string) (*BenchmarkSite, error) {
 	return &site, nil
 }
 
-// LoadAll loads all available benchmark sites
+// LoadAll загружает все доступные эталонные участки
 func (r *Repository) LoadAll() ([]BenchmarkSite, error) {
 	entries, err := os.ReadDir(r.baseDir)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return []BenchmarkSite{}, nil
 		}
-		return nil, fmt.Errorf("list benchmark directory: %w", err)
+		return nil, fmt.Errorf("список эталонных каталогов: %w", err)
 	}
 
 	var sites []BenchmarkSite
@@ -73,7 +73,7 @@ func (r *Repository) LoadAll() ([]BenchmarkSite, error) {
 	return sites, nil
 }
 
-// Save saves a benchmark site
+// Save сохраняет эталонный участок
 func (r *Repository) Save(site BenchmarkSite) error {
 	if err := os.MkdirAll(r.baseDir, 0o755); err != nil {
 		return fmt.Errorf("create benchmark directory: %w", err)
@@ -92,7 +92,7 @@ func (r *Repository) Save(site BenchmarkSite) error {
 	return nil
 }
 
-// List returns IDs of all available benchmark sites
+// List возвращает ID всех доступных эталонных участков
 func (r *Repository) List() ([]string, error) {
 	entries, err := os.ReadDir(r.baseDir)
 	if err != nil {
@@ -117,12 +117,12 @@ func (r *Repository) sitePath(id string) string {
 	return filepath.Join(r.baseDir, id+".json")
 }
 
-// ExtractCoastline extracts a coastline segment for a benchmark site
+// ExtractCoastline извлекает сегмент побережья для эталонного участка
 func ExtractCoastline(fullCoastline []geometry.LatLon, bounds coastline.GeoBounds) []geometry.LatLon {
 	var segment []geometry.LatLon
 
-	// Expand bounds slightly for safety
-	margin := 0.1 // degrees
+	// Расширяем границы немного для безопасности
+	margin := 0.1 // градусов
 	minLat := bounds.MinLat - margin
 	maxLat := bounds.MaxLat + margin
 	minLon := bounds.MinLon - margin
@@ -135,15 +135,15 @@ func ExtractCoastline(fullCoastline []geometry.LatLon, bounds coastline.GeoBound
 
 		if inSegment {
 			if !inBounds {
-				// Starting new segment
+				// Начинаем новый сегмент
 				segment = append(segment, pt)
 				inBounds = true
 			} else {
-				// Continuing segment
+				// Продолжаем сегмент
 				segment = append(segment, pt)
 			}
 		} else if inBounds {
-			// End of segment
+			// Конец сегмента
 			inBounds = false
 		}
 	}
@@ -151,7 +151,7 @@ func ExtractCoastline(fullCoastline []geometry.LatLon, bounds coastline.GeoBound
 	return segment
 }
 
-// ToGeoBounds converts benchmark Bounds to coastline GeoBounds
+// ToGeoBounds преобразует Bounds эталона в GeoBounds побережья
 func (b Bounds) ToGeoBounds() coastline.GeoBounds {
 	return coastline.GeoBounds{
 		MinLat: b.MinLat,
@@ -161,8 +161,8 @@ func (b Bounds) ToGeoBounds() coastline.GeoBounds {
 	}
 }
 
-// StandardSites returns predefined benchmark site definitions
-// These are well-documented sites with known erosion data
+// StandardSites возвращает предопределённые определения эталонных участков
+// Это хорошо документированные участки с известными данными об эрозии
 func StandardSites() []BenchmarkSite {
 	return []BenchmarkSite{
 		// Odessa Coast, Ukraine
@@ -314,25 +314,25 @@ func StandardSites() []BenchmarkSite {
 	}
 }
 
-// InitializeStandardSites creates benchmark data files for standard sites
+// InitializeStandardSites создаёт файлы данных эталонов для стандартных участков
 func InitializeStandardSites(repo *Repository) error {
 	sites := StandardSites()
 
 	for _, site := range sites {
-		// Load full coastline data
+		// Загружаем полные данные побережья
 		fullCoastline, _, err := loadBlackSeaCoastline()
 		if err != nil {
 			return fmt.Errorf("load coastline for %s: %w", site.ID, err)
 		}
 
-		// Extract segment for this site
+		// Извлекаем сегмент для этого участка
 		site.Coastline = ExtractCoastline(fullCoastline, site.Bounds.ToGeoBounds())
 
-		// Add placeholder erosion observations
-		// These should be replaced with actual measured data
+		// Добавляем временные наблюдения эрозии
+		// Они должны быть заменены реальными измеренными данными
 		site.ObservedErosion = generatePlaceholderErosion(site)
 
-		// Save site
+		// Сохраняем участок
 		if err := repo.Save(site); err != nil {
 			return fmt.Errorf("save site %s: %w", site.ID, err)
 		}
@@ -341,19 +341,19 @@ func InitializeStandardSites(repo *Repository) error {
 	return nil
 }
 
-// loadBlackSeaCoastline loads the full Black Sea coastline
+// loadBlackSeaCoastline загружает полное побережье Чёрного моря
 func loadBlackSeaCoastline() ([]geometry.LatLon, string, error) {
 	return nil, "", nil
 }
 
-// CalibrationHistory tracks calibration attempts
+// CalibrationHistory отслеживает попытки калибровки
 type CalibrationHistory struct {
 	SiteID       string              `json:"site_id"`
 	Calibrations []CalibrationResult `json:"calibrations"`
 	LastUpdate   string              `json:"last_update"`
 }
 
-// AddCalibration adds a new calibration result to the history
+// AddCalibration добавляет новый результат калибровки в историю
 func (h *CalibrationHistory) AddCalibration(result CalibrationResult) {
 	result.CalibrationDate = time.Now().Format(time.RFC3339)
 	h.Calibrations = append(h.Calibrations, result)

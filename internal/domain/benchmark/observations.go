@@ -6,11 +6,11 @@ import (
 	"math/rand"
 )
 
-// ObservationsForSite returns real-world erosion observations for a benchmark site.
-// Data is sourced from scientific publications and agency reports for Black Sea sites.
-// Each observation represents measured shoreline change rate at a specific location.
+// ObservationsForSite возвращает реальные наблюдения эрозии для эталонного участка.
+// Данные получены из научных публикаций и отчётов агентств для участков Чёрного моря.
+// Каждое наблюдение представляет измеренную скорость изменения береговой линии в конкретном месте.
 //
-// References are stored in site.References - see StandardSites() for full citation list.
+// Ссылки хранятся в site.References - см. StandardSites() для полного списка цитирований.
 func ObservationsForSite(siteID string) []ErosionObservation {
 	switch siteID {
 	case "odessa-coast-ua":
@@ -28,9 +28,9 @@ func ObservationsForSite(siteID string) []ErosionObservation {
 	}
 }
 
-// Odessa observations: 5 monitoring stations along the coast
-// Source: Zhytar (2021), Ukrhydromonitoring multi-decadal surveys
-// Erosion hotspots: Luzanivka (1.5-2.0 m/yr), Arkadiya (0.8-1.2 m/yr)
+// Наблюдения Одессы: 5 станций мониторинга вдоль побережья
+// Источник: Zhytar (2021), многолетние наблюдения Ukrhydromonitoring
+// Участки активной эрозии: Лузановка (1.5-2.0 м/год), Аркадия (0.8-1.2 м/год)
 func odessaObservations() []ErosionObservation {
 	return []ErosionObservation{
 		{
@@ -81,9 +81,9 @@ func odessaObservations() []ErosionObservation {
 	}
 }
 
-// Kobuleti observations: 4 stations along 12 km sandy coast
-// Source: Georgian NEA, Kiknadze et al. (2017)
-// Tourism-driven erosion, rates 0.8-2.5 m/yr
+// Наблюдения Кобулети: 4 станции вдоль 12 км песчаного побережья
+// Источник: Грузинское НЭА, Kiknadze и др. (2017)
+// Эрозия, вызванная туризмом, скорости 0.8-2.5 м/год
 func kobuletiObservations() []ErosionObservation {
 	return []ErosionObservation{
 		{
@@ -125,9 +125,9 @@ func kobuletiObservations() []ErosionObservation {
 	}
 }
 
-// Balchik observations: 4 stations along limestone cliff coast
-// Source: Valchev et al. (2018), Bulgarian Academy of Sciences
-// Cliff retreat rates 0.3-1.0 m/yr
+// Наблюдения Балчика: 4 станции вдоль известнякового скалистого побережья
+// Источник: Valchev и др. (2018), Болгарская академия наук
+// Скорости отступания скал 0.3-1.0 м/год
 func balchikObservations() []ErosionObservation {
 	return []ErosionObservation{
 		{
@@ -178,9 +178,9 @@ func balchikObservations() []ErosionObservation {
 	}
 }
 
-// Samsun observations: 4 stations near Kızılırmak delta
-// Source: Turkish SMS, satellite analysis 1990-2021
-// Post-dam erosion rates 0.5-2.0 m/yr after sediment starvation
+// Наблюдения Самсуна: 4 станции вблизи дельты Кызылырмак
+// Источник: Турецкая СМС, спутниковый анализ 1990-2021
+// Скорости эрозии после плотины 0.5-2.0 м/год после недостатка осадков
 func samsunObservations() []ErosionObservation {
 	return []ErosionObservation{
 		{
@@ -222,9 +222,9 @@ func samsunObservations() []ErosionObservation {
 	}
 }
 
-// Anapa observations: 4 stations along sandy beach ridge system
-// Source: Shirshov Institute, Kosyan & Krylenko (2018, 2022)
-// Erosion hotspots: south of Anapa (1.5-2.5 m/yr), stable near port
+// Наблюдения Анапы: 4 станции вдоль системы песчаных гряд
+// Источник: Институт Ширшова, Kosyan & Krylenko (2018, 2022)
+// Участки активной эрозии: юг Анапы (1.5-2.5 м/год), стабильно у порта
 func anapaObservations() []ErosionObservation {
 	return []ErosionObservation{
 		{
@@ -284,15 +284,15 @@ func anapaObservations() []ErosionObservation {
 	}
 }
 
-// generatePlaceholderErosion is kept for backward compatibility but now delegates
-// to real observation data when available, or returns empty slice otherwise.
+// generatePlaceholderErosion сохранена для обратной совместимости, но теперь делегирует
+// реальные данные наблюдений, когда доступны, или возвращает пустой срез иначе.
 func generatePlaceholderErosion(site BenchmarkSite) []ErosionObservation {
 	if obs := ObservationsForSite(site.ID); len(obs) > 0 {
 		return obs
 	}
-	// Fallback: single observation at site center with low confidence
+	// Резерв: одиночное наблюдение в центре участка с низкой достоверностью
 	rng := rand.New(rand.NewSource(int64(site.Bounds.MinLat*1000 + site.Bounds.MinLon)))
-	rate := rng.Float64()*1.0 - 0.2 // -0.2 to 0.8 m/yr
+	rate := rng.Float64()*1.0 - 0.2 // от -0.2 до 0.8 м/год
 	return []ErosionObservation{
 		{
 			LatLon: geometry.LatLon{

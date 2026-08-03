@@ -45,18 +45,20 @@
 
 ```
 internal/domain/coastline/
-├── source.go           # Загрузка из JSON/GeoJSON, HTTP, кэш
-├── validation.go       # Валидация геометрии, self-intersection
-├── validation_summary.go # Агрегация проблем валидации
-├── visualization.go    # Подсветка проблемных сегментов для SVG
-├── sanity.go           # Sanity check длины береговой линии
-├── metrics.go          # Консольный вывод метрик
-├── locations.go        # Справочник известных локаций
-├── data.go             # Константы, GeoBounds, LoadOptions
-├── data_test.go
-├── source_test.go
-├── validation_summary_test.go
-└── visualization_test.go
+├── constants.go           # Константы с русскими комментариями
+├── doc.go                 # Документация пакета (godoc)
+├── source.go              # Загрузка из JSON/GeoJSON, HTTP, кэш, инспекция источника
+├── validation.go          # Валидация геометрии, self-intersection
+├── validation_summary.go  # Агрегация проблем валидации
+├── visualization.go       # Подсветка проблемных сегментов для SVG
+├── sanity.go              # Sanity check длины береговой линии
+├── metrics.go             # Консольный вывод метрик
+├── locations.go           # Справочник известных локаций
+├── utils.go               # Вспомогательные функции для валидации строк
+├── data_test.go           # Тесты загрузки данных
+├── source_test.go         # Тесты источника данных
+├── validation_summary_test.go  # Тесты сводки валидации
+└── visualization_test.go      # Тесты визуализации
 ```
 
 Зависимости:
@@ -112,6 +114,59 @@ type LoadResult struct {
     Source       string            // Фактический источник данных
     DatasetName  string            // Имя набора (из метаданных или файла)
     LoadWarnings []string          // Предупреждения при загрузке (fallback и т.д.)
+}
+```
+
+### Константы модуля
+
+Основные константы определены в `constants.go`:
+
+```go
+// Пути к файлам
+const (
+    DefaultCoastlineJSONPath = "data/black-sea.json"
+    DefaultCoastlineCacheDir = "data/cache"
+    DefaultCoastlineSnapshotDir = "data/snapshots"
+)
+
+// Параметры HTTP
+const (
+    defaultHTTPTimeout = 12 * time.Second
+    marineRegionsWFSURL = "https://geo.vliz.be/geoserver/MarineRegions/wfs"
+    blackSeaMarineRegionID = 3319
+)
+
+// Валидация координат
+const (
+    minValidLatitude = -90.0
+    maxValidLatitude = 90.0
+    minValidLongitude = -180.0
+    maxValidLongitude = 180.0
+    pointPrecision = 6      // Точность для ключей точек
+    eps = 1e-9              // Эпсилон для сравнения float
+)
+
+// Анализ геометрии
+const (
+    longSegmentWarningKM = 450.0           // Порог длинных сегментов
+    locationMatchThreshold = 0.15           // Порог сопоставления локаций
+    maxConsolePoints = 30                   // Лимит точек для консоли
+    maxPointsForDuplicateCheck = 200       // Лимит для проверки дубликатов
+)
+
+// Права доступа
+const (
+    dirPermissions = 0o755
+    filePermissions = 0o644
+)
+```
+
+Границы Чёрного моря:
+
+```go
+var DefaultBlackSeaBounds = GeoBounds{
+    MinLat: 40.5, MaxLat: 46.8,
+    MinLon: 27.0, MaxLon: 42.2,
 }
 ```
 
@@ -859,6 +914,28 @@ func main() {
 Sanity check **никогда не возвращает ошибку**. Вместо этого:
 - `Checked = false` — набор данных неизвестен, проверка пропущена
 - `Checked = true, Valid = false` — длина вне ожидаемого диапазона, `Warning` содержит детали
+
+---
+
+## Вспомогательные функции
+
+В модуле `utils.go` определены функции для валидации строковых параметров:
+
+```go
+// Проверка, что строка не пуста после удаления пробелов
+func isNotEmpty(s string) bool
+
+// Проверка, что строка пуста после удаления пробелов
+func isEmpty(s string) bool
+
+// Возвращает строку или значение по умолчанию, если строка пуста
+func orDefault(s, defaultValue string) string
+
+// Удаляет пробельные символы из начала и конца строки
+func trimSpace(s string) string
+```
+
+Эти функции используются во всём модуле для валидации пользовательского ввода и параметров конфигурации.
 
 ---
 

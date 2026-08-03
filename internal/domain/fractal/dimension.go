@@ -7,46 +7,11 @@ import (
 	"sync"
 
 	"coastal-geometry/internal/domain/geometry"
+	"gonum.org/v1/gonum/stat"
 )
 
-const (
-	minScaleSamples       = 4
-	minStableLocalSlopes  = 3
-	minRegressionRSquared = 0.98
-	maxLocalSlopeSpread   = 0.18
-)
-
-// denser grid to reduce sensitivity to scale selection
-var defaultScaleFactors = []float64{4, 6, 8, 12, 16, 24, 32, 48, 64, 96, 128, 192, 256}
-
-var gridOffsets = [][2]float64{
-	{0, 0},
-	{0.5, 0},
-	{0, 0.5},
-	{0.5, 0.5},
-}
-
-type Point2D struct{ X, Y float64 }
-
-type BoxCountingSample struct {
-	ScaleFactor   float64
-	RelativeScale float64
-	BoxSizeMeters float64
-	BoxesCovered  int
-	LogInvScale   float64
-	LogBoxes      float64
-}
-
-type BoxCountingAnalysis struct {
-	Dimension          float64
-	RegressionRSquared float64
-	StableAcrossScales bool
-	StabilitySpread    float64
-	Samples            []BoxCountingSample
-	LocalDimensions    []float64
-	Valid              bool
-}
-
+// FractalDimension вычисляет фрактальную размерность набора точек методом box-counting
+// Если анализ неудачен, возвращает 1.0 (размерность гладкой линии)
 func FractalDimension(points []geometry.LatLon) float64 {
 	analysis := AnalyzeBoxCounting(points)
 	if !analysis.Valid {
@@ -55,6 +20,8 @@ func FractalDimension(points []geometry.LatLon) float64 {
 	return analysis.Dimension
 }
 
+// AnalyzeBoxCounting выполняет полный анализ фрактальной размерности методом box-counting
+// Возвращает подробную информацию о размере, стабильности и качестве подгонки
 func AnalyzeBoxCounting(points []geometry.LatLon) BoxCountingAnalysis {
 	if len(points) < 2 {
 		return BoxCountingAnalysis{}
@@ -136,19 +103,15 @@ func AnalyzeBoxCounting(points []geometry.LatLon) BoxCountingAnalysis {
 	}
 }
 
+// latLonToMeters преобразует географические координаты в метры относительно референсной точки
 func latLonToMeters(p geometry.LatLon) Point2D {
-	const (
-		refLat          = 43.5
-		metersPerDegLat = 111194.9
-		metersPerDegLon = 87300.0
-	)
-
 	dLat := (p.Lat - refLat) * metersPerDegLat
-	dLon := (p.Lon - 35.0) * metersPerDegLon
+	dLon := (p.Lon - refLon) * metersPerDegLon
 
 	return Point2D{X: dLon, Y: dLat}
 }
 
+// bboxMeters вычисляет ограничивающую рамку множества точек в метрах
 func bboxMeters(points []Point2D) (minX, maxX, minY, maxY float64) {
 	if len(points) == 0 {
 		return 0, 0, 0, 0
@@ -172,6 +135,7 @@ func bboxMeters(points []Point2D) (minX, maxX, minY, maxY float64) {
 	return
 }
 
+// boxesCoveredMetersAverage вычисляет среднее количество покрытых ячеек при различных смещениях сетки
 func boxesCoveredMetersAverage(points []Point2D, boxSize, minX, minY float64, offsets [][2]float64) float64 {
 	if len(offsets) == 0 {
 		offsets = [][2]float64{{0, 0}}
@@ -189,6 +153,7 @@ func boxesCoveredMetersAverage(points []Point2D, boxSize, minX, minY float64, of
 	return sum / float64(len(offsets))
 }
 
+// markSegmentBoxesOffset отмечает ячейки, пересекаемые отрезком, с учётом смещения сетки
 func markSegmentBoxesOffset(covered map[[2]int]struct{}, a, b Point2D, boxSize, minX, minY, offsetX, offsetY float64) {
 	dx := b.X - a.X
 	dy := b.Y - a.Y
@@ -223,6 +188,7 @@ type regressionWindow struct {
 	y         []float64
 }
 
+// bestRegressionWindow находит лучшее окно данных для линейной регрессии
 func bestRegressionWindow(x, y []float64) *regressionWindow {
 	n := len(x)
 	if n < minScaleSamples || len(y) != n {
@@ -261,6 +227,7 @@ func bestRegressionWindow(x, y []float64) *regressionWindow {
 	return best
 }
 
+// betterWindow сравнивает два окна и выбирает лучшее для регрессионного анализа
 func betterWindow(current, candidate *regressionWindow, candidateStable bool) bool {
 	if candidate == nil {
 		return false
@@ -293,6 +260,7 @@ func betterWindow(current, candidate *regressionWindow, candidateStable bool) bo
 	return candidate.spread < current.spread
 }
 
+// localSlopeSeries вычисляет ряд локальных наклонов между соседними точками
 func localSlopeSeries(x, y []float64) []float64 {
 	if len(x) != len(y) || len(x) < 2 {
 		return nil
@@ -309,6 +277,7 @@ func localSlopeSeries(x, y []float64) []float64 {
 	return slopes
 }
 
+// valueSpread вычисляет разброс значений (разницу между максимумом и минимумом)
 func valueSpread(values []float64) float64 {
 	if len(values) == 0 {
 		return 0
@@ -327,34 +296,25 @@ func valueSpread(values []float64) float64 {
 	return maxValue - minValue
 }
 
+// linearRegression выполняет линейную регрессию используя gonum/stat
+// Возвращает (наклон, пересечение)
 func linearRegression(x, y []float64) (slope, intercept float64) {
-	n := float64(len(x))
-	var sumX, sumY, sumXY, sumX2 float64
-	for i := range x {
-		sumX += x[i]
-		sumY += y[i]
-		sumXY += x[i] * y[i]
-		sumX2 += x[i] * x[i]
-	}
-	denominator := n*sumX2 - sumX*sumX
-	if math.Abs(denominator) < 1e-12 {
+	if len(x) != len(y) || len(x) == 0 {
 		return 0, 0
 	}
-	slope = (n*sumXY - sumX*sumY) / denominator
-	intercept = (sumY - slope*sumX) / n
+	// stat.LinearRegression returns (intercept, slope)
+	intercept, slope = stat.LinearRegression(x, y, nil, false)
 	return slope, intercept
 }
 
+// regressionRSquared вычисляет коэффициент детерминации R² используя gonum/stat
 func regressionRSquared(x, y []float64, slope, intercept float64) float64 {
 	if len(x) != len(y) || len(x) == 0 {
 		return 0
 	}
 
-	var meanY float64
-	for _, value := range y {
-		meanY += value
-	}
-	meanY /= float64(len(y))
+	// Use gonum/stat for mean calculation
+	meanY := stat.Mean(y, nil)
 
 	var ssTot, ssRes float64
 	for i := range x {
@@ -373,7 +333,8 @@ func regressionRSquared(x, y []float64, slope, intercept float64) float64 {
 
 // ========== Parallel Optimized Versions ==========
 
-// AnalyzeBoxCountingParallel performs box counting analysis with parallel processing
+// AnalyzeBoxCountingParallel выполняет анализ фрактальной размерности с параллельной обработкой
+// Использует context для возможности отмены операции
 func AnalyzeBoxCountingParallel(ctx context.Context, points []geometry.LatLon) BoxCountingAnalysis {
 	select {
 	case <-ctx.Done():
@@ -387,14 +348,14 @@ func AnalyzeBoxCountingParallel(ctx context.Context, points []geometry.LatLon) B
 
 	meters := make([]Point2D, len(points))
 
-	// Convert points in parallel
-	numConvWorkers := fractalMin(runtime.NumCPU(), 4)
+	// Конвертация точек параллельно
+	numConvWorkers := min(runtime.NumCPU(), maxConvWorkers)
 	convChunkSize := (len(points) + numConvWorkers - 1) / numConvWorkers
 
 	var convWg sync.WaitGroup
 	for w := 0; w < numConvWorkers; w++ {
 		start := w * convChunkSize
-		end := fractalMin(start+convChunkSize, len(points))
+		end := min(start+convChunkSize, len(points))
 
 		convWg.Add(1)
 		go func(workerID int) {
@@ -429,13 +390,13 @@ func AnalyzeBoxCountingParallel(ctx context.Context, points []geometry.LatLon) B
 	samples := make([]BoxCountingSample, 0, len(defaultScaleFactors))
 	var samplesMu sync.Mutex
 
-	scaleWorkers := fractalMin(runtime.NumCPU(), 8)
+	scaleWorkers := min(runtime.NumCPU(), maxScaleWorkers)
 	scaleChunkSize := (len(defaultScaleFactors) + scaleWorkers - 1) / scaleWorkers
 
 	var scaleWg sync.WaitGroup
 	for w := 0; w < scaleWorkers; w++ {
 		start := w * scaleChunkSize
-		end := fractalMin(start+scaleChunkSize, len(defaultScaleFactors))
+		end := min(start+scaleChunkSize, len(defaultScaleFactors))
 
 		scaleWg.Add(1)
 		go func(workerID int) {
@@ -527,13 +488,13 @@ func AnalyzeBoxCountingParallel(ctx context.Context, points []geometry.LatLon) B
 	}
 }
 
-// bboxMetersParallel computes bounding box in parallel
+// bboxMetersParallel вычисляет ограничивающую рамку параллельно
 func bboxMetersParallel(ctx context.Context, points []Point2D) (minX, maxX, minY, maxY float64) {
 	if len(points) == 0 {
 		return 0, 0, 0, 0
 	}
 
-	numWorkers := fractalMin(runtime.NumCPU(), 4)
+	numWorkers := min(runtime.NumCPU(), maxBboxWorkers)
 	chunkSize := (len(points) + numWorkers - 1) / numWorkers
 
 	type boundsResult struct {
@@ -545,7 +506,7 @@ func bboxMetersParallel(ctx context.Context, points []Point2D) (minX, maxX, minY
 	var wg sync.WaitGroup
 	for w := 0; w < numWorkers; w++ {
 		start := w * chunkSize
-		end := fractalMin(start+chunkSize, len(points))
+		end := min(start+chunkSize, len(points))
 
 		wg.Add(1)
 		go func(workerID, s, e int) {
@@ -631,7 +592,7 @@ func bboxMetersParallel(ctx context.Context, points []Point2D) (minX, maxX, minY
 	return minX, maxX, minY, maxY
 }
 
-// boxesCoveredMetersAverageParallel computes average box coverage across offsets in parallel
+// boxesCoveredMetersAverageParallel вычисляет среднее количество покрытых ячеек параллельно
 func boxesCoveredMetersAverageParallel(ctx context.Context, points []Point2D, boxSize, minX, minY float64, offsets [][2]float64) float64 {
 	if len(offsets) == 0 {
 		offsets = [][2]float64{{0, 0}}
@@ -697,7 +658,7 @@ func boxesCoveredMetersAverageParallel(ctx context.Context, points []Point2D, bo
 	return sum / float64(validCount)
 }
 
-// bestRegressionWindowParallel finds best regression window using parallel evaluation
+// bestRegressionWindowParallel находит лучшее окно для регрессии параллельно
 func bestRegressionWindowParallel(ctx context.Context, x, y []float64) *regressionWindow {
 	n := len(x)
 	if n < minScaleSamples || len(y) != n {
@@ -709,7 +670,7 @@ func bestRegressionWindowParallel(ctx context.Context, x, y []float64) *regressi
 		stable bool
 	}
 
-	numWorkers := fractalMin(runtime.NumCPU(), 8)
+	numWorkers := min(runtime.NumCPU(), maxScaleWorkers)
 	totalWindows := 0
 
 	for start := 0; start <= n-minScaleSamples; start++ {
@@ -725,7 +686,7 @@ func bestRegressionWindowParallel(ctx context.Context, x, y []float64) *regressi
 
 	for w := 0; w < numWorkers; w++ {
 		startWindow := w * chunkSize
-		endWin := fractalMin(startWindow+chunkSize, totalWindows)
+		endWin := min(startWindow+chunkSize, totalWindows)
 
 		wg.Add(1)
 		go func(workerID, sWin, eWin int) {
@@ -814,13 +775,13 @@ func FractalDimensionParallel(ctx context.Context, points []geometry.LatLon) flo
 	return analysis.Dimension
 }
 
-// valueSpreadParallel computes value spread in parallel
+// valueSpreadParallel вычисляет разброс значений параллельно
 func valueSpreadParallel(ctx context.Context, values []float64) float64 {
 	if len(values) == 0 {
 		return 0
 	}
 
-	numWorkers := fractalMin(runtime.NumCPU(), 4)
+	numWorkers := min(runtime.NumCPU(), maxSpreadWorkers)
 	chunkSize := (len(values) + numWorkers - 1) / numWorkers
 
 	type spreadResult struct {
@@ -833,7 +794,7 @@ func valueSpreadParallel(ctx context.Context, values []float64) float64 {
 
 	for w := 0; w < numWorkers; w++ {
 		start := w * chunkSize
-		end := fractalMin(start+chunkSize, len(values))
+		end := min(start+chunkSize, len(values))
 
 		wg.Add(1)
 		go func(workerID, s, e int) {
@@ -896,12 +857,4 @@ func valueSpreadParallel(ctx context.Context, values []float64) float64 {
 	}
 
 	return maxValue - minValue
-}
-
-// Helper function for min (avoiding name conflicts)
-func fractalMin(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }

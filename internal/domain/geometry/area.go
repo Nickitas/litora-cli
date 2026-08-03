@@ -1,31 +1,57 @@
 package geometry
 
-import "math"
+import (
+	"math"
 
-// Area returns polygon area in square kilometers using the shoelace formula.
-// If the polyline is not closed, it is closed by connecting the last point to the first.
-// Coordinates are projected to a local meters grid using mean latitude.
+	"github.com/paulmach/orb"
+	"github.com/paulmach/orb/geo"
+)
+
+// Area возвращает площадь полигона в квадратных километрах с использованием orb/geo.
+// Если полилиния не замкнута, она замыкается соединением последней точки с первой.
 func Area(points []LatLon) float64 {
 	if len(points) < 3 {
 		return 0
 	}
 
-	projected := projectToMetersLocal(points)
-	if len(projected) < 3 {
+	// Обеспечиваем замыкание
+	ring := ToORBLineString(points)
+	if len(ring) == 0 {
 		return 0
 	}
 
-	areaMeters2 := 0.0
-	last := projected[len(projected)-1]
-	for _, p := range projected {
-		areaMeters2 += (last.X*p.Y - p.X*last.Y)
-		last = p
+	// Проверяем, замкнут ли контур, если нет — замыкаем
+	if ring[0] != ring[len(ring)-1] {
+		ring = append(ring, ring[0])
 	}
 
-	return math.Abs(areaMeters2) / 2 / 1_000_000 // m² -> km²
+	// geo.Area возвращает квадратные метры
+	areaMeters2 := geo.Area(orb.Polygon{orb.Ring(ring)})
+	return areaMeters2 / 1_000_000 // м² -> км²
 }
 
-// projectToMetersLocal mirrors projectToMeters but is self-contained for area calc.
+// SignedArea возвращает знаковую площадь полигона в квадратных километрах.
+// Положительная для полигонов против часовой стрелки, отрицательная для по часовой.
+func SignedArea(points []LatLon) float64 {
+	if len(points) < 3 {
+		return 0
+	}
+
+	ring := ToORBLineString(points)
+	if len(ring) == 0 {
+		return 0
+	}
+
+	if ring[0] != ring[len(ring)-1] {
+		ring = append(ring, ring[0])
+	}
+
+	// geo.SignedArea возвращает квадратные метры
+	areaMeters2 := geo.SignedArea(orb.Ring(ring))
+	return areaMeters2 / 1_000_000 // м² -> км²
+}
+
+// projectToMetersLocal проецирует точки на локальную плоскость в метрах
 func projectToMetersLocal(points []LatLon) []pointXY {
 	if len(points) == 0 {
 		return nil
@@ -40,7 +66,8 @@ func projectToMetersLocal(points []LatLon) []pointXY {
 	refLat /= float64(len(points))
 	refLon /= float64(len(points))
 
-	metersPerDegLon := metersPerDegLat * math.Cos(refLat*math.Pi/180)
+	metersPerDegLat := 111194.9
+	metersPerDegLon := metersPerDegLat * math.Cos(refLat*math.Pi/180.0)
 	if math.Abs(metersPerDegLon) < 1e-9 {
 		metersPerDegLon = metersPerDegLat
 	}
@@ -53,7 +80,7 @@ func projectToMetersLocal(points []LatLon) []pointXY {
 		}
 	}
 
-	// Ensure closure for area calculation
+	// Обеспечиваем замыкание для расчёта площади
 	if points[0] != points[len(points)-1] {
 		projected = append(projected, projected[0])
 	}

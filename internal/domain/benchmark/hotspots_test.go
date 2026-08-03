@@ -7,7 +7,7 @@ import (
 )
 
 func TestFindHotspots(t *testing.T) {
-	// Coastline with one clear hotspot in the middle
+	// Побережье с одним чётким участком активной эрозии в середине
 	coastline := []geometry.LatLon{
 		{Lat: 0, Lon: 0},
 		{Lat: 0.001, Lon: 0.001},
@@ -17,7 +17,7 @@ func TestFindHotspots(t *testing.T) {
 		{Lat: 0.005, Lon: 0.005},
 	}
 
-	// Retreat rates: low, high in middle, low
+	// Скорости отступления: низкие, высокие в середине, низкие
 	rates := []SegmentRate{
 		{Index: 0, RetreatRate: 0.1, Center: coastline[0]},
 		{Index: 1, RetreatRate: 0.2, Center: coastline[1]},
@@ -29,14 +29,14 @@ func TestFindHotspots(t *testing.T) {
 
 	hotspots := FindHotspots(rates, coastline, 3, 0.5)
 	if len(hotspots) == 0 {
-		t.Fatal("expected at least 1 hotspot")
+		t.Fatal("ожидается, что будет как минимум 1 точка доступа")
 	}
 
 	if hotspots[0].MeanRetreatRate < 3.0 {
-		t.Errorf("top hotspot mean rate = %v, want > 3.0", hotspots[0].MeanRetreatRate)
+		t.Errorf("средняя скорость в верхней точке доступа = %v, потребность > 3,0", hotspots[0].MeanRetreatRate)
 	}
 	if hotspots[0].Rank != 1 {
-		t.Errorf("top hotspot rank = %d, want 1", hotspots[0].Rank)
+		t.Errorf("рейтинг лучших точек доступа = %d, хочу 1", hotspots[0].Rank)
 	}
 }
 
@@ -54,7 +54,7 @@ func TestFindHotspotsNoErosion(t *testing.T) {
 
 	hotspots := FindHotspots(rates, coastline, 3, 0.5)
 	if len(hotspots) != 0 {
-		t.Errorf("expected 0 hotspots for zero erosion, got %d", len(hotspots))
+		t.Errorf("ожидаемые 0 горячих точек для нулевой эрозии, получено %d", len(hotspots))
 	}
 }
 

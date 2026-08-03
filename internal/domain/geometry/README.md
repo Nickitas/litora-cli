@@ -66,17 +66,28 @@
 
 ```
 internal/domain/geometry/
-├── types.go        # Базовый тип LatLon
-├── haversine.go    # Гаверсинусное расстояние
-├── length.go       # Длина полилинии
-├── area.go         # Площадь полигона (shoelace)
-├── simplify.go     # Упрощение (Ramer-Douglas-Peucker)
-├── tin.go          # TIN approximation mesh (Delaunay)
-├── erosion.go      # Стохастическая и волновая эрозия
-├── temporal.go     # Временная динамика эрозии
-├── sediment.go     # Транспорт наносов и аккумуляция
-├── bathymetry.go   # Батиметрический модуль
-├── lithology.go    # Литологический модуль
+├── types.go                    # Базовые типы (LatLon, Vector2D)
+├── haversine.go               # Расстояния на сфере (гаверсинус)
+├── length.go                  # Длина полилинии
+├── area.go                    # Площадь полигона (shoelace)
+├── simplify.go                # Упрощение (Ramer-Douglas-Peucker)
+├── erosion.go                 # Стохастическая и волновая эрозия
+├── erosion_physics.go         # Физика эрозии (внутренние функции)
+├── erosion_wave.go            # Волновая эрозия
+├── temporal.go                # Временная динамика эрозии
+├── sediment.go                # Транспорт наносов (базовый)
+├── sediment_optimized.go      # Оптимизированный транспорт
+├── sediment_temporal.go       # Временная модуляция транспорта
+├── bathymetry.go              # Батиметрический модуль
+├── lithology.go               # Литологический модуль
+├── lithology_dynamic.go       # Динамическая литология
+├── wave_spectrum.go           # Спектральный анализ волн
+├── validation.go              # Валидация геометрии
+├── tin.go                     # TIN approximation mesh
+├── orb_adapter.go            # Адаптер для орбитальных расчётов
+├── validation_doc.go          # Документация метрик качества
+└── тесты (*_test.go)
+```
 └── *_test.go       # Тесты всех модулей
 ```
 

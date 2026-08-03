@@ -74,6 +74,12 @@ func TestDrawDocumentIncludesLayersScaleAndLengths(t *testing.T) {
 	}
 
 	svg := string(content)
+	// Debug: print SVG content
+	t.Logf("SVG content length: %d", len(svg))
+	if len(svg) < 5000 {
+		t.Logf("SVG content: %s", svg)
+	}
+
 	for _, expected := range []string{
 		"Исходная полилиния",
 		"Итерация 1",

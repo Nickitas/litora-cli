@@ -9,27 +9,27 @@ import (
 func TestDefaultScenarios(t *testing.T) {
 	scenarios := DefaultScenarios(10.0, 90.0)
 	if len(scenarios) < 4 {
-		t.Errorf("expected at least 4 scenarios, got %d", len(scenarios))
+		t.Errorf("ожидаются как минимум 4 сценария, получено %d", len(scenarios))
 	}
 
-	// Check that baseline exists
+	// Проверяем, что базовый сценарий существует
 	foundBaseline := false
 	for _, s := range scenarios {
 		if s.Name == "baseline" {
 			foundBaseline = true
 			if s.ErosionStrength != 10.0 {
-				t.Errorf("baseline strength = %v, want 10.0", s.ErosionStrength)
+				t.Errorf("силa baseline = %v, требуется 10.0", s.ErosionStrength)
 			}
 			if s.WaveDirection != 90.0 {
-				t.Errorf("baseline direction = %v, want 90.0", s.WaveDirection)
+				t.Errorf("направление baseline = %v, требуется 90.0", s.WaveDirection)
 			}
 		}
 	}
 	if !foundBaseline {
-		t.Error("baseline scenario missing")
+		t.Error("baseline сценарий отсутствует")
 	}
 
-	// Check RCP scenarios exist
+	// Проверяем, что существуют сценарии RCP
 	rcpCount := 0
 	for _, s := range scenarios {
 		if len(s.Name) >= 3 && s.Name[:3] == "rcp" {
@@ -37,7 +37,7 @@ func TestDefaultScenarios(t *testing.T) {
 		}
 	}
 	if rcpCount < 2 {
-		t.Errorf("expected at least 2 RCP scenarios, got %d", rcpCount)
+		t.Errorf("ожидаются как минимум 2 сценария RCP, получено %d", rcpCount)
 	}
 }
 
@@ -63,14 +63,14 @@ func TestRunScenario(t *testing.T) {
 
 	result, err := RunScenario(site, scenario, nil)
 	if err != nil {
-		t.Fatalf("RunScenario failed: %v", err)
+		t.Fatalf("RunScenario не удалось: %v", err)
 	}
 
 	if len(result.SegmentRetreats) != 5 {
-		t.Errorf("segment retreats len = %d, want 5", len(result.SegmentRetreats))
+		t.Errorf("длина отступлений сегментов = %d, требуется 5", len(result.SegmentRetreats))
 	}
 	if result.CoastLengthKm <= 0 {
-		t.Errorf("coast length = %v, want > 0", result.CoastLengthKm)
+		t.Errorf("длина берега = %v, требуется > 0", result.CoastLengthKm)
 	}
 }
 
@@ -101,13 +101,13 @@ func TestCompareScenarios(t *testing.T) {
 
 	diffs := CompareScenarios(results, coastline)
 	if len(diffs) != 1 {
-		t.Fatalf("expected 1 diff, got %d", len(diffs))
+		t.Fatalf("ожидаются 1 разница, получено %d", len(diffs))
 	}
 
 	if diffs[0].MeanRetreatDelta <= 0 {
-		t.Errorf("delta = %v, want > 0", diffs[0].MeanRetreatDelta)
+		t.Errorf("дельта = %v, требуется > 0", diffs[0].MeanRetreatDelta)
 	}
 	if diffs[0].Modified.Name != "high" {
-		t.Errorf("modified name = %q, want 'high'", diffs[0].Modified.Name)
+		t.Errorf("изменённое имя = %q, требуется 'high'", diffs[0].Modified.Name)
 	}
 }

@@ -6,27 +6,32 @@ import (
 	"coastal-geometry/internal/domain/geometry"
 )
 
+// Константы типов предупреждений
 const (
 	WarningTypeLongSegment       = "long_segment"
 	WarningTypeDuplicateLocation = "duplicate_location"
 )
 
+// ValidationIssueSummary представляет сводку по проблеме валидации
 type ValidationIssueSummary struct {
 	WarningType string
 	Count       int
 	ThresholdKM float64
 }
 
+// DuplicateLocationSummary представляет сводку по дублирующимся местоположениям
 type DuplicateLocationSummary struct {
 	Name  string
 	Count int
 }
 
+// ValidationSummary представляет полную сводку валидации
 type ValidationSummary struct {
 	Issues             []ValidationIssueSummary
 	DuplicateLocations []DuplicateLocationSummary
 }
 
+// BuildValidationSummary строит сводку результатов валидации
 func BuildValidationSummary(points []geometry.LatLon) ValidationSummary {
 	longSegments := collectLongSegmentHighlights(points, longSegmentWarningKM)
 	duplicates := collectDuplicateLocations(points)
@@ -49,8 +54,9 @@ func BuildValidationSummary(points []geometry.LatLon) ValidationSummary {
 	}
 }
 
+// collectDuplicateLocations собирает дублирующиеся местоположения
 func collectDuplicateLocations(points []geometry.LatLon) []DuplicateLocationSummary {
-	if len(points) > 200 {
+	if len(points) > maxPointsForDuplicateCheck {
 		return nil
 	}
 

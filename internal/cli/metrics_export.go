@@ -163,18 +163,19 @@ type erosionSeriesArtifactMetrics struct {
 	Validation          validationMetrics          `json:"validation"`
 }
 
-func newExportContext(app *App) exportContext {
-	if app == nil {
-		return exportContext{}
-	}
-
+func newExportContext(command, dataset, source string, validation coastline.ValidationReport) exportContext {
 	return exportContext{
-		Command:    app.Config.Command,
-		Dataset:    app.Dataset,
-		Source:     app.DataSource,
-		Validation: app.Validation,
-		Config:     app.Config,
+		Command:    command,
+		Dataset:    dataset,
+		Source:     source,
+		Validation: validation,
+		Config:     config{Command: command},
 	}
+}
+
+// Legacy newExportContext for backward compatibility (deprecated)
+func newExportContextFromApp(command, dataset, source string, validation coastline.ValidationReport) exportContext {
+	return newExportContext(command, dataset, source, validation)
 }
 
 func summarizePolyline(points []geometry.LatLon) polylineMetrics {

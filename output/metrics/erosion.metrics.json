@@ -1,29 +1,29 @@
 {
-  "generated_at": "2026-07-03T11:44:58Z",
-  "command": "all",
-  "dataset": "Black Sea",
-  "source": "data\\cache\\black-sea.geojson (cached copy of https://geo.vliz.be/geoserver/MarineRegions/wfs?cql_filter=mrgid%3D3319\u0026outputFormat=application%2Fjson\u0026request=GetFeature\u0026service=WFS\u0026typeName=iho\u0026version=1.0.0)",
+  "generated_at": "2026-08-01T21:39:43Z",
+  "command": "lito erosion",
+  "dataset": "coastline",
+  "source": "unknown",
   "output_dir": "output",
   "reference_coastline": {
     "points_count": 9635,
-    "length_km": 6391.057193562525
+    "length_km": 6398.216681057437
   },
   "reference_render": {
-    "points_count": 1800,
-    "length_km": 5949.039321836947
+    "points_count": 9635,
+    "length_km": 6398.216681057437
   },
   "model_base": {
-    "points_count": 391,
-    "length_km": 5334.126834246317
+    "points_count": 9635,
+    "length_km": 6398.216681057437
   },
   "model_simplification": {
-    "applied": true,
+    "applied": false,
     "points_before": 9635,
-    "points_after": 391,
-    "length_before_km": 6391.057193562525,
-    "length_after_km": 5334.126834246317,
-    "length_delta_km": -1056.9303593162076,
-    "length_delta_percent": -16.537645139223827
+    "points_after": 9635,
+    "length_before_km": 6398.216681057437,
+    "length_after_km": 6398.216681057437,
+    "length_delta_km": 0,
+    "length_delta_percent": 0
   },
   "erosion_strength_meters": 30,
   "erosion_seed": 42,
@@ -36,51 +36,91 @@
   "steps": [
     {
       "step": 0,
-      "svg_file": "output\\svg\\erosion_step_0.svg",
-      "points": 391,
-      "render_points": 391,
-      "length_km": 5334.126834246317,
-      "area_km2": 415798.0861729477
+      "svg_file": "output/svg/erosion_step_0.svg",
+      "points": 9635,
+      "render_points": 9635,
+      "length_km": 6398.216681057437,
+      "area_km2": 425852.50980567577
     },
     {
       "step": 1,
-      "svg_file": "output\\svg\\erosion_step_1.svg",
-      "points": 391,
-      "render_points": 391,
-      "length_km": 5331.094972040198,
-      "area_km2": 415795.02308084484
+      "svg_file": "output/svg/erosion_step_1.svg",
+      "points": 9635,
+      "render_points": 9635,
+      "length_km": 6360.557885001848,
+      "area_km2": 425849.8848469164
     },
     {
       "step": 2,
-      "svg_file": "output\\svg\\erosion_step_2.svg",
-      "points": 391,
-      "render_points": 391,
-      "length_km": 5328.06601834646,
-      "area_km2": 415791.9921672824
+      "svg_file": "output/svg/erosion_step_2.svg",
+      "points": 9635,
+      "render_points": 9635,
+      "length_km": 6327.617199016753,
+      "area_km2": 425847.1659312181
     },
     {
       "step": 3,
-      "svg_file": "output\\svg\\erosion_step_3.svg",
-      "points": 391,
-      "render_points": 391,
-      "length_km": 5325.041311568445,
-      "area_km2": 415788.9075544961
+      "svg_file": "output/svg/erosion_step_3.svg",
+      "points": 9635,
+      "render_points": 9635,
+      "length_km": 6298.752818082461,
+      "area_km2": 425844.2991265054
     },
     {
       "step": 4,
-      "svg_file": "output\\svg\\erosion_step_4.svg",
-      "points": 391,
-      "render_points": 391,
-      "length_km": 5322.0287901441525,
-      "area_km2": 415785.8161360366
+      "svg_file": "output/svg/erosion_step_4.svg",
+      "points": 9635,
+      "render_points": 9635,
+      "length_km": 6273.071186661911,
+      "area_km2": 425841.331155603
     },
     {
       "step": 5,
-      "svg_file": "output\\svg\\erosion_step_5.svg",
-      "points": 391,
-      "render_points": 391,
-      "length_km": 5319.02489513821,
-      "area_km2": 415782.7351687227
+      "svg_file": "output/svg/erosion_step_5.svg",
+      "points": 9635,
+      "render_points": 9635,
+      "length_km": 6250.405292028352,
+      "area_km2": 425838.33043451287
+    },
+    {
+      "step": 6,
+      "svg_file": "output/svg/erosion_step_6.svg",
+      "points": 9635,
+      "render_points": 9635,
+      "length_km": 6230.000375826961,
+      "area_km2": 425835.2487989576
+    },
+    {
+      "step": 7,
+      "svg_file": "output/svg/erosion_step_7.svg",
+      "points": 9635,
+      "render_points": 9635,
+      "length_km": 6211.710577878559,
+      "area_km2": 425832.10833886155
+    },
+    {
+      "step": 8,
+      "svg_file": "output/svg/erosion_step_8.svg",
+      "points": 9635,
+      "render_points": 9635,
+      "length_km": 6195.1578597593825,
+      "area_km2": 425828.9360583624
+    },
+    {
+      "step": 9,
+      "svg_file": "output/svg/erosion_step_9.svg",
+      "points": 9635,
+      "render_points": 9635,
+      "length_km": 6180.026114869404,
+      "area_km2": 425825.7446748789
+    },
+    {
+      "step": 10,
+      "svg_file": "output/svg/erosion_step_10.svg",
+      "points": 9635,
+      "render_points": 9635,
+      "length_km": 6166.1672353697395,
+      "area_km2": 425822.5512262654
     }
   ],
   "highlights": {

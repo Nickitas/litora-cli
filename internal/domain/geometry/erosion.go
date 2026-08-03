@@ -57,14 +57,14 @@ type projectionReference struct {
 	MetersPerDegLon float64
 }
 
-// Erode applies a Gaussian-distributed random displacement to every point.
-// strength is the standard deviation of the displacement in meters; zero or
-// negative values return a clone of the input without changes.
+// Erode применяет случайное смещение с распределением Гаусса к каждой точке.
+// strength — стандартное отклонение смещения в метрах; нулевое или
+// отрицательное значение возвращает копию входных данных без изменений.
 func Erode(points []LatLon, strength float64) []LatLon {
 	return erodeWithRand(points, strength, rand.New(rand.NewSource(time.Now().UnixNano())))
 }
 
-// ErodeWithSeed mirrors Erode but allows a fixed seed for reproducible output.
+// ErodeWithSeed аналогична Erode, но позволяет использовать фиксированный seed для воспроизводимости.
 func ErodeWithSeed(points []LatLon, strength float64, seed int64) []LatLon {
 	if seed == 0 {
 		seed = time.Now().UnixNano()
@@ -72,13 +72,13 @@ func ErodeWithSeed(points []LatLon, strength float64, seed int64) []LatLon {
 	return erodeWithRand(points, strength, rand.New(rand.NewSource(seed)))
 }
 
-// SimulateErosion runs multiple erosion steps and returns snapshot after each step,
-// including the initial state at index 0.
+// SimulateErosion выполняет несколько шагов эрозии и возвращает снимок после каждого шага,
+// включая начальное состояние в индексе 0.
 func SimulateErosion(points []LatLon, steps int, strength float64) [][]LatLon {
 	return SimulateErosionWithSeed(points, steps, strength, time.Now().UnixNano())
 }
 
-// SimulateErosionWithSeed is deterministic for a fixed seed.
+// SimulateErosionWithSeed детерминирована для фиксированного seed.
 func SimulateErosionWithSeed(points []LatLon, steps int, strength float64, seed int64) [][]LatLon {
 	if steps < 0 {
 		steps = 0
@@ -96,12 +96,12 @@ func SimulateErosionWithSeed(points []LatLon, steps int, strength float64, seed 
 	return snapshots
 }
 
-// SimulateWaveErosion runs a directional wave-driven shoreline smoothing model.
+// SimulateWaveErosion выполняет модель сглаживания береговой линии под воздействием направленных волн.
 func SimulateWaveErosion(points []LatLon, steps int, options WaveErosionOptions) [][]LatLon {
 	return SimulateWaveErosionWithSeed(points, steps, options, time.Now().UnixNano())
 }
 
-// SimulateWaveErosionWithSeed mirrors SimulateWaveErosion but keeps the output reproducible.
+// SimulateWaveErosionWithSeed аналогична SimulateWaveErosion, но сохраняет воспроизводимость результатов.
 func SimulateWaveErosionWithSeed(points []LatLon, steps int, options WaveErosionOptions, seed int64) [][]LatLon {
 	if steps < 0 {
 		steps = 0
@@ -131,7 +131,7 @@ func erodeWithRand(points []LatLon, strength float64, rng *rand.Rand) []LatLon {
 		return clonePoints(points)
 	}
 
-	// Use mean latitude to approximate meters-to-degrees conversion.
+	// Используем среднюю широту для приближённого конвертирования метров в градусы.
 	refLat := 0.0
 	for _, p := range points {
 		refLat += p.Lat
@@ -322,38 +322,38 @@ func waveErodeStep(points []LatLon, options WaveErosionOptions, seed int64, step
 			retreatMeters = math.Min(retreatMeters, options.MaxRetreatMeters)
 		}
 
-		// Lithology modulation: resistance reduces retreat rate
+		// Литологическая модуляция: сопротивление снижает скорость отступания
 		if options.EnableLithology && options.LithologyProfile != nil {
 			lithology := options.LithologyProfile.GetLithologyAt(lat, lon)
 			if lithology.Resistance > 0 {
-				// Higher resistance = slower retreat (inverse relationship)
-				// Resistance=1.0 is baseline, Resistance>1.0 slows erosion
+				// Большее сопротивление = медленное отступание (обратная зависимость)
+				// Resistance=1.0 — базовое значение, Resistance>1.0 замедляет эрозию
 				retreatMeters /= lithology.Resistance
 			}
 		}
 
-		// Dynamic lithology: more sophisticated modulation with weathering
+		// Динамическая литология: более сложная модуляция с выветриванием
 		if options.EnableDynamicLithology && options.DynamicLithologyMap != nil {
-			// Find nearest point in spatial map
+			// Найти ближайшую точку в пространственной карте
 			if i < len(options.DynamicLithologyMap.Points) {
 				dynamicState := options.DynamicLithologyMap.Points[i]
 
-				// Apply weathering if simulation time is set
+				// Применить выветривание, если установлено время симуляции
 				if options.SimulationYears > 0 {
 					weatheredState := ApplyWeathering(
 						dynamicState.Static,
 						options.SimulationYears,
 						options.WeatheringProfile,
-						1.0, // climate factor
+						1.0, // климатический фактор
 					)
 					retreatMeters = CalculateLithologyErosionInteraction(
 						retreatMeters,
 						weatheredState,
 						options.LithologyInteractionParams,
-						false, // isStorm
+						false, // является штормом
 					)
 				} else {
-					// Use current resistance directly
+					// Использовать текущее сопротивление напрямую
 					if dynamicState.CurrentResistance > 0 {
 						retreatMeters /= dynamicState.CurrentResistance
 					}

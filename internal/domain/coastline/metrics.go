@@ -7,8 +7,7 @@ import (
 	"coastal-geometry/internal/domain/geometry"
 )
 
-const maxConsolePoints = 30
-
+// MainCalculation выполняет основной расчёт и выводит информацию о береговой линии
 func MainCalculation(coast []geometry.LatLon, datasetName, source string) SanityCheckResult {
 	segmentCount := 0
 	if len(coast) > 1 {
@@ -61,12 +60,14 @@ func MainCalculation(coast []geometry.LatLon, datasetName, source string) Sanity
 	return sanity
 }
 
+// consolePointEntry представляет запись точки для консольного вывода
 type consolePointEntry struct {
 	index       int
 	point       geometry.LatLon
 	placeholder string
 }
 
+// consolePointSelection выбирает точки для консольного вывода
 func consolePointSelection(points []geometry.LatLon) []consolePointEntry {
 	if len(points) <= maxConsolePoints {
 		result := make([]consolePointEntry, 0, len(points))

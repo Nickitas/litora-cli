@@ -410,17 +410,3 @@ func (c *CachedResult[K, V]) Size() int {
 func getWorkerCount() int {
 	return max(1, 1) // Will be set by runtime.NumCPU() at runtime
 }
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
-func max(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
-}

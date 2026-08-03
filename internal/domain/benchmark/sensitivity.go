@@ -11,44 +11,44 @@ import (
 	"coastal-geometry/internal/domain/geometry"
 )
 
-// SensitivityResult describes how a parameter affects model output
+// SensitivityResult описывает, как параметр влияет на выход модели
 type SensitivityResult struct {
-	Parameter        string    `json:"parameter"`  // e.g. "erosion_strength"
-	Values           []float64 `json:"values"`     // parameter values tested
-	RMSE             []float64 `json:"rmse"`       // RMSE at each value
-	MAE              []float64 `json:"mae"`        // MAE at each value
-	RSquared         []float64 `json:"r_squared"`  // R² at each value
-	BestValue        float64   `json:"best_value"` // value with lowest RMSE
+	Parameter        string    `json:"parameter"`  // например "erosion_strength"
+	Values           []float64 `json:"values"`     // протестированные значения параметра
+	RMSE             []float64 `json:"rmse"`       // RMSE для каждого значения
+	MAE              []float64 `json:"mae"`        // MAE для каждого значения
+	RSquared         []float64 `json:"r_squared"`  // R² для каждого значения
+	BestValue        float64   `json:"best_value"` // значение с наименьшим RMSE
 	BestRMSE         float64   `json:"best_rmse"`
-	WorstValue       float64   `json:"worst_value"` // value with highest RMSE
+	WorstValue       float64   `json:"worst_value"` // значение с наибольшим RMSE
 	WorstRMSE        float64   `json:"worst_rmse"`
-	SensitivityScore float64   `json:"sensitivity_score"` // (max-min)/max normalized
-	LocalSensitivity float64   `json:"local_sensitivity"` // derivative at best point
+	SensitivityScore float64   `json:"sensitivity_score"` // (max-min)/max нормализовано
+	LocalSensitivity float64   `json:"local_sensitivity"` // производная в лучшей точке
 }
 
-// ConfidenceInterval represents a parameter confidence interval from bootstrap
+// ConfidenceInterval представляет доверительный интервал параметра из бутстрепа
 type ConfidenceInterval struct {
 	Parameter string  `json:"parameter"`
 	Mean      float64 `json:"mean"`
 	StdDev    float64 `json:"std_dev"`
 	Median    float64 `json:"median"`
-	Lower95   float64 `json:"lower_95"` // 2.5 percentile
-	Upper95   float64 `json:"upper_95"` // 97.5 percentile
-	Lower68   float64 `json:"lower_68"` // 16 percentile (~1 sigma)
-	Upper68   float64 `json:"upper_68"` // 84 percentile
-	BestFit   float64 `json:"best_fit"` // original best fit (no resampling)
+	Lower95   float64 `json:"lower_95"` // 2.5 процентиль
+	Upper95   float64 `json:"upper_95"` // 97.5 процентиль
+	Lower68   float64 `json:"lower_68"` // 16 процентиль (~1 сигма)
+	Upper68   float64 `json:"upper_68"` // 84 процентиль
+	BestFit   float64 `json:"best_fit"` // исходная лучшая подгонка (без ресемплинга)
 }
 
-// NullModelComparison compares model against simple baselines
+// NullModelComparison сравнивает модель с простыми базовыми линиями
 type NullModelComparison struct {
 	ModelRMSE       float64 `json:"model_rmse"`
-	MeanModelRMSE   float64 `json:"mean_model_rmse"`   // predict mean observed
-	LinearTrendRMSE float64 `json:"linear_trend_rmse"` // predict linear trend (single value)
-	SkillScore      float64 `json:"skill_score"`       // (null - model) / null, 1=perfect, 0=as good as null
-	Improvement     float64 `json:"improvement_pct"`   // % improvement over null model
+	MeanModelRMSE   float64 `json:"mean_model_rmse"`   // предсказывать среднее наблюдаемое
+	LinearTrendRMSE float64 `json:"linear_trend_rmse"` // предсказывать линейный тренд (одно значение)
+	SkillScore      float64 `json:"skill_score"`       // (null - model) / null, 1=идеально, 0=как null
+	Improvement     float64 `json:"improvement_pct"`   // % улучшения по сравнению с null моделью
 }
 
-// FullAnalysis combines calibration, sensitivity, CI, and null model comparison
+// FullAnalysis объединяет калибровку, чувствительность, CI и сравнение с null моделью
 type FullAnalysis struct {
 	BestFit         CalibrationResultItem `json:"best_fit"`
 	Sensitivities   []SensitivityResult   `json:"sensitivities"`
@@ -78,8 +78,8 @@ type sensitivityResultData struct {
 	epsilon error // For error propagation
 }
 
-// AnalyzeSensitivity performs one-at-a-time sensitivity analysis
-// For each parameter, holds others at best-fit and varies this one
+// AnalyzeSensitivity выполняет однопараметрический анализ чувствительности
+// Для каждого параметра удерживает остальные на лучшей подгонке и варьирует этот
 func AnalyzeSensitivity(site BenchmarkSite, config CalibrationConfig, bestFit CalibrationResultItem) []SensitivityResult {
 	var results []SensitivityResult
 
@@ -95,7 +95,7 @@ func AnalyzeSensitivity(site BenchmarkSite, config CalibrationConfig, bestFit Ca
 }
 
 func sensitivityToStrength(site BenchmarkSite, config CalibrationConfig, bestFit CalibrationResultItem) SensitivityResult {
-	// Test range around best fit
+	// Тестируем диапазон вокруг лучшей подгонки
 	values := generateTestRange(bestFit.ErosionStrength, 0.1, 3.0, 12)
 
 	rmse := make([]float64, len(values))
@@ -143,7 +143,7 @@ func sensitivityToWaveDirection(site BenchmarkSite, config CalibrationConfig, be
 	return summarizeSensitivity("wave_direction_deg", values, rmse, mae, rSq)
 }
 
-// generateTestRange generates values around center from (center/factor) to (center*factor)
+// generateTestRange генерирует значения вокруг center от (center/factor) до (center*factor)
 func generateTestRange(center, minFactor, maxFactor float64, n int) []float64 {
 	if center <= 0 || n < 2 {
 		return []float64{center}
@@ -180,8 +180,8 @@ func summarizeSensitivity(name string, values, rmse, mae, rSq []float64) Sensiti
 		sensScore = (maxRMSE - minRMSE) / maxRMSE
 	}
 
-	// Local sensitivity: derivative at best point
-	// Use forward/backward/central difference
+	// Локальная чувствительность: производная в лучшей точке
+	// Используем прямую/обратную/центральную разность
 	localSens := 0.0
 	if bestIdx > 0 && bestIdx < len(values)-1 {
 		dVal := values[bestIdx+1] - values[bestIdx-1]
@@ -205,8 +205,8 @@ func summarizeSensitivity(name string, values, rmse, mae, rSq []float64) Sensiti
 	}
 }
 
-// BootstrapConfidenceIntervals estimates CI for best-fit parameters
-// by running calibration on resampled observation sets
+// BootstrapConfidenceIntervals оценивает доверительные интервалы для параметров лучшей подгонки
+// путём запуска калибровки на ресемплированных наборах наблюдений
 func BootstrapConfidenceIntervals(
 	site BenchmarkSite,
 	config CalibrationConfig,
@@ -220,28 +220,28 @@ func BootstrapConfidenceIntervals(
 		rng = mathRandFloat
 	}
 
-	// Get original best fit
+	// Получаем исходную лучшую подгонку
 	origResults, _ := Calibrate(site, config)
 	origBest := origResults[0]
 
-	// Storage for bootstrap best-fit parameters
+	// Хранилище для параметров лучшей подгонки бутстрепа
 	strengths := make([]float64, 0, bootstrapIterations)
 	directions := make([]float64, 0, bootstrapIterations)
 
 	nObs := len(site.ObservedErosion)
 
 	for iter := 0; iter < bootstrapIterations; iter++ {
-		// Resample observations with replacement
+		// Ресемплируем наблюдения с возвращением
 		resampled := resampleObservations(site.ObservedErosion, nObs, rng)
 		if len(resampled) == 0 {
 			continue
 		}
 
-		// Create temp site with resampled observations
+		// Создаём временный участок с ресемплированными наблюдениями
 		tempSite := site
 		tempSite.ObservedErosion = resampled
 
-		// Run calibration
+		// Запускаем калибровку
 		results, err := Calibrate(tempSite, config)
 		if err != nil || len(results) == 0 {
 			continue
@@ -257,7 +257,7 @@ func BootstrapConfidenceIntervals(
 	return strengthCI, dirCI
 }
 
-// computeCI computes CI for scalar values
+// computeCI вычисляет доверительный интервал для скалярных значений
 func computeCI(name string, values []float64, bestFit float64) ConfidenceInterval {
 	if len(values) == 0 {
 		return ConfidenceInterval{Parameter: name, BestFit: bestFit}
@@ -288,11 +288,11 @@ func computeCI(name string, values []float64, bestFit float64) ConfidenceInterva
 	}
 }
 
-// computeCIDirectional handles angular data (wave direction)
-// by computing CI on raw values when distribution is unimodal
+// computeCIDirectional обрабатывает угловые данные (направление волны)
+// путём вычисления доверительного интервала на исходных значениях, когда распределение унимодально
 func computeCIDirectional(name string, values []float64, bestFit float64) ConfidenceInterval {
 	ci := computeCI(name, values, bestFit)
-	// Wrap values to [0, 360)
+	// Заворачиваем значения в [0, 360)
 	ci.Median = math.Mod(math.Mod(ci.Median, 360)+360, 360)
 	ci.Lower95 = math.Mod(math.Mod(ci.Lower95, 360)+360, 360)
 	ci.Upper95 = math.Mod(math.Mod(ci.Upper95, 360)+360, 360)
@@ -302,7 +302,7 @@ func computeCIDirectional(name string, values []float64, bestFit float64) Confid
 	return ci
 }
 
-// resampleObservations performs bootstrap resampling
+// resampleObservations выполняет бутстреп-ресемплинг
 func resampleObservations(obs []ErosionObservation, n int, rng func() float64) []ErosionObservation {
 	if len(obs) == 0 {
 		return nil
@@ -318,7 +318,7 @@ func resampleObservations(obs []ErosionObservation, n int, rng func() float64) [
 	return resampled
 }
 
-// CompareWithNullModel compares model performance to mean baseline
+// CompareWithNullModel сравнивает производительность модели со средней базовой линией
 func CompareWithNullModel(observed, modeled []float64) NullModelComparison {
 	if len(observed) == 0 || len(modeled) == 0 {
 		return NullModelComparison{}
@@ -326,18 +326,18 @@ func CompareWithNullModel(observed, modeled []float64) NullModelComparison {
 
 	meanObs := meanOf(observed)
 
-	// Model RMSE
+	// RMSE модели
 	modelRMSE := rmseBetween(observed, modeled)
 
-	// Mean model RMSE (predict the mean for all)
+	// RMSE средней модели (предсказываем среднее для всех)
 	meanModelRMSE := rmseConstant(observed, meanObs)
 
-	// Linear trend RMSE (single best-fit constant for simplicity)
-	// We don't have independent variable here, so use mean as simplest trend
+	// RMSE линейного тренда (одна лучшая подгонка постоянной для простоты)
+	// Здесь нет независимой переменной, поэтому используем среднее как простейший тренд
 	linearTrendRMSE := meanModelRMSE
 
-	// Skill score: (null - model) / null
-	// 1 = perfect, 0 = as good as null, negative = worse than null
+	// Оценка навыка: (null - model) / null
+	// 1 = идеально, 0 = как null, отрицательное = хуже null
 	skillScore := 0.0
 	if meanModelRMSE > 0 {
 		skillScore = (meanModelRMSE - modelRMSE) / meanModelRMSE
@@ -357,9 +357,9 @@ func CompareWithNullModel(observed, modeled []float64) NullModelComparison {
 	}
 }
 
-// RunFullAnalysis runs calibration, sensitivity, CI, null model comparison
+// RunFullAnalysis выполняет калибровку, анализ чувствительности, CI, сравнение с null моделью
 func RunFullAnalysis(site BenchmarkSite, config CalibrationConfig, bootstrapIter int) (FullAnalysis, error) {
-	// 1. Get best fit
+	// 1. Получаем лучшую подгонку
 	results, err := Calibrate(site, config)
 	if err != nil {
 		return FullAnalysis{}, err
@@ -369,13 +369,13 @@ func RunFullAnalysis(site BenchmarkSite, config CalibrationConfig, bootstrapIter
 	}
 	bestFit := results[0]
 
-	// 2. Sensitivity analysis
+	// 2. Анализ чувствительности
 	sensitivities := AnalyzeSensitivity(site, config, bestFit)
 
-	// 3. Bootstrap confidence intervals
+	// 3. Доверительные интервалы бутстрепа
 	strengthCI, dirCI := BootstrapConfidenceIntervals(site, config, bootstrapIter, nil)
 
-	// 4. Null model comparison
+	// 4. Сравнение с null моделью
 	var observed, modeled []float64
 	for _, c := range bestFit.ComparisonPoints {
 		observed = append(observed, c.Observed)
@@ -392,9 +392,9 @@ func RunFullAnalysis(site BenchmarkSite, config CalibrationConfig, bootstrapIter
 	}, nil
 }
 
-// RunFullAnalysisWithBathymetry is same as RunFullAnalysis but with bathymetry
+// RunFullAnalysisWithBathymetry - то же, что RunFullAnalysis, но с батиметрией
 func RunFullAnalysisWithBathymetry(site BenchmarkSite, config CalibrationConfig, bathymetry *geometry.BathymetryGrid, bootstrapIter int) (FullAnalysis, error) {
-	// 1. Get best fit
+	// 1. Получаем лучшую подгонку
 	results, err := CalibrateWithBathymetry(site, config, bathymetry)
 	if err != nil {
 		return FullAnalysis{}, err
@@ -404,13 +404,13 @@ func RunFullAnalysisWithBathymetry(site BenchmarkSite, config CalibrationConfig,
 	}
 	bestFit := results[0]
 
-	// 2. Sensitivity analysis (with bathymetry)
+	// 2. Анализ чувствительности (с батиметрией)
 	sensitivities := analyzeSensitivityWithBathymetry(site, config, bestFit, bathymetry)
 
-	// 3. Bootstrap confidence intervals
+	// 3. Доверительные интервалы бутстрепа
 	strengthCI, dirCI := bootstrapWithBathymetry(site, config, bathymetry, bootstrapIter)
 
-	// 4. Null model comparison
+	// 4. Сравнение с null моделью
 	var observed, modeled []float64
 	for _, c := range bestFit.ComparisonPoints {
 		observed = append(observed, c.Observed)
@@ -542,9 +542,9 @@ func pseudoRandom() float64 {
 	return float64(prngState>>11) / float64(1<<53)
 }
 
-// ========== Parallel Optimized Versions ==========
+// ========== Параллельные оптимизированные версии ==========
 
-// sensitivityToStrengthParallel performs strength sensitivity analysis with parallel iterations
+// sensitivityToStrengthParallel выполняет анализ чувствительности силы с параллельными итерациями
 func sensitivityToStrengthParallel(ctx context.Context, site BenchmarkSite, config CalibrationConfig, bestFit CalibrationResultItem, bathymetry *geometry.BathymetryGrid) SensitivityResult {
 	values := generateTestRange(bestFit.ErosionStrength, 0.1, 3.0, 12)
 
@@ -619,7 +619,7 @@ func sensitivityToStrengthParallel(ctx context.Context, site BenchmarkSite, conf
 	return summarizeSensitivity("erosion_strength_m", values, rmse, mae, rSq)
 }
 
-// sensitivityToWaveDirectionParallel performs wave direction sensitivity analysis with parallel iterations
+// sensitivityToWaveDirectionParallel выполняет анализ чувствительности направления волн с параллельными итерациями
 func sensitivityToWaveDirectionParallel(ctx context.Context, site BenchmarkSite, config CalibrationConfig, bestFit CalibrationResultItem, bathymetry *geometry.BathymetryGrid) SensitivityResult {
 	values := generateTestRange(bestFit.WaveDirection, 0.1, 3.0, 12)
 
@@ -699,11 +699,11 @@ func sensitivityToWaveDirectionParallel(ctx context.Context, site BenchmarkSite,
 	return summarizeSensitivity("wave_direction_deg", values, rmse, mae, rSq)
 }
 
-// AnalyzeSensitivityParallel performs parallel sensitivity analysis for both parameters
+// AnalyzeSensitivityParallel выполняет параллельный анализ чувствительности для обоих параметров
 func AnalyzeSensitivityParallel(ctx context.Context, site BenchmarkSite, config CalibrationConfig, bestFit CalibrationResultItem, bathymetry *geometry.BathymetryGrid) []SensitivityResult {
 	var results []SensitivityResult
 
-	// Use channels for concurrent parameter analysis
+	// Используем каналы для конкурентного анализа параметров
 	type paramResult struct {
 		sensitivity SensitivityResult
 		err         error
@@ -712,7 +712,7 @@ func AnalyzeSensitivityParallel(ctx context.Context, site BenchmarkSite, config 
 
 	resultCh := make(chan paramResult, 2)
 
-	// Run both analyses in parallel
+	// Запускаем оба анализа параллельно
 	go func() {
 		configWithBath := config
 		if bathymetry != nil {
@@ -731,7 +731,7 @@ func AnalyzeSensitivityParallel(ctx context.Context, site BenchmarkSite, config 
 		resultCh <- paramResult{sensitivity: dirSens, parameter: "wave_direction_deg"}
 	}()
 
-	// Collect results
+	// Собираем результаты
 	for i := 0; i < 2; i++ {
 		select {
 		case <-ctx.Done():
@@ -744,7 +744,7 @@ func AnalyzeSensitivityParallel(ctx context.Context, site BenchmarkSite, config 
 	return results
 }
 
-// BootstrapConfidenceIntervalsParallel performs bootstrap CI calculation with parallel iterations
+// BootstrapConfidenceIntervalsParallel выполняет расчёт доверительных интервалов бутстрепа с параллельными итерациями
 func BootstrapConfidenceIntervalsParallel(
 	ctx context.Context,
 	site BenchmarkSite,
@@ -756,7 +756,7 @@ func BootstrapConfidenceIntervalsParallel(
 		bootstrapIterations = 200
 	}
 
-	// Get original best fit
+	// Получаем исходную лучшую подгонку
 	var origResults []CalibrationResultItem
 	var err error
 
@@ -771,7 +771,7 @@ func BootstrapConfidenceIntervalsParallel(
 	}
 	origBest := origResults[0]
 
-	// Storage with concurrent access
+	// Хранилище с конкурентным доступом
 	type accumulator struct {
 		mu         sync.Mutex
 		strengths  []float64
@@ -837,9 +837,9 @@ func BootstrapConfidenceIntervalsParallel(
 	return strengthCI, dirCI
 }
 
-// RunFullAnalysisParallel runs full analysis with parallel components
+// RunFullAnalysisParallel выполняет полный анализ с параллельными компонентами
 func RunFullAnalysisParallel(ctx context.Context, site BenchmarkSite, config CalibrationConfig, bathymetry *geometry.BathymetryGrid, bootstrapIter int) (FullAnalysis, error) {
-	// Phase 1: Get best fit
+	// Фаза 1: Получаем лучшую подгонку
 	results, err := func() ([]CalibrationResultItem, error) {
 		if bathymetry != nil {
 			return CalibrateWithBathymetry(site, config, bathymetry)
@@ -855,7 +855,7 @@ func RunFullAnalysisParallel(ctx context.Context, site BenchmarkSite, config Cal
 	}
 	bestFit := results[0]
 
-	// Phase 2: Run sensitivity and CI in parallel
+	// Фаза 2: Запускаем анализ чувствительности и CI параллельно
 	type analysisPhase struct {
 		sensitivities []SensitivityResult
 		strengthCI    ConfidenceInterval
@@ -866,10 +866,10 @@ func RunFullAnalysisParallel(ctx context.Context, site BenchmarkSite, config Cal
 	errCh := make(chan error, 1)
 
 	go func() {
-		// Sensitivity analysis
+		// Анализ чувствительности
 		sensitivities := AnalyzeSensitivityParallel(ctx, site, config, bestFit, bathymetry)
 
-		// Bootstrap CI
+		// Доверительные интервалы бутстрепа
 		strengthCI, dirCI := BootstrapConfidenceIntervalsParallel(ctx, site, config, bootstrapIter, bathymetry)
 
 		select {
@@ -882,7 +882,7 @@ func RunFullAnalysisParallel(ctx context.Context, site BenchmarkSite, config Cal
 		}
 	}()
 
-	// Null model comparison (can run in parallel with above)
+	// Сравнение с null моделью (может выполняться параллельно с вышесказанным)
 	var observed, modeled []float64
 	for _, c := range bestFit.ComparisonPoints {
 		observed = append(observed, c.Observed)
@@ -906,13 +906,13 @@ func RunFullAnalysisParallel(ctx context.Context, site BenchmarkSite, config Cal
 	}
 }
 
-// runCalibrationIterationWithBathymetry is a helper that runs calibration with bathymetry
+// runCalibrationIterationWithBathymetry - вспомогательная функция, выполняющая калибровку с батиметрией
 func runCalibrationIterationWithBathymetry(site BenchmarkSite, config CalibrationConfig, strength, waveDir float64, steps int, bathymetry *geometry.BathymetryGrid) CalibrationResultItem {
 	config.BathymetryGrid = bathymetry
 	return runCalibrationIteration(site, config, strength, waveDir, steps)
 }
 
-// Helper function for min (avoiding name conflicts)
+// Вспомогательная функция для min (избежание конфликтов имён)
 func sensitivityMin(a, b int) int {
 	if a < b {
 		return a
