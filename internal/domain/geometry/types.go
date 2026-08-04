@@ -1,5 +1,7 @@
 package geometry
 
+import "math"
+
 // LatLon представляет точку с географическими координатами
 type LatLon struct {
 	Lat float64 `json:"lat"` // Широта в градусах [-90, 90]
@@ -63,11 +65,8 @@ func (v Vector2D) Scale(scalar float64) Vector2D {
 
 // sqrt — вспомогательная функция для вычисления квадратного корня
 func sqrt(x float64) float64 {
-	// Используем встроенную функцию math.Sqrt через импорт
-	// Здесь заглушка для компиляции, в реальном коде нужно добавить import "math"
 	if x < 0 {
 		return 0
 	}
-	// В реальной реализации: return math.Sqrt(x)
-	return 0 // Заглушка
+	return math.Sqrt(x)
 }

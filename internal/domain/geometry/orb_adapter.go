@@ -2,17 +2,17 @@ package geometry
 
 import "github.com/paulmach/orb"
 
-// ToORB converts a LatLon to an orb.Point (longitude, latitude order).
+// ToORB преобразует LatLon в orb.Point (порядок долготы и широты).
 func ToORB(ll LatLon) orb.Point {
 	return orb.Point{ll.Lon, ll.Lat}
 }
 
-// FromORB converts an orb.Point to a LatLon.
+// FromORB преобразует orb.Point в прямоугольник.
 func FromORB(p orb.Point) LatLon {
 	return LatLon{Lat: p[1], Lon: p[0]}
 }
 
-// ToORBLineString converts a slice of LatLon to an orb.LineString.
+// ToORBLineString преобразует фрагмент LatLon в orb.LineString.
 func ToORBLineString(points []LatLon) orb.LineString {
 	ls := make(orb.LineString, len(points))
 	for i, p := range points {
@@ -21,7 +21,7 @@ func ToORBLineString(points []LatLon) orb.LineString {
 	return ls
 }
 
-// FromORBLineString converts an orb.LineString to a slice of LatLon.
+// FromORBLineString преобразует orb.LineString в фрагмент латлона.
 func FromORBLineString(ls orb.LineString) []LatLon {
 	points := make([]LatLon, len(ls))
 	for i, p := range ls {

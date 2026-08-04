@@ -2,6 +2,7 @@ package geometry
 
 import "testing"
 
+// TestSimplifyPolylineKeepsEndpointsAndRespectsBudget проверяет сохранение концевых точек и соблюдение бюджета
 func TestSimplifyPolylineKeepsEndpointsAndRespectsBudget(t *testing.T) {
 	points := []LatLon{
 		{Lat: 0, Lon: 0},
@@ -14,19 +15,20 @@ func TestSimplifyPolylineKeepsEndpointsAndRespectsBudget(t *testing.T) {
 
 	result := SimplifyPolyline(points, SimplifyOptions{MaxPoints: 4})
 	if !result.Applied {
-		t.Fatal("expected simplification to be applied")
+		t.Fatal("Ожидалось применение упрощения")
 	}
 	if len(result.Points) > 4 {
-		t.Fatalf("expected at most 4 points, got %d", len(result.Points))
+		t.Fatalf("Ожидалось не более 4 точек, получено %d", len(result.Points))
 	}
 	if result.Points[0] != points[0] {
-		t.Fatalf("expected first point to be preserved, got %+v", result.Points[0])
+		t.Fatalf("Ожидалось сохранение первой точки, получено %+v", result.Points[0])
 	}
 	if result.Points[len(result.Points)-1] != points[len(points)-1] {
-		t.Fatalf("expected last point to be preserved, got %+v", result.Points[len(result.Points)-1])
+		t.Fatalf("Ожидалось сохранение последней точки, получено %+v", result.Points[len(result.Points)-1])
 	}
 }
 
+// TestSimplifyPolylinePreservesClosedRing проверяет сохранение замкнутого контура
 func TestSimplifyPolylinePreservesClosedRing(t *testing.T) {
 	points := []LatLon{
 		{Lat: 0, Lon: 0},
@@ -39,16 +41,17 @@ func TestSimplifyPolylinePreservesClosedRing(t *testing.T) {
 
 	result := SimplifyPolyline(points, SimplifyOptions{MaxPoints: 5})
 	if !result.SimplifiedClosed {
-		t.Fatal("expected simplified polyline to remain closed")
+		t.Fatal("Ожидалось, что упрощённая полилиния останется замкнутой")
 	}
 	if result.Points[0] != result.Points[len(result.Points)-1] {
-		t.Fatalf("expected ring closure to be preserved, got first=%+v last=%+v", result.Points[0], result.Points[len(result.Points)-1])
+		t.Fatalf("Ожидалось сохранение замыкания кольца, получено: первая=%+v последняя=%+v", result.Points[0], result.Points[len(result.Points)-1])
 	}
 	if len(result.Points) > 5 {
-		t.Fatalf("expected at most 5 points, got %d", len(result.Points))
+		t.Fatalf("Ожидалось не более 5 точек, получено %d", len(result.Points))
 	}
 }
 
+// TestSimplifyPolylineLeavesShortPolylineUntouched проверяет сохранение короткой полилинии
 func TestSimplifyPolylineLeavesShortPolylineUntouched(t *testing.T) {
 	points := []LatLon{
 		{Lat: 0, Lon: 0},
@@ -57,9 +60,65 @@ func TestSimplifyPolylineLeavesShortPolylineUntouched(t *testing.T) {
 
 	result := SimplifyPolyline(points, SimplifyOptions{MaxPoints: 8})
 	if result.Applied {
-		t.Fatal("expected no simplification for a two-point polyline")
+		t.Fatal("Ожидалось отсутствие упрощения для двухточечной полилинии")
 	}
 	if len(result.Points) != len(points) {
-		t.Fatalf("expected original points to be preserved, got %d", len(result.Points))
+		t.Fatalf("Ожидалось сохранение исходных точек, получено %d", len(result.Points))
+	}
+}
+
+func TestSimplifyPolylineEdgeCases(t *testing.T) {
+	tests := []struct {
+		name          string
+		points        []LatLon
+		maxPoints     int
+		wantApplied   bool
+		wantSimplified bool
+	}{
+		{
+			name:          "менее 3 точек - не упрощается",
+			points:        []LatLon{{Lat: 45, Lon: 34}, {Lat: 46, Lon: 35}},
+			maxPoints:     10,
+			wantApplied:   false,
+			wantSimplified: false,
+		},
+		{
+			name: "maxPoints >= len(points) - не упрощается",
+			points: []LatLon{
+				{Lat: 45, Lon: 34},
+				{Lat: 45, Lon: 35},
+				{Lat: 46, Lon: 35},
+			},
+			maxPoints:     5,
+			wantApplied:   false,
+			wantSimplified: false,
+		},
+		{
+			name: "замкнутая полилиния с 4 точками и maxPoints=4 - не упрощается",
+			points: []LatLon{
+				{Lat: 45, Lon: 34},
+				{Lat: 45, Lon: 35},
+				{Lat: 46, Lon: 35},
+				{Lat: 45, Lon: 34}, // замкнутая
+			},
+			maxPoints:     4,
+			wantApplied:   false,
+			wantSimplified: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := SimplifyPolyline(tt.points, SimplifyOptions{MaxPoints: tt.maxPoints})
+
+			if result.Applied != tt.wantApplied {
+				t.Errorf("SimplifyPolyline().Applied = %v, want %v", result.Applied, tt.wantApplied)
+			}
+
+			simplified := len(result.Points) < len(tt.points)
+			if simplified != tt.wantSimplified {
+				t.Errorf("SimplifyPolyline() simplified = %v, want %v", simplified, tt.wantSimplified)
+			}
+		})
 	}
 }

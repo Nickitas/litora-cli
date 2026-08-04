@@ -16,7 +16,7 @@ func TestPhysicalDepthFactorValues(t *testing.T) {
 		expectedMax float64
 	}{
 		{
-			name:        "Very deep water (2000m)",
+			name:        "Очень глубокая вода (2000 м)",
 			depthMeters: -2000,
 			fetchMeters: 5000,
 			depthScale:  1000,
@@ -24,7 +24,7 @@ func TestPhysicalDepthFactorValues(t *testing.T) {
 			expectedMax: 0.9,
 		},
 		{
-			name:        "Shallow water (10m)",
+			name:        "Мелководье (10 м)",
 			depthMeters: -10,
 			fetchMeters: 1000,
 			depthScale:  1000,
@@ -32,7 +32,7 @@ func TestPhysicalDepthFactorValues(t *testing.T) {
 			expectedMax: 0.05, // exp(-10/1000) = 0.99, 1 - 0.99 = 0.01
 		},
 		{
-			name:        "Zero depth (sea level)",
+			name:        "Нулевая глубина (уровень моря)",
 			depthMeters: 0,
 			fetchMeters: 1000,
 			depthScale:  1000,
@@ -40,7 +40,7 @@ func TestPhysicalDepthFactorValues(t *testing.T) {
 			expectedMax: 0.01,
 		},
 		{
-			name:        "Land (positive depth)",
+			name:        "Суша (положительная глубина)",
 			depthMeters: 10,
 			fetchMeters: 1000,
 			depthScale:  1000,
@@ -53,7 +53,7 @@ func TestPhysicalDepthFactorValues(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			result := physicalDepthFactor(tt.depthMeters, tt.fetchMeters, tt.depthScale)
 			if result < tt.expectedMin || result > tt.expectedMax {
-				t.Errorf("physicalDepthFactor(%f, %f, %f) = %f, expected [%f, %f]",
+				t.Errorf("physicalDepthFactor(%f, %f, %f) = %f, ожидается [%f, %f]",
 					tt.depthMeters, tt.fetchMeters, tt.depthScale, result, tt.expectedMin, tt.expectedMax)
 			}
 		})
@@ -84,7 +84,7 @@ func TestWaveErosionSanityChecks(t *testing.T) {
 
 	snapshots := SimulateWaveErosionWithSeed(points, 1, options, 42)
 	if len(snapshots) != 2 {
-		t.Fatalf("expected 2 snapshots, got %d", len(snapshots))
+		t.Fatalf("ожидалось 2 снимка, получено %d", len(snapshots))
 	}
 
 	initial := snapshots[0]
@@ -93,29 +93,29 @@ func TestWaveErosionSanityChecks(t *testing.T) {
 	// Проверки:
 	// 1. Число точек не изменилось
 	if len(initial) != len(eroded) {
-		t.Errorf("point count changed: %d -> %d", len(initial), len(eroded))
+		t.Errorf("количество точек изменилось: %d -> %d", len(initial), len(eroded))
 	}
 
 	// 2. Берег остался замкнутым
 	if initial[0] != initial[len(initial)-1] {
-		t.Error("initial polygon not closed")
+		t.Error("начальный полигон не замкнут")
 	}
 	if eroded[0] != eroded[len(eroded)-1] {
-		t.Error("eroded polygon not closed")
+		t.Error("эродированный полигон не замкнут")
 	}
 
 	// 3. Длина уменьшилась (эрозия)
 	initialLength := PolylineLength(initial)
 	erodedLength := PolylineLength(eroded)
 	if erodedLength >= initialLength {
-		t.Errorf("length should decrease: %.2f -> %.2f", initialLength, erodedLength)
+		t.Errorf("длина должна уменьшиться: %.2f -> %.2f", initialLength, erodedLength)
 	}
 
 	// 4. Площадь уменьшилась (эрозия)
 	initialArea := Area(initial)
 	erodedArea := Area(eroded)
 	if erodedArea >= initialArea {
-		t.Errorf("area should decrease: %.2f -> %.2f", initialArea, erodedArea)
+		t.Errorf("площадь должна уменьшиться: %.2f -> %.2f", initialArea, erodedArea)
 	}
 
 	// 5. Отступ был разумным (не слишком большой, не слишком маленький)
@@ -128,10 +128,10 @@ func TestWaveErosionSanityChecks(t *testing.T) {
 	}
 
 	if maxRetreat < 0.001 {
-		t.Errorf("max retreat too small: %f km (should be ~10m)", maxRetreat)
+		t.Errorf("максимальный отступ слишком мал: %f км (должен быть ~10 м)", maxRetreat)
 	}
 	if maxRetreat > 0.1 {
-		t.Errorf("max retreat too large: %f km (should be ~10m)", maxRetreat)
+		t.Errorf("максимальный отступ слишком велик: %f км (должен быть ~10 м)", maxRetreat)
 	}
 }
 
@@ -161,12 +161,12 @@ func TestWaveErosionConsistency(t *testing.T) {
 	snapshots2 := SimulateWaveErosionWithSeed(points, 3, options, 12345)
 
 	if len(snapshots1) != len(snapshots2) {
-		t.Fatalf("different number of snapshots: %d vs %d", len(snapshots1), len(snapshots2))
+		t.Fatalf("разное количество снимков: %d против %d", len(snapshots1), len(snapshots2))
 	}
 
 	for step := 0; step < len(snapshots1); step++ {
 		if len(snapshots1[step]) != len(snapshots2[step]) {
-			t.Errorf("step %d: different point counts", step)
+			t.Errorf("шаг %d: разное количество точек", step)
 			continue
 		}
 
@@ -176,7 +176,7 @@ func TestWaveErosionConsistency(t *testing.T) {
 
 			// Проверяем координаты с точностью до 1 мм (0.000001 градусов)
 			if math.Abs(p1.Lat-p2.Lat) > 1e-6 || math.Abs(p1.Lon-p2.Lon) > 1e-6 {
-				t.Errorf("step %d, point %d: not deterministic: (%f, %f) vs (%f, %f)",
+				t.Errorf("шаг %d, точка %d: не детерминировано: (%f, %f) против (%f, %f)",
 					step, i, p1.Lat, p1.Lon, p2.Lat, p2.Lon)
 			}
 		}
@@ -213,11 +213,11 @@ func TestWaveErosionOpenCoastErodesMoreThanProtected(t *testing.T) {
 	openCoastRetreat := Haversine(points[1], eroded[1]) + Haversine(points[3], eroded[3])
 	protectedRetreat := Haversine(points[2], eroded[2])
 
-	t.Logf("Open coast retreat: %.2f km", openCoastRetreat*1000)
-	t.Logf("Protected retreat: %.2f km", protectedRetreat*1000)
+	t.Logf("Открытый берег: отступ %.2f км", openCoastRetreat*1000)
+	t.Logf("Защищённый берег: отступ %.2f км", protectedRetreat*1000)
 
 	if protectedRetreat > openCoastRetreat {
-		t.Errorf("protected coast (%.2f km) eroded more than open coast (%.2f km)",
+		t.Errorf("защищённый берег (%.2f км) эродирован больше чем открытый (%.2f км)",
 			protectedRetreat, openCoastRetreat)
 	}
 }
@@ -230,11 +230,11 @@ func TestWindFactorScaling(t *testing.T) {
 		expectedFactor float64
 		tolerance      float64
 	}{
-		{"6 m/s", 6, 0.25, 0.01},
-		{"12 m/s", 12, 1.0, 0.01},
-		{"18 m/s", 18, 2.25, 0.01},
-		{"24 m/s", 24, 4.0, 0.01},
-		{"3 m/s", 3, 0.1, 0.01},
+		{"6 м/с", 6, 0.25, 0.01},
+		{"12 м/с", 12, 1.0, 0.01},
+		{"18 м/с", 18, 2.25, 0.01},
+		{"24 м/с", 24, 4.0, 0.01},
+		{"3 м/с", 3, 0.1, 0.01},
 	}
 
 	for _, tt := range tests {
@@ -243,7 +243,7 @@ func TestWindFactorScaling(t *testing.T) {
 			factor = math.Max(0.1, math.Min(factor, 4.0))
 
 			if math.Abs(factor-tt.expectedFactor) > tt.tolerance {
-				t.Errorf("wind speed %.1f: factor %.2f, expected %.2f",
+				t.Errorf("скорость ветра %.1f м/с: коэффициент %.2f, ожидается %.2f",
 					tt.windSpeed, factor, tt.expectedFactor)
 			}
 		})
@@ -287,7 +287,7 @@ func TestFetchFactorCalculation(t *testing.T) {
 			fetchFactor := math.Sqrt(clamp(tt.meanFetch/tt.maxFetch, 0, 1))
 
 			if fetchFactor < tt.expectedMin || fetchFactor > tt.expectedMax {
-				t.Errorf("fetch %.0f/%.0f: factor %.3f, expected [%.2f, %.2f]",
+				t.Errorf("fetch %.0f/%.0f: коэффициент %.3f, ожидается [%.2f, %.2f]",
 					tt.meanFetch, tt.maxFetch, fetchFactor, tt.expectedMin, tt.expectedMax)
 			}
 		})
@@ -303,19 +303,19 @@ func TestExposurePowerCalculation(t *testing.T) {
 		expected  float64
 	}{
 		{
-			name:      "Perpendicular (max exposure)",
+			name:      "Перпендикулярно (максимальная экспозиция)",
 			incidence: 1.0,
 			power:     1.5,
 			expected:  1.0,
 		},
 		{
-			name:      "45 degrees",
+			name:      "45 градусов",
 			incidence: 0.707,
 			power:     1.5,
 			expected:  0.594, // 0.707^1.5
 		},
 		{
-			name:      "Grazing (low exposure)",
+			name:      "Скользящий (низкая экспозиция)",
 			incidence: 0.1,
 			power:     1.5,
 			expected:  0.032, // 0.1^1.5
@@ -327,8 +327,199 @@ func TestExposurePowerCalculation(t *testing.T) {
 			weight := math.Pow(tt.incidence, tt.power)
 
 			if math.Abs(weight-tt.expected) > 0.01 {
-				t.Errorf("incidence %.3f^%.1f: %.3f, expected %.3f",
+				t.Errorf("угол падения %.3f при степени %.1f: %.3f, ожидается %.3f",
 					tt.incidence, tt.power, weight, tt.expected)
+			}
+		})
+	}
+}
+
+func TestErode(t *testing.T) {
+	tests := []struct {
+		name     string
+		points   []LatLon
+		strength float64
+		wantLen  int
+	}{
+		{
+			name: "нулевая сила - возвращает копию",
+			points: []LatLon{
+				{Lat: 45, Lon: 30},
+				{Lat: 45, Lon: 31},
+			},
+			strength: 0,
+			wantLen:  2,
+		},
+		{
+			name: "отрицательная сила - возвращает копию",
+			points: []LatLon{
+				{Lat: 45, Lon: 30},
+				{Lat: 45, Lon: 31},
+			},
+			strength: -10,
+			wantLen:  2,
+		},
+		{
+			name: "положительная сила - возвращает изменённые точки",
+			points: []LatLon{
+				{Lat: 45, Lon: 30},
+				{Lat: 45, Lon: 31},
+			},
+			strength: 1000, // 1 км в метрах
+			wantLen:  2,
+		},
+		{
+			name:     "пустой набор точек",
+			points:   []LatLon{},
+			strength: 100,
+			wantLen:  0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := Erode(tt.points, tt.strength)
+			
+			if len(result) != tt.wantLen {
+				t.Errorf("Erode() returned length %v, want %v", len(result), tt.wantLen)
+			}
+			
+			// Проверяем, что результат это новый слайс (не та же память)
+			if len(tt.points) > 0 && tt.strength >= 0 {
+				// Для нулевой силы результат должен быть равен исходному
+				if tt.strength == 0 {
+					for i := range result {
+						if result[i] != tt.points[i] {
+							t.Errorf("Erode() with strength=0 should return copy, but point %d differs", i)
+						}
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestSimulateErosion(t *testing.T) {
+	points := []LatLon{
+		{Lat: 45, Lon: 30},
+		{Lat: 45, Lon: 31},
+		{Lat: 46, Lon: 31},
+	}
+	
+	tests := []struct {
+		name     string
+		points   []LatLon
+		steps    int
+		strength float64
+		wantLen  int
+	}{
+		{
+			name:     "один шаг эрозии",
+			points:   points,
+			steps:    1,
+			strength: 1000,
+			wantLen:  2, // начальное состояние + 1 шаг
+		},
+		{
+			name:     "несколько шагов эрозии",
+			points:   points,
+			steps:    3,
+			strength: 500,
+			wantLen:  4, // начальное состояние + 3 шага
+		},
+		{
+			name:     "ноль шагов - только начальное состояние",
+			points:   points,
+			steps:    0,
+			strength: 1000,
+			wantLen:  1, // только начальное состояние
+		},
+		{
+			name:     "отрицательное число шагов - как ноль",
+			points:   points,
+			steps:    -1,
+			strength: 1000,
+			wantLen:  1, // только начальное состояние
+		},
+		{
+			name:     "нулевая сила - без изменений",
+			points:   points,
+			steps:    2,
+			strength: 0,
+			wantLen:  3, // начальное состояние + 2 шага
+		},
+	}
+	
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			snapshots := SimulateErosion(tt.points, tt.steps, tt.strength)
+			
+			if len(snapshots) != tt.wantLen {
+				t.Errorf("SimulateErosion() returned %d snapshots, want %d", len(snapshots), tt.wantLen)
+			}
+			
+			// Проверяем, что начальное состояние сохранено
+			if len(snapshots) > 0 {
+				if len(snapshots[0]) != len(tt.points) {
+					t.Errorf("Initial snapshot has %d points, want %d", len(snapshots[0]), len(tt.points))
+				}
+			}
+		})
+	}
+}
+
+func TestErodeWithSeed(t *testing.T) {
+	points := []LatLon{
+		{Lat: 45, Lon: 30},
+		{Lat: 45, Lon: 31},
+	}
+	
+	tests := []struct {
+		name     string
+		points   []LatLon
+		strength float64
+		seed     int64
+		wantLen  int
+	}{
+		{
+			name:     "с фиксированным seed",
+			points:   points,
+			strength: 1000,
+			seed:     12345,
+			wantLen:  2,
+		},
+		{
+			name:     "один и тот же seed даёт одинаковый результат",
+			points:   points,
+			strength: 1000,
+			seed:     999,
+			wantLen:  2,
+		},
+		{
+			name:     "нулевой seed использует случайное значение",
+			points:   points,
+			strength: 1000,
+			seed:     0,
+			wantLen:  2,
+		},
+	}
+	
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result1 := ErodeWithSeed(tt.points, tt.strength, tt.seed)
+			result2 := ErodeWithSeed(tt.points, tt.strength, tt.seed)
+			
+			if len(result1) != tt.wantLen {
+				t.Errorf("ErodeWithSeed() returned length %v, want %v", len(result1), tt.wantLen)
+			}
+			
+			// Для ненулевого seed результаты должны быть идентичными
+			if tt.seed != 0 {
+				for i := range result1 {
+					if result1[i] != result2[i] {
+						t.Errorf("ErodeWithSeed() with same seed produced different results at index %d", i)
+					}
+				}
 			}
 		})
 	}

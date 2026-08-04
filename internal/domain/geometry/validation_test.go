@@ -18,7 +18,7 @@ func TestCalculateDimensionStability(t *testing.T) {
 
 	// Стабильность должна быть высокой (> 0.9) для малых вариаций
 	if stability < 0.9 {
-		t.Errorf("Expected high stability > 0.9 for stable dimensions, got %.3f", stability)
+		t.Errorf("Ожидаемая высокая стабильность > 0,9 для стабильных размеров, получено %.3f", stability)
 	}
 
 	// Тест с нестабильной размерностью
@@ -35,12 +35,12 @@ func TestCalculateDimensionStability(t *testing.T) {
 
 	// Нестабильная размерность должна давать умеренную стабильность
 	if unstableStability > 0.7 {
-		t.Errorf("Expected moderate stability < 0.7 for unstable dimensions, got %.3f", unstableStability)
+		t.Errorf("Ожидаемая умеренная стабильность < 0,7 для нестабильных размеров, получено %.3f", unstableStability)
 	}
 
 	// Но должна быть ниже стабильности стабильной размерности
 	if unstableStability >= stability {
-		t.Errorf("Unstable stability (%.3f) should be < stable (%.3f)", unstableStability, stability)
+		t.Errorf("Нестабильная стабильность (%.3f) должна быть < стабильной (%.3f)", unstableStability, stability)
 	}
 }
 
@@ -58,7 +58,7 @@ func TestCalculateSpatialAutocorrelation(t *testing.T) {
 
 	// Позитивный тренд должен давать положительную корреляцию
 	if autocorr < 0 {
-		t.Errorf("Expected positive autocorrelation for increasing trend, got %.3f", autocorr)
+		t.Errorf("Ожидаемая положительная автокорреляция для растущего тренда, %.3f", autocorr)
 	}
 
 	// Тест с осциллирующими значениями
@@ -74,7 +74,7 @@ func TestCalculateSpatialAutocorrelation(t *testing.T) {
 
 	// Осцилляция должна давать отрицательную корреляцию
 	if oscillatingAutocorr > 0 {
-		t.Errorf("Expected negative autocorrelation for oscillating values, got %.3f", oscillatingAutocorr)
+		t.Errorf("Ожидаемая отрицательная автокорреляция для колеблющихся значений, получено %.3f", oscillatingAutocorr)
 	}
 }
 
@@ -92,7 +92,7 @@ func TestCalculateConvergenceRate(t *testing.T) {
 
 	// Сходящаяся модель должна давать высокую конвергенцию
 	if convergenceRate < 0.5 {
-		t.Errorf("Expected high convergence rate > 0.5 for converging model, got %.3f", convergenceRate)
+		t.Errorf("Ожидаемая высокая скорость сходимости > 0,5 для сходящейся модели, получено %.3f", convergenceRate)
 	}
 
 	// Тест с расходящейся моделью (экспоненциальные изменения)
@@ -106,9 +106,9 @@ func TestCalculateConvergenceRate(t *testing.T) {
 
 	divergenceRate := calculateConvergenceRate(divergingMetrics)
 
-	// Расходящаяся модель должна давать более низкую конвергенцию, чем сходящаяся
+	// Расходящаяся модель должна дать более низкую конвергенцию, чем сходящаяся
 	if divergenceRate >= convergenceRate {
-		t.Errorf("Diverging model convergence (%.3f) should be < converging (%.3f)",
+		t.Errorf("Сходимость расходящейся модели (%.3f) должна быть < сходящаяся (%.3f)",
 			divergenceRate, convergenceRate)
 	}
 }
@@ -127,12 +127,12 @@ func TestCalculateMoransI(t *testing.T) {
 
 	// Кластеризация (позитивный тренд) должна давать Moran's I > 0
 	if moransI < 0 {
-		t.Errorf("Expected positive Moran's I for clustering pattern, got %.3f", moransI)
+		t.Errorf("Ожидаемый положительный I по шкале Морана для модели кластеризации, получено %.3f", moransI)
 	}
 
 	// Moran's I должен быть в диапазоне [-1, 1]
 	if moransI < -1 || moransI > 1 {
-		t.Errorf("Moran's I out of range [-1, 1]: %.3f", moransI)
+		t.Errorf("Показатель Морана I вне диапазона [-1, 1]: %.3f", moransI)
 	}
 }
 
@@ -174,22 +174,22 @@ func TestCalculateModelQualityMetrics(t *testing.T) {
 
 	// Проверяем, что все метрики рассчитаны
 	if metrics.DimensionStability < 0 || metrics.DimensionStability > 1 {
-		t.Errorf("DimensionStability out of range [0, 1]: %.3f", metrics.DimensionStability)
+		t.Errorf("Стабильность размеров вне диапазона [0, 1]: %.3f", metrics.DimensionStability)
 	}
 
 	// MassBalance может быть любым, но должен быть рассчитан
 	if metrics.MassBalance == 0 && sedimentResult.TotalBudget.NetChange != 0 {
-		t.Errorf("MassBalance not calculated correctly: %.3f", metrics.MassBalance)
+		t.Errorf("Неправильно рассчитан баланс массы: %.3f", metrics.MassBalance)
 	}
 
 	// SpatialAutocorr должен быть в диапазоне [-1, 1]
 	if metrics.SpatialAutocorr < -1 || metrics.SpatialAutocorr > 1 {
-		t.Errorf("SpatialAutocorr out of range [-1, 1]: %.3f", metrics.SpatialAutocorr)
+		t.Errorf("Пространственная автокоррекция вне диапазона [-1, 1]: %.3f", metrics.SpatialAutocorr)
 	}
 
 	// ConvergenceRate должен быть в диапазоне [0, 1]
 	if metrics.ConvergenceRate < 0 || metrics.ConvergenceRate > 1 {
-		t.Errorf("ConvergenceRate out of range [0, 1]: %.3f", metrics.ConvergenceRate)
+		t.Errorf("Коэффициент сходимости вне диапазона [0, 1]: %.3f", metrics.ConvergenceRate)
 	}
 }
 
@@ -204,7 +204,7 @@ func TestValidateModelQuality(t *testing.T) {
 
 	isValid := validateModelQuality(validMetrics)
 	if !isValid {
-		t.Error("Expected model to be valid with good metrics")
+		t.Error("Ожидаемая валидность модели с хорошими показателями")
 	}
 
 	// Тест невалидной модели (низкая стабильность размерности)
@@ -217,7 +217,7 @@ func TestValidateModelQuality(t *testing.T) {
 
 	isValid = validateModelQuality(invalidMetrics)
 	if isValid {
-		t.Error("Expected model to be invalid with low dimension stability")
+		t.Error("Ожидаемая модель будет недействительной из-за низкой стабильности размеров")
 	}
 
 	// Тест невалидной модели (плохой баланс массы)
@@ -230,7 +230,7 @@ func TestValidateModelQuality(t *testing.T) {
 
 	isValid = validateModelQuality(poorBalanceMetrics)
 	if isValid {
-		t.Error("Expected model to be invalid with poor mass balance")
+		t.Error("Ожидаемая модель будет недействительной из-за плохого баланса массы")
 	}
 }
 
@@ -249,7 +249,7 @@ func TestGenerateValidationWarnings(t *testing.T) {
 
 	warnings := generateValidationWarnings(goodMetrics)
 	if len(warnings) > 0 {
-		t.Errorf("Expected no warnings for good metrics, got %d: %v", len(warnings), warnings)
+		t.Errorf("Не ожидал никаких предупреждений о хороших показателях, получил %d: %v", len(warnings), warnings)
 	}
 
 	// Тест с проблемными метриками (много предупреждений)
@@ -264,7 +264,7 @@ func TestGenerateValidationWarnings(t *testing.T) {
 
 	warnings = generateValidationWarnings(poorMetrics)
 	if len(warnings) == 0 {
-		t.Error("Expected warnings for poor metrics")
+		t.Error("Ожидаемые предупреждения о плохих показателях")
 	}
 
 	// Проверяем наличие конкретных предупреждений
@@ -273,25 +273,25 @@ func TestGenerateValidationWarnings(t *testing.T) {
 	hasConvergenceWarning := false
 
 	for _, w := range warnings {
-		if contains(w, "dimension stability") {
+		if contains(w, "стабильность размер") {
 			hasDimensionWarning = true
 		}
-		if contains(w, "mass balance") {
+		if contains(w, "баланс массы") {
 			hasBalanceWarning = true
 		}
-		if contains(w, "convergence") {
+		if contains(w, "сходимост") {
 			hasConvergenceWarning = true
 		}
 	}
 
 	if !hasDimensionWarning {
-		t.Error("Expected warning about low dimension stability")
+		t.Error("Ожидаемое предупреждение о низкой стабильности размеров")
 	}
 	if !hasBalanceWarning {
-		t.Error("Expected warning about poor mass balance")
+		t.Error("Ожидаемое предупреждение о плохом балансе массы")
 	}
 	if !hasConvergenceWarning {
-		t.Error("Expected warning about low convergence rate")
+		t.Error("Ожидаемое предупреждение о низкой скорости конвергенции")
 	}
 }
 
@@ -309,21 +309,21 @@ func TestCalculateTimeSeriesMetrics(t *testing.T) {
 
 	// Проверяем, что все массивы имеют правильную длину
 	if len(ts.Steps) != len(erosionMetrics) {
-		t.Errorf("Expected %d steps, got %d", len(erosionMetrics), len(ts.Steps))
+		t.Errorf("Ожидаемые %d шаги, получено %d", len(erosionMetrics), len(ts.Steps))
 	}
 
 	if len(ts.Dimensions) != len(erosionMetrics) {
-		t.Errorf("Expected %d dimensions, got %d", len(erosionMetrics), len(ts.Dimensions))
+		t.Errorf("Ожидаемые размеры %d, полученные %d", len(erosionMetrics), len(ts.Dimensions))
 	}
 
 	if len(ts.MassBalances) != len(erosionMetrics) {
-		t.Errorf("Expected %d mass balances, got %d", len(erosionMetrics), len(ts.MassBalances))
+		t.Errorf("Ожидаемый %d баланс массы, полученный %d", len(erosionMetrics), len(ts.MassBalances))
 	}
 
 	// Проверяем, что значения корректны
 	for i, step := range ts.Steps {
 		if step != erosionMetrics[i].Step {
-			t.Errorf("Step mismatch at index %d: expected %d, got %d",
+			t.Errorf("Несоответствие шага по индексу %d: ожидаемый %d, полученный %d",
 				i, erosionMetrics[i].Step, step)
 		}
 	}
@@ -338,10 +338,10 @@ func TestValidateModelConvergence(t *testing.T) {
 
 	isConvergent, warnings := ValidateModelConvergence(convergingTs)
 	if !isConvergent {
-		t.Error("Expected model to be convergent with increasing convergence rates")
+		t.Error("Ожидается, что модель будет конвергентной с увеличением скорости конвергенции")
 	}
 	if len(warnings) > 0 {
-		t.Errorf("Expected no warnings for convergent model, got %d: %v", len(warnings), warnings)
+		t.Errorf("Не ожидал никаких предупреждений для конвергентной модели, получил %d: %v", len(warnings), warnings)
 	}
 
 	// Тест расходящейся модели
@@ -352,10 +352,10 @@ func TestValidateModelConvergence(t *testing.T) {
 
 	isConvergent, warnings = ValidateModelConvergence(divergingTs)
 	if isConvergent {
-		t.Error("Expected model to be non-convergent with decreasing convergence rates")
+		t.Error("Ожидаемая модель будет неконвергентной с уменьшающимися скоростями конвергенции")
 	}
 	if len(warnings) == 0 {
-		t.Error("Expected warnings for divergent model")
+		t.Error("Ожидаемые предупреждения для расходящейся модели")
 	}
 
 	// Проверяем наличие предупреждений
@@ -363,17 +363,17 @@ func TestValidateModelConvergence(t *testing.T) {
 	hasDimensionWarning := false
 
 	for _, w := range warnings {
-		if contains(w, "trend") || contains(w, "divergence") {
+		if contains(w, "тренд") || contains(w, "расход") {
 			hasTrendWarning = true
 		}
-		if contains(w, "dimension") || contains(w, "unstable") {
+		if contains(w, "размер") || contains(w, "нестабил") {
 			hasDimensionWarning = true
 		}
 	}
 
 	// Должно быть хотя бы одно предупреждение
 	if !hasTrendWarning && !hasDimensionWarning {
-		t.Error("Expected at least one warning about trend or dimension")
+		t.Error("Ожидается по крайней мере одно предупреждение о тренде или измерении")
 	}
 }
 
@@ -413,17 +413,17 @@ func TestGetQualityMetricsSummary(t *testing.T) {
 
 	// Проверяем значения
 	if summary["dimension_stability"].(float64) != 0.85 {
-		t.Errorf("dimension_stability mismatch: expected 0.85, got %.3f",
+		t.Errorf("несоответствие dimension_stability: ожидалось 0.85, получено %.3f",
 			summary["dimension_stability"].(float64))
 	}
 
 	if !summary["is_valid_model"].(bool) {
-		t.Error("is_valid_model should be true")
+		t.Error("is_valid_model должно быть true")
 	}
 
 	warnings, ok := summary["warnings"].([]string)
 	if !ok || len(warnings) != 1 {
-		t.Error("warnings field missing or incorrect")
+		t.Error("поле warnings отсутствует или некорректно")
 	}
 }
 
@@ -432,21 +432,21 @@ func TestCalculateLag1Autocorrelation(t *testing.T) {
 	constantValues := []float64{100.0, 100.0, 100.0, 100.0}
 	autocorr := calculateLag1Autocorrelation(constantValues)
 	if math.Abs(autocorr-1.0) >= 0.01 {
-		t.Errorf("Expected autocorrelation ≈ 1.0 for constant values, got %.3f", autocorr)
+		t.Errorf("Ожидалась автокорреляция ≈ 1.0 для постоянных значений, получено %.3f", autocorr)
 	}
 
 	// Тест с линейным ростом (умеренная положительная корреляция)
 	growingValues := []float64{100.0, 102.0, 104.0, 106.0, 108.0}
 	autocorr = calculateLag1Autocorrelation(growingValues)
 	if autocorr < 0.4 {
-		t.Errorf("Expected moderate positive autocorrelation for growing values, got %.3f", autocorr)
+		t.Errorf("Ожидалась умеренная положительная автокорреляция для растущих значений, получено %.3f", autocorr)
 	}
 
 	// Тест с осцилляцией (отрицательная корреляция)
 	oscillatingValues := []float64{100.0, 110.0, 100.0, 110.0, 100.0}
 	autocorr = calculateLag1Autocorrelation(oscillatingValues)
 	if autocorr > 0 {
-		t.Errorf("Expected negative autocorrelation for oscillating values, got %.3f", autocorr)
+		t.Errorf("Ожидалась отрицательная автокорреляция для колеблющихся значений, получено %.3f", autocorr)
 	}
 }
 
@@ -455,21 +455,21 @@ func TestCalculateLinearTrend(t *testing.T) {
 	growingValues := []float64{100.0, 102.0, 104.0, 106.0, 108.0}
 	trend := calculateLinearTrend(growingValues)
 	if trend <= 0 {
-		t.Errorf("Expected positive trend for growing values, got %.3f", trend)
+		t.Errorf("Ожидался положительный тренд для растущих значений, получено %.3f", trend)
 	}
 
 	// Тест с линейным спадом (отрицательный тренд)
 	decliningValues := []float64{108.0, 106.0, 104.0, 102.0, 100.0}
 	trend = calculateLinearTrend(decliningValues)
 	if trend >= 0 {
-		t.Errorf("Expected negative trend for declining values, got %.3f", trend)
+		t.Errorf("Ожидался отрицательный тренд для убывающих значений, получено %.3f", trend)
 	}
 
 	// Тест с постоянными значениями (нулевой тренд)
 	constantValues := []float64{100.0, 100.0, 100.0, 100.0}
 	trend = calculateLinearTrend(constantValues)
 	if math.Abs(trend) > 0.01 {
-		t.Errorf("Expected zero trend for constant values, got %.3f", trend)
+		t.Errorf("Ожидался нулевой тренд для постоянных значений, получено %.3f", trend)
 	}
 }
 

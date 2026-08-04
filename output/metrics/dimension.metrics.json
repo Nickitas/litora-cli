@@ -1,28 +1,28 @@
 {
-  "generated_at": "2026-08-01T21:39:42Z",
+  "generated_at": "2026-08-04T17:21:52Z",
   "command": "lito dimension",
   "dataset": "coastline",
   "source": "unknown",
   "title": "Фрактальная размерность (органическая модель)",
   "output_dir": "output",
   "reference_coastline": {
-    "points_count": 9635,
-    "length_km": 6398.216681057437
+    "points_count": 6000,
+    "length_km": 6319.409941760075
   },
   "reference_render": {
-    "points_count": 9635,
-    "length_km": 6398.216681057437
+    "points_count": 5000,
+    "length_km": 6278.165681776669
   },
   "model_base": {
-    "points_count": 9635,
-    "length_km": 6398.216681057437
+    "points_count": 6000,
+    "length_km": 6319.409941760075
   },
   "model_simplification": {
     "applied": false,
-    "points_before": 9635,
-    "points_after": 9635,
-    "length_before_km": 6398.216681057437,
-    "length_after_km": 6398.216681057437,
+    "points_before": 6000,
+    "points_after": 6000,
+    "length_before_km": 6319.409941760075,
+    "length_after_km": 6319.409941760075,
     "length_delta_km": 0,
     "length_delta_percent": 0
   },
@@ -36,85 +36,102 @@
     {
       "iteration": 0,
       "svg_file": "output/svg/dimension_0.svg",
-      "points_count": 9635,
-      "render_points_count": 9635,
-      "length_km": 6398.216681057437,
+      "points_count": 6000,
+      "render_points_count": 5000,
+      "length_km": 6319.409941760075,
       "relative_to_model_base": 1,
       "relative_to_reference": 1,
       "dimension": {
         "valid": true,
-        "dimension": 1.1059828127274343,
-        "regression_r_squared": 0.9999463248971273,
+        "dimension": 1.1035944962526933,
+        "regression_r_squared": 0.9999375399286083,
         "stable_across_scales": true,
-        "stability_spread": 0.0970793828153027,
+        "stability_spread": 0.11612239424673243,
         "sample_count": 13
       }
     },
     {
       "iteration": 1,
       "svg_file": "output/svg/dimension_1.svg",
-      "points_count": 38537,
-      "render_points_count": 38537,
-      "length_km": 8931.303069841639,
-      "relative_to_model_base": 1.3959050646539775,
-      "relative_to_reference": 1.3959050646539775,
+      "points_count": 23997,
+      "render_points_count": 5000,
+      "length_km": 8826.925543999998,
+      "relative_to_model_base": 1.3967958441293227,
+      "relative_to_reference": 1.3967958441293227,
       "dimension": {
         "valid": true,
-        "dimension": 1.1192720550530775,
-        "regression_r_squared": 0.9999641067355892,
+        "dimension": 1.1221882389367128,
+        "regression_r_squared": 0.9999731927851708,
         "stable_across_scales": true,
-        "stability_spread": 0.10338485448627455,
+        "stability_spread": 0.1181149598388902,
         "sample_count": 13
       }
     },
     {
       "iteration": 2,
       "svg_file": "output/svg/dimension_2.svg",
-      "points_count": 154145,
-      "render_points_count": 154145,
-      "length_km": 12067.46362921606,
-      "relative_to_model_base": 1.8860667324604679,
-      "relative_to_reference": 1.8860667324604679,
+      "points_count": 95985,
+      "render_points_count": 5000,
+      "length_km": 11938.049175888651,
+      "relative_to_model_base": 1.8891082056568844,
+      "relative_to_reference": 1.8891082056568844,
       "dimension": {
         "valid": true,
-        "dimension": 1.1204544652899964,
-        "regression_r_squared": 0.9999700166648223,
+        "dimension": 1.1251092637674904,
+        "regression_r_squared": 0.99997817382901,
         "stable_across_scales": true,
-        "stability_spread": 0.10338485448627455,
+        "stability_spread": 0.1036242277946906,
         "sample_count": 13
       }
     },
     {
       "iteration": 3,
       "svg_file": "output/svg/dimension_3.svg",
-      "points_count": 616577,
-      "render_points_count": 616577,
-      "length_km": 16165.906055366178,
-      "relative_to_model_base": 2.5266268495137036,
-      "relative_to_reference": 2.5266268495137036,
+      "points_count": 383937,
+      "render_points_count": 5000,
+      "length_km": 15989.813619651486,
+      "relative_to_model_base": 2.530270035812556,
+      "relative_to_reference": 2.530270035812556,
       "dimension": {
         "valid": true,
-        "dimension": 1.120876600826462,
-        "regression_r_squared": 0.9999716656319368,
+        "dimension": 1.1260653440348065,
+        "regression_r_squared": 0.9999802881858699,
         "stable_across_scales": true,
-        "stability_spread": 0.10338485448627455,
+        "stability_spread": 0.10051365980476623,
         "sample_count": 13
       }
     },
     {
       "iteration": 4,
       "svg_file": "output/svg/dimension_4.svg",
-      "points_count": 2466305,
-      "render_points_count": 2466305,
-      "length_km": 21595.44076013028,
-      "relative_to_model_base": 3.375228104428809,
-      "relative_to_reference": 3.375228104428809,
+      "points_count": 1535745,
+      "render_points_count": 4999,
+      "length_km": 21365.51965321679,
+      "relative_to_model_base": 3.380935854790596,
+      "relative_to_reference": 3.380935854790596,
       "dimension": {
         "valid": true,
-        "dimension": 1.121021317590583,
-        "regression_r_squared": 0.9999719420300418,
+        "dimension": 1.1262143152035338,
+        "regression_r_squared": 0.9999801441360492,
         "stable_across_scales": true,
-        "stability_spread": 0.10338485448627455,
+        "stability_spread": 0.10051365980476623,
+        "sample_count": 13
+      }
+    },
+    {
+      "iteration": 5,
+      "svg_file": "output/svg/dimension_5.svg",
+      "points_count": 6142977,
+      "render_points_count": 5000,
+      "length_km": 28523.048758900695,
+      "relative_to_model_base": 4.513562029013818,
+      "relative_to_reference": 4.513562029013818,
+      "dimension": {
+        "valid": true,
+        "dimension": 1.1262587479926411,
+        "regression_r_squared": 0.9999801264202745,
+        "stable_across_scales": true,
+        "stability_spread": 0.10051365980476623,
         "sample_count": 13
       }
     }

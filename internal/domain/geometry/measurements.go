@@ -7,6 +7,27 @@ import (
 	"github.com/paulmach/orb/geo"
 )
 
+// EarthRadiusKM — радиус Земли в километрах
+const EarthRadiusKM = 6371.0
+
+// Haversine возвращает расстояние по большому кругу в километрах между двумя точками.
+// Использует расчёт расстояния из библиотеки orb на основе формулы гаверсинуса.
+func Haversine(a, b LatLon) float64 {
+	// geo.Distance возвращает метры, конвертируем в километры
+	return geo.Distance(ToORB(a), ToORB(b)) / 1000
+}
+
+// PolylineLength возвращает общую длину полилинии в километрах с использованием orb/geo.
+func PolylineLength(points []LatLon) float64 {
+	if len(points) < 2 {
+		return 0
+	}
+
+	lineString := ToORBLineString(points)
+	// geo.Length возвращает метры, конвертируем в километры
+	return geo.Length(orb.LineString(lineString)) / 1000
+}
+
 // Area возвращает площадь полигона в квадратных километрах с использованием orb/geo.
 // Если полилиния не замкнута, она замыкается соединением последней точки с первой.
 func Area(points []LatLon) float64 {

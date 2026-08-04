@@ -381,25 +381,25 @@ func ValidateTemporalParameters(params TemporalParameters) []string {
 
 	if params.YearsPerStep < params.MinYearsPerStep {
 		warnings = append(warnings,
-			fmt.Sprintf("YearsPerStep %.2f < minimum %.2f",
+			fmt.Sprintf("YearsPerStep %.2f меньше минимума %.2f",
 				params.YearsPerStep, params.MinYearsPerStep))
 	}
 
 	if params.YearsPerStep > params.MaxYearsPerStep {
 		warnings = append(warnings,
-			fmt.Sprintf("YearsPerStep %.2f > maximum %.2f",
+			fmt.Sprintf("YearsPerStep %.2f больше максимума %.2f",
 				params.YearsPerStep, params.MaxYearsPerStep))
 	}
 
 	if params.StormProbability > 0.5 {
 		warnings = append(warnings,
-			fmt.Sprintf("High storm probability %.2f (unrealistic for most climates)",
+			fmt.Sprintf("Высокая вероятность шторма %.2f (нереалистично для большинства климатов)",
 				params.StormProbability))
 	}
 
 	if params.SeaLevelRise > 0.01 {
 		warnings = append(warnings,
-			fmt.Sprintf("High sea level rise %.4f m/year (exceeds IPCC RCP8.5)",
+			fmt.Sprintf("Высокий подъём уровня моря %.4f м/год (превышает IPCC RCP8.5)",
 				params.SeaLevelRise))
 	}
 
@@ -431,7 +431,7 @@ func max(values []float64) float64 {
 	return maximum
 }
 
-// fractalDimensionBoxCounting calculates fractal dimension using box-counting
+// fractalDimensionBoxCounting рассчитывает фрактальную размерность методом box-counting
 func fractalDimensionBoxCounting(points []LatLon, maxScales int) float64 {
 	if len(points) < 4 {
 		return 1.0 // minimum dimension for line
@@ -479,6 +479,7 @@ func fractalDimensionBoxCounting(points []LatLon, maxScales int) float64 {
 	return math.Max(1.0, math.Min(dimension, 2.0)) // constrain to [1, 2]
 }
 
+// countBoxes подсчитывает количество занятых боксов для box-counting
 func countBoxes(points []LatLon, scale int) int {
 	if len(points) < 2 {
 		return 0

@@ -2,24 +2,24 @@ package geometry
 
 import "math"
 
-// WaveSpectrumBin represents one direction component of a wave spectrum
+// WaveSpectrumBin представляет одну направляющую компоненту волнового спектра
 type WaveSpectrumBin struct {
-	// Direction the waves come FROM, in degrees clockwise from north
+	// Direction — направление, откуда приходят волны, в градусах по часовой стрелке от севера
 	Direction float64 `json:"direction"`
-	// Weight is the relative energy contribution (0-1); typically normalized across bins
+	// Weight — относительный вклад энергии (0-1); обычно нормализуется по корзинам
 	Weight float64 `json:"weight"`
-	// SignificantWaveHeightM is the Hs for this direction (m), optional
-	// If 0, uses WindSpeedMetersPerSecond to derive energy
+	// SignificantWaveHeightM — значительная высота волны Hs для этого направления (м), опционально
+	// Если 0, используется WindSpeedMetersPerSecond для вывода энергии
 	SignificantWaveHeightM float64 `json:"hs_m,omitempty"`
 }
 
-// WaveSpectrum represents a directional wave spectrum
-// Replaces single WindSourceDirectionDeg with multiple components
+// WaveSpectrum представляет направленный волновой спектр
+// Заменяет единственный WindSourceDirectionDeg на несколько компонентов
 type WaveSpectrum struct {
 	Bins []WaveSpectrumBin `json:"bins"`
 }
 
-// Normalize ensures weights sum to 1
+// Normalize гарантирует, что веса суммируются до 1
 func (s *WaveSpectrum) Normalize() {
 	if s == nil || len(s.Bins) == 0 {
 		return
@@ -36,7 +36,7 @@ func (s *WaveSpectrum) Normalize() {
 	}
 }
 
-// DominantDirection returns the direction with the highest weight
+// DominantDirection возвращает направление с наивысшим весом
 func (s *WaveSpectrum) DominantDirection() float64 {
 	if s == nil || len(s.Bins) == 0 {
 		return 0
@@ -50,7 +50,7 @@ func (s *WaveSpectrum) DominantDirection() float64 {
 	return best.Direction
 }
 
-// MeanDirection returns the energy-weighted circular mean direction (deg from N)
+// MeanDirection возвращает энергетически-взвешенное круговое среднее направление (град от С)
 func (s *WaveSpectrum) MeanDirection() float64 {
 	if s == nil || len(s.Bins) == 0 {
 		return 0
@@ -58,11 +58,11 @@ func (s *WaveSpectrum) MeanDirection() float64 {
 	var sumX, sumY float64
 	for _, b := range s.Bins {
 		rad := b.Direction * math.Pi / 180
-		// Direction waves come FROM, so use it directly
+		// Direction — направление, откуда приходят волны, поэтому используем напрямую
 		sumX += b.Weight * math.Sin(rad)
 		sumY += b.Weight * math.Cos(rad)
 	}
-	// atan2 returns angle of (sin, cos) which matches our convention
+	// atan2 возвращает угол (sin, cos), что соответствует нашей конвенции
 	deg := math.Atan2(sumX, sumY) * 180 / math.Pi
 	if deg < 0 {
 		deg += 360
@@ -70,8 +70,8 @@ func (s *WaveSpectrum) MeanDirection() float64 {
 	return deg
 }
 
-// Spread returns the circular standard deviation in degrees
-// (high = widely spread, low = unimodal)
+// Spread возвращает круговое стандартное отклонение в градусах
+// (высокое значение = широко распространено, низкое = унимодальное)
 func (s *WaveSpectrum) Spread() float64 {
 	if s == nil || len(s.Bins) == 0 {
 		return 0
@@ -96,8 +96,8 @@ func (s *WaveSpectrum) Spread() float64 {
 	return math.Sqrt(-2*math.Log(R)) * 180 / math.Pi
 }
 
-// NewSingleDirectionSpectrum creates a spectrum with a single direction
-// This is the legacy mode (equivalent to WindSourceDirectionDeg)
+// NewSingleDirectionSpectrum создаёт спектр с единственным направлением
+// Это режим совместимости (эквивалентно WindSourceDirectionDeg)
 func NewSingleDirectionSpectrum(direction float64) WaveSpectrum {
 	return WaveSpectrum{
 		Bins: []WaveSpectrumBin{
@@ -106,8 +106,8 @@ func NewSingleDirectionSpectrum(direction float64) WaveSpectrum {
 	}
 }
 
-// NewBimodalSpectrum creates a spectrum with two dominant directions
-// Example: NE and SW winds for Black Sea
+// NewBimodalSpectrum создаёт спектр с двумя доминирующими направлениями
+// Пример: NE и SW ветра для Чёрного моря
 func NewBimodalSpectrum(dir1, dir2, weight1, weight2 float64) WaveSpectrum {
 	s := WaveSpectrum{
 		Bins: []WaveSpectrumBin{
@@ -119,8 +119,8 @@ func NewBimodalSpectrum(dir1, dir2, weight1, weight2 float64) WaveSpectrum {
 	return s
 }
 
-// NewGaussianSpectrum creates a spectrum centered at meanDir with given std dev
-// and n bins distributed evenly around the compass
+// NewGaussianSpectrum создаёт гауссов спектр с центром в meanDir и заданным stddev
+// и n корзинами, равномерно распределёнными вокруг компаса
 func NewGaussianSpectrum(meanDir, stdDevDeg float64, n int) WaveSpectrum {
 	if n < 1 {
 		n = 8
@@ -133,7 +133,7 @@ func NewGaussianSpectrum(meanDir, stdDevDeg float64, n int) WaveSpectrum {
 	stepDeg := 360.0 / float64(n)
 	for i := 0; i < n; i++ {
 		dir := float64(i) * stepDeg
-		// Circular distance
+		// Круговое расстояние
 		diff := math.Mod(dir-meanDir+180, 360) - 180
 		if diff < -180 {
 			diff += 360
@@ -147,8 +147,8 @@ func NewGaussianSpectrum(meanDir, stdDevDeg float64, n int) WaveSpectrum {
 	return s
 }
 
-// NewDirectionalSpectrumFromWeights creates a spectrum from explicit weights
-// dirs and weights must have the same length
+// NewDirectionalSpectrumFromWeights создаёт спектр из явных весов
+// dirs и weights должны иметь одинаковую длину
 func NewDirectionalSpectrumFromWeights(dirs, weights []float64) WaveSpectrum {
 	if len(dirs) != len(weights) {
 		return WaveSpectrum{}

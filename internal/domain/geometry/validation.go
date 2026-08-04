@@ -44,7 +44,7 @@ func CalculateModelQualityMetrics(
 	if len(erosionMetrics) < 2 {
 		return ModelQualityMetrics{
 			IsValidModel: false,
-			Warnings:     []string{"insufficient data for validation"},
+			Warnings:     []string{"недостаточно данных для проверки"},
 		}
 	}
 
@@ -506,74 +506,74 @@ func generateValidationWarnings(metrics ModelQualityMetrics) []string {
 
 	if metrics.DimensionStability < 0.7 {
 		warnings = append(warnings,
-			fmt.Sprintf("Low dimension stability: %.2f (expected > 0.7)",
+			fmt.Sprintf("Низкая стабильность размеров: %.2f (ожидается > 0,7)",
 				metrics.DimensionStability))
 	}
 
 	if math.Abs(metrics.MassBalance) > 0.15 {
 		warnings = append(warnings,
-			fmt.Sprintf("Poor mass balance: %.4f (expected |balance| < 0.15)",
+			fmt.Sprintf("Плохой баланс массы: %.4f (ожидаемый |баланс| < 0,15)",
 				metrics.MassBalance))
 	}
 
 	if metrics.SpatialAutocorr < -0.3 {
 		warnings = append(warnings,
-			fmt.Sprintf("Negative spatial autocorrelation: %.2f (unusual pattern)",
+			fmt.Sprintf("Отрицательная пространственная автокорреляция: %.2f (необычная картина)",
 				metrics.SpatialAutocorr))
 	}
 
 	if metrics.SpatialAutocorr > 0.8 {
 		warnings = append(warnings,
-			fmt.Sprintf("High spatial autocorrelation: %.2f (oversmoothing?)",
+			fmt.Sprintf("Высокая пространственная автокорреляция: %.2f (чрезмерное сглаживание)",
 				metrics.SpatialAutocorr))
 	}
 
 	if metrics.ConvergenceRate < 0.5 {
 		warnings = append(warnings,
-			fmt.Sprintf("Low convergence rate: %.2f (model may not converge)",
+			fmt.Sprintf("Низкая скорость сходимости: %.2f (модель может не сходиться)",
 				metrics.ConvergenceRate))
 	}
 
 	if metrics.DimensionVariance > 0.1 {
 		warnings = append(warnings,
-			fmt.Sprintf("High dimension variance: %.4f (unstable geometry)",
+			fmt.Sprintf("Высокая вариация размерности: %.4f (нестабильная геометрия)",
 				metrics.DimensionVariance))
 	}
 
 	if math.Abs(metrics.MassBalanceTrend) > 1.0 {
 		warnings = append(warnings,
-			fmt.Sprintf("Strong mass balance trend: %.4f (drift detected)",
+			fmt.Sprintf("Высокий тренд баланса массы: %.4f (перемещение)",
 				metrics.MassBalanceTrend))
 	}
 
 	// Предупреждения для расширенных метрик
 	if metrics.SedimentTransportRate < 10.0 {
 		warnings = append(warnings,
-			fmt.Sprintf("Low sediment transport: %.2f m³/step (insufficient transport)",
+			fmt.Sprintf("Низкий объем наносов в транспорте: %.2f м³/шаг (недостаточно транспорта)",
 				metrics.SedimentTransportRate))
 	}
 
 	if metrics.AccumulationIndex < 0.1 {
 		warnings = append(warnings,
-			fmt.Sprintf("Low accumulation index: %.2f (excessive erosion)",
+			fmt.Sprintf("Низкий индекс аккумуляции: %.2f (высокая эрозия)",
 				metrics.AccumulationIndex))
 	}
 
 	if metrics.AccumulationIndex > 0.8 {
 		warnings = append(warnings,
-			fmt.Sprintf("High accumulation index: %.2f (excessive deposition)",
+			fmt.Sprintf("Высокий индекс аккумуляции: %.2f (высокая депозиция)",
 				metrics.AccumulationIndex))
 	}
 
 	if metrics.ErosionHotspots > 100 {
 		warnings = append(warnings,
-			fmt.Sprintf("Many erosion hotspots: %d (potential instability)",
+			fmt.Sprintf("Высокое количество кластеров высокой эрозии: %d (возможная нестабильность)",
 				metrics.ErosionHotspots))
 	}
 
 	if math.Abs(metrics.ShorelineChangeRate) > 100.0 {
 		warnings = append(warnings,
-			fmt.Sprintf("High shoreline change rate: %.2f m/step (rapid change)",
+			fmt.Sprintf("Высокая скорость изменения береговой линии: %.2f м/шаг (быстрый изменение)",
 				metrics.ShorelineChangeRate))
 	}
 
@@ -655,7 +655,7 @@ func CalculateTimeSeriesMetrics(erosionMetrics []ErosionMetrics) ValidationMetri
 // ValidateModelConvergence проверяет сходимость модели
 func ValidateModelConvergence(ts ValidationMetricsTimeSeries) (bool, []string) {
 	if len(ts.ConvergenceRates) < 3 {
-		return false, []string{"insufficient data for convergence analysis"}
+		return false, []string{"Недостаточно данных для анализа сходимости"}
 	}
 
 	warnings := []string{}
@@ -668,7 +668,7 @@ func ValidateModelConvergence(ts ValidationMetricsTimeSeries) (bool, []string) {
 	if trend < -0.1 {
 		isConvergent = false
 		warnings = append(warnings,
-			fmt.Sprintf("Convergence rate decreasing: trend=%.3f (divergence)", trend))
+			fmt.Sprintf("Скорость сходимости снижается: тренд=%.3f (разрыв)", trend))
 	}
 
 	// Проверяем стабильность размерности в последних шагах
@@ -685,7 +685,7 @@ func ValidateModelConvergence(ts ValidationMetricsTimeSeries) (bool, []string) {
 		if dimVariance > 0.05 {
 			isConvergent = false
 			warnings = append(warnings,
-				fmt.Sprintf("Dimension variance in final steps: %.4f (unstable)", dimVariance))
+				fmt.Sprintf("Разброс размерности в последних шагах: %.4f (нестабильно)", dimVariance))
 		}
 	}
 

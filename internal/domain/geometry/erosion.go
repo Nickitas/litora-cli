@@ -668,7 +668,7 @@ func almostEqual(a, b float64) bool {
 	return math.Abs(a-b) <= 1e-9
 }
 
-// erosionJob represents a single point processing job
+// erosionJob представляет задание обработки одной точки
 type erosionJob struct {
 	index         int
 	point         pointXY
@@ -687,14 +687,14 @@ type erosionJob struct {
 	localScale    float64
 }
 
-// erosionResult represents the result of processing a single point
+// erosionResult представляет результат обработки одной точки
 type erosionResult struct {
 	index int
 	point pointXY
 	valid bool
 }
 
-// fetchDistanceCache implements a thread-safe LRU cache for fetch distances
+// fetchDistanceCache реализует потоко-безопасный LRU кэш для расстояний разгона волны
 type fetchDistanceCache struct {
 	mu      sync.RWMutex
 	entries map[uint64]float64
@@ -739,14 +739,14 @@ func (c *fetchDistanceCache) put(index int, directionKey uint64, value float64) 
 	c.mu.Unlock()
 }
 
-// waveErodeStepParallel is the optimized version of waveErodeStep using concurrency
+// waveErodeStepParallel — оптимизированная версия waveErodeStep с использованием конкурентности
 func waveErodeStepParallel(points []LatLon, options WaveErosionOptions, seed int64, step int) []LatLon {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
 	defer cancel()
 	return waveErodeStepWithContext(ctx, points, options, seed, step)
 }
 
-// waveErodeStepWithContext performs wave erosion with context support
+// waveErodeStepWithContext выполняет волновую эрозию с поддержкой контекста
 func waveErodeStepWithContext(ctx context.Context, points []LatLon, options WaveErosionOptions, seed int64, step int) []LatLon {
 	if len(points) < 3 || options.StrengthMeters <= 0 {
 		return clonePoints(points)
@@ -893,7 +893,7 @@ func waveErodeStepWithContext(ctx context.Context, points []LatLon, options Wave
 	return updated
 }
 
-// processErosionJob processes a single erosion job
+// processErosionJob обрабатывает одно задание эрозии
 func processErosionJob(job erosionJob) erosionResult {
 	type sideResult struct {
 		response waveSideResponse
@@ -998,7 +998,7 @@ func processErosionJob(job erosionJob) erosionResult {
 	return erosionResult{index: job.index, point: newPoint, valid: true}
 }
 
-// sampleWaveSideParallel is an optimized version using parallel fetch sampling
+// sampleWaveSideParallel — оптимизированная версия с параллельным сэмплированием расстояний разгона
 func sampleWaveSideParallel(projected []pointXY, index int, normal, mainDirection pointXY,
 	closed bool, options WaveErosionOptions, lat, lon float64, cache *fetchDistanceCache) waveSideResponse {
 
@@ -1109,7 +1109,7 @@ func sampleWaveSideParallel(projected []pointXY, index int, normal, mainDirectio
 	}
 }
 
-// rayFetchDistanceParallel computes fetch distance with parallel segment checking
+// rayFetchDistanceParallel вычисляет расстояние разгона с параллельной проверкой сегментов
 func rayFetchDistanceParallel(ctx context.Context, projected []pointXY, index int,
 	direction pointXY, closed bool, probeDistance, maxFetch float64) float64 {
 
