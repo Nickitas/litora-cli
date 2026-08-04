@@ -13,49 +13,49 @@ func TestValidateTemporalParameters(t *testing.T) {
 		{
 			name: "валидные параметры",
 			params: TemporalParameters{
-				YearsPerStep:       1.0,
-				MinYearsPerStep:    0.1,
-				MaxYearsPerStep:    10.0,
-				StormProbability:   0.1,
-				SeaLevelRise:       0.001,
+				YearsPerStep:     1.0,
+				MinYearsPerStep:  0.1,
+				MaxYearsPerStep:  10.0,
+				StormProbability: 0.1,
+				SeaLevelRise:     0.001,
 			},
 			wantWarn: false,
 		},
 		{
 			name: "YearsPerStep меньше минимума",
 			params: TemporalParameters{
-				YearsPerStep:       0.5,
-				MinYearsPerStep:    1.0,
-				MaxYearsPerStep:    10.0,
+				YearsPerStep:    0.5,
+				MinYearsPerStep: 1.0,
+				MaxYearsPerStep: 10.0,
 			},
 			wantWarn: true,
 		},
 		{
 			name: "YearsPerStep больше максимума",
 			params: TemporalParameters{
-				YearsPerStep:       15.0,
-				MinYearsPerStep:    1.0,
-				MaxYearsPerStep:    10.0,
+				YearsPerStep:    15.0,
+				MinYearsPerStep: 1.0,
+				MaxYearsPerStep: 10.0,
 			},
 			wantWarn: true,
 		},
 		{
 			name: "высокая вероятность шторма",
 			params: TemporalParameters{
-				YearsPerStep:       1.0,
-				MinYearsPerStep:    0.1,
-				MaxYearsPerStep:    10.0,
-				StormProbability:   0.8,
+				YearsPerStep:     1.0,
+				MinYearsPerStep:  0.1,
+				MaxYearsPerStep:  10.0,
+				StormProbability: 0.8,
 			},
 			wantWarn: true,
 		},
 		{
 			name: "высокий подъём уровня моря",
 			params: TemporalParameters{
-				YearsPerStep:       1.0,
-				MinYearsPerStep:    0.1,
-				MaxYearsPerStep:    10.0,
-				SeaLevelRise:       0.02,
+				YearsPerStep:    1.0,
+				MinYearsPerStep: 0.1,
+				MaxYearsPerStep: 10.0,
+				SeaLevelRise:    0.02,
 			},
 			wantWarn: true,
 		},
@@ -65,7 +65,7 @@ func TestValidateTemporalParameters(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			warnings := ValidateTemporalParameters(tt.params)
 			hasWarnings := len(warnings) > 0
-			
+
 			if tt.wantWarn && !hasWarnings {
 				t.Errorf("ValidateTemporalParameters() expected warnings, got none")
 			}

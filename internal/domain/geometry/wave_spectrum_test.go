@@ -103,28 +103,28 @@ func TestNewDirectionalSpectrumFromWeights(t *testing.T) {
 		wantOK  bool
 	}{
 		{
-			name:   "валидные данные",
-			dirs:   []float64{45, 90, 135, 180},
+			name:    "валидные данные",
+			dirs:    []float64{45, 90, 135, 180},
 			weights: []float64{0.25, 0.25, 0.25, 0.25},
-			wantOK: true,
+			wantOK:  true,
 		},
 		{
-			name:   "разные длины массивов",
-			dirs:   []float64{45, 90, 135},
+			name:    "разные длины массивов",
+			dirs:    []float64{45, 90, 135},
 			weights: []float64{0.25, 0.25},
-			wantOK: false,
+			wantOK:  false,
 		},
 		{
-			name:   "пустые массивы",
-			dirs:   []float64{},
+			name:    "пустые массивы",
+			dirs:    []float64{},
 			weights: []float64{},
-			wantOK: true, // пустой спектр валиден
+			wantOK:  true, // пустой спектр валиден
 		},
 		{
-			name:   "одно направление",
-			dirs:   []float64{90},
+			name:    "одно направление",
+			dirs:    []float64{90},
 			weights: []float64{1.0},
-			wantOK: true,
+			wantOK:  true,
 		},
 	}
 

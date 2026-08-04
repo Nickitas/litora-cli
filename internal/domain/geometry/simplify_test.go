@@ -69,17 +69,17 @@ func TestSimplifyPolylineLeavesShortPolylineUntouched(t *testing.T) {
 
 func TestSimplifyPolylineEdgeCases(t *testing.T) {
 	tests := []struct {
-		name          string
-		points        []LatLon
-		maxPoints     int
-		wantApplied   bool
+		name           string
+		points         []LatLon
+		maxPoints      int
+		wantApplied    bool
 		wantSimplified bool
 	}{
 		{
-			name:          "менее 3 точек - не упрощается",
-			points:        []LatLon{{Lat: 45, Lon: 34}, {Lat: 46, Lon: 35}},
-			maxPoints:     10,
-			wantApplied:   false,
+			name:           "менее 3 точек - не упрощается",
+			points:         []LatLon{{Lat: 45, Lon: 34}, {Lat: 46, Lon: 35}},
+			maxPoints:      10,
+			wantApplied:    false,
 			wantSimplified: false,
 		},
 		{
@@ -89,8 +89,8 @@ func TestSimplifyPolylineEdgeCases(t *testing.T) {
 				{Lat: 45, Lon: 35},
 				{Lat: 46, Lon: 35},
 			},
-			maxPoints:     5,
-			wantApplied:   false,
+			maxPoints:      5,
+			wantApplied:    false,
 			wantSimplified: false,
 		},
 		{
@@ -101,8 +101,8 @@ func TestSimplifyPolylineEdgeCases(t *testing.T) {
 				{Lat: 46, Lon: 35},
 				{Lat: 45, Lon: 34}, // замкнутая
 			},
-			maxPoints:     4,
-			wantApplied:   false,
+			maxPoints:      4,
+			wantApplied:    false,
 			wantSimplified: false,
 		},
 	}

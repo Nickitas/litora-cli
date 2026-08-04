@@ -1237,30 +1237,30 @@ func TestOptimizedSedimentCacheGetSegmentLength(t *testing.T) {
 		waveData.Fetch[i] = 10000
 	}
 	cache.Initialize(points, waveData)
-	
+
 	// Проверка валидного индекса
 	length := cache.GetSegmentLength(0)
 	if length < 0 {
 		t.Errorf("GetSegmentLength(0) returned negative value %v", length)
 	}
-	
+
 	// Проверка граничных условий
 	firstLength := cache.GetSegmentLength(0)
 	lastLength := cache.GetSegmentLength(len(points) - 2)
-	
+
 	if firstLength <= 0 {
 		t.Errorf("GetSegmentLength(0) expected positive length, got %v", firstLength)
 	}
 	if lastLength <= 0 {
 		t.Errorf("GetSegmentLength(last) expected positive length, got %v", lastLength)
 	}
-	
+
 	// Проверка неверных индексов
 	invalidNeg := cache.GetSegmentLength(-1)
 	if invalidNeg != 0 {
 		t.Errorf("GetSegmentLength(-1) expected 0, got %v", invalidNeg)
 	}
-	
+
 	invalidLarge := cache.GetSegmentLength(1000)
 	if invalidLarge != 0 {
 		t.Errorf("GetSegmentLength(1000) expected 0, got %v", invalidLarge)

@@ -6,11 +6,11 @@ import (
 
 func TestHaversine(t *testing.T) {
 	tests := []struct {
-		name     string
-		p1       LatLon
-		p2       LatLon
-		minDist  float64
-		maxDist  float64
+		name    string
+		p1      LatLon
+		p2      LatLon
+		minDist float64
+		maxDist float64
 	}{
 		{
 			name:    "одна и та же точка",
@@ -54,10 +54,10 @@ func TestHaversine(t *testing.T) {
 
 func TestPolylineLength(t *testing.T) {
 	tests := []struct {
-		name        string
-		points      []LatLon
-		minLength   float64
-		maxLength   float64
+		name      string
+		points    []LatLon
+		minLength float64
+		maxLength float64
 	}{
 		{
 			name:      "пустая полилиния",
@@ -104,16 +104,16 @@ func TestPolylineLength(t *testing.T) {
 
 func TestArea(t *testing.T) {
 	tests := []struct {
-		name      string
-		points    []LatLon
-		minArea   float64
-		maxArea   float64
+		name    string
+		points  []LatLon
+		minArea float64
+		maxArea float64
 	}{
 		{
-			name:     "менее 3 точек - нулевая площадь",
-			points:   []LatLon{{Lat: 55, Lon: 37}, {Lat: 56, Lon: 38}},
-			minArea:  0,
-			maxArea:  0,
+			name:    "менее 3 точек - нулевая площадь",
+			points:  []LatLon{{Lat: 55, Lon: 37}, {Lat: 56, Lon: 38}},
+			minArea: 0,
+			maxArea: 0,
 		},
 		{
 			name: "треугольник в Крыму",
@@ -122,8 +122,8 @@ func TestArea(t *testing.T) {
 				{Lat: 45.0, Lon: 35.0},
 				{Lat: 46.0, Lon: 34.5},
 			},
-			minArea:  4000, // примерно 4000+ км²
-			maxArea:  5000,
+			minArea: 4000, // примерно 4000+ км²
+			maxArea: 5000,
 		},
 		{
 			name: "замкнутый полигон (квадрат)",
@@ -134,8 +134,8 @@ func TestArea(t *testing.T) {
 				{Lat: 46.0, Lon: 34.0},
 				{Lat: 45.0, Lon: 34.0}, // замкнутый
 			},
-			minArea:  6000,
-			maxArea:  12000,
+			minArea: 6000,
+			maxArea: 12000,
 		},
 		{
 			name: "незамкнутый полигон (должен замкнуться автоматически)",
@@ -146,8 +146,8 @@ func TestArea(t *testing.T) {
 				{Lat: 46.0, Lon: 34.0},
 				// не замкнутый - но функция должна замкнуть автоматически
 			},
-			minArea:  6000,
-			maxArea:  12000,
+			minArea: 6000,
+			maxArea: 12000,
 		},
 	}
 

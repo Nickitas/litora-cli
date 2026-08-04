@@ -901,7 +901,7 @@ func TestLoadLithologyProfileFromFile(t *testing.T) {
 	// Создаем временный файл с валидными данными
 	tempDir := t.TempDir()
 	tempFile := filepath.Join(tempDir, "test_lithology.json")
-	
+
 	validJSON := `{
 		"metadata": {
 			"name": "Test Profile",
@@ -934,28 +934,28 @@ func TestLoadLithologyProfileFromFile(t *testing.T) {
 			}
 		}
 	}`
-	
+
 	err := os.WriteFile(tempFile, []byte(validJSON), 0644)
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
-	
+
 	// Тест успешной загрузки
 	profile, err := LoadLithologyProfileFromFile(tempFile)
 	if err != nil {
 		t.Errorf("LoadLithologyProfileFromFile() error = %v", err)
 		return
 	}
-	
+
 	if profile == nil {
 		t.Error("LoadLithologyProfileFromFile() returned nil profile")
 		return
 	}
-	
+
 	if profile.Metadata.Name != "Test Profile" {
 		t.Errorf("Expected name 'Test Profile', got '%s'", profile.Metadata.Name)
 	}
-	
+
 	// Тест несуществующего файла
 	_, err = LoadLithologyProfileFromFile("/nonexistent/file.json")
 	if err == nil {
@@ -971,8 +971,8 @@ func TestBatchGetLithologyAt(t *testing.T) {
 		Lat, Lon float64
 	}{
 		{Lat: 45.0, Lon: 34.0}, // Crimea area - limestone
-		{Lat: 44.5, Lon: 33.5},  // Different area - clay
-		{Lat: 45.5, Lon: 35.0},  // Another area
+		{Lat: 44.5, Lon: 33.5}, // Different area - clay
+		{Lat: 45.5, Lon: 35.0}, // Another area
 	}
 
 	ctx := context.Background()
@@ -1006,24 +1006,24 @@ func TestBatchGetLithologyAt(t *testing.T) {
 
 func TestGetLithologyAtParallel(t *testing.T) {
 	profile := CreateDefaultBlackSeaProfile()
-	
+
 	ctx := context.Background()
-	
+
 	// Тестируем несколько точек параллельно
 	testCases := []struct {
-		lat      float64
-		lon      float64
+		lat       float64
+		lon       float64
 		wantClass string
 	}{
 		{lat: 45.0, lon: 34.0, wantClass: "limestone"}, // Crimea area
-		{lat: 44.5, lon: 33.5, wantClass: "clay"},     // Different area
+		{lat: 44.5, lon: 33.5, wantClass: "clay"},      // Different area
 		{lat: 45.5, lon: 35.0, wantClass: "limestone"}, // Another area
 	}
-	
+
 	for _, tc := range testCases {
 		t.Run(fmt.Sprintf("(%.2f, %.2f)", tc.lat, tc.lon), func(t *testing.T) {
 			state := profile.GetLithologyAtParallel(ctx, tc.lat, tc.lon)
-			
+
 			if state.Class == "" {
 				t.Error("GetLithologyAtParallel() returned empty class")
 			}

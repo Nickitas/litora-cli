@@ -82,7 +82,7 @@ func TestSimulateWaveErosion(t *testing.T) {
 		{Lat: 46, Lon: 31},
 		{Lat: 46, Lon: 30},
 	}
-	
+
 	options := WaveErosionOptions{
 		StrengthMeters:           1000.0,
 		WindSourceDirectionDeg:   45.0,
@@ -96,7 +96,7 @@ func TestSimulateWaveErosion(t *testing.T) {
 		ProbeDistanceMeters:      5000.0,
 		Irregularity:             0.1,
 	}
-	
+
 	tests := []struct {
 		name    string
 		points  []LatLon
@@ -126,15 +126,15 @@ func TestSimulateWaveErosion(t *testing.T) {
 			wantLen: 1, // только начальное состояние
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			snapshots := SimulateWaveErosion(tt.points, tt.steps, tt.options)
-			
+
 			if len(snapshots) != tt.wantLen {
 				t.Errorf("SimulateWaveErosion() returned %d snapshots, want %d", len(snapshots), tt.wantLen)
 			}
-			
+
 			// Проверяем, что начальное состояние сохранено
 			if len(snapshots) > 0 {
 				if len(snapshots[0]) != len(tt.points) {

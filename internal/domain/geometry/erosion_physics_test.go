@@ -379,11 +379,11 @@ func TestErode(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := Erode(tt.points, tt.strength)
-			
+
 			if len(result) != tt.wantLen {
 				t.Errorf("Erode() returned length %v, want %v", len(result), tt.wantLen)
 			}
-			
+
 			// Проверяем, что результат это новый слайс (не та же память)
 			if len(tt.points) > 0 && tt.strength >= 0 {
 				// Для нулевой силы результат должен быть равен исходному
@@ -405,7 +405,7 @@ func TestSimulateErosion(t *testing.T) {
 		{Lat: 45, Lon: 31},
 		{Lat: 46, Lon: 31},
 	}
-	
+
 	tests := []struct {
 		name     string
 		points   []LatLon
@@ -449,15 +449,15 @@ func TestSimulateErosion(t *testing.T) {
 			wantLen:  3, // начальное состояние + 2 шага
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			snapshots := SimulateErosion(tt.points, tt.steps, tt.strength)
-			
+
 			if len(snapshots) != tt.wantLen {
 				t.Errorf("SimulateErosion() returned %d snapshots, want %d", len(snapshots), tt.wantLen)
 			}
-			
+
 			// Проверяем, что начальное состояние сохранено
 			if len(snapshots) > 0 {
 				if len(snapshots[0]) != len(tt.points) {
@@ -473,7 +473,7 @@ func TestErodeWithSeed(t *testing.T) {
 		{Lat: 45, Lon: 30},
 		{Lat: 45, Lon: 31},
 	}
-	
+
 	tests := []struct {
 		name     string
 		points   []LatLon
@@ -503,16 +503,16 @@ func TestErodeWithSeed(t *testing.T) {
 			wantLen:  2,
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result1 := ErodeWithSeed(tt.points, tt.strength, tt.seed)
 			result2 := ErodeWithSeed(tt.points, tt.strength, tt.seed)
-			
+
 			if len(result1) != tt.wantLen {
 				t.Errorf("ErodeWithSeed() returned length %v, want %v", len(result1), tt.wantLen)
 			}
-			
+
 			// Для ненулевого seed результаты должны быть идентичными
 			if tt.seed != 0 {
 				for i := range result1 {
