@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-04T17:22:44Z",
+  "generated_at": "2026-08-05T19:51:27Z",
   "command": "lito erosion",
   "dataset": "coastline",
   "source": "unknown",
@@ -25,7 +25,7 @@
     "length_delta_km": 0,
     "length_delta_percent": 0
   },
-  "erosion_strength_meters": 50,
+  "erosion_strength_meters": 30,
   "erosion_seed": 42,
   "wind_speed_mps": 12,
   "fetch_spread_deg": 55,
@@ -37,50 +37,42 @@
     {
       "step": 0,
       "svg_file": "output/svg/erosion_step_0.svg",
-      "points": 9635,
-      "render_points": 4998,
-      "length_km": 6398.216681057437,
-      "area_km2": 425852.50980567577
+      "points": 1997,
+      "render_points": 1997,
+      "length_km": 5991.086374433781,
+      "area_km2": 425730.1953419444
     },
     {
       "step": 1,
       "svg_file": "output/svg/erosion_step_1.svg",
-      "points": 9635,
-      "render_points": 5000,
-      "length_km": 6350.1476041439155,
-      "area_km2": 425848.061533114
+      "points": 1997,
+      "render_points": 1997,
+      "length_km": 5977.384955478131,
+      "area_km2": 425726.246458408
     },
     {
       "step": 2,
       "svg_file": "output/svg/erosion_step_2.svg",
-      "points": 9635,
-      "render_points": 4999,
-      "length_km": 6310.538367370181,
-      "area_km2": 425843.408706129
+      "points": 1997,
+      "render_points": 1997,
+      "length_km": 5963.994835074808,
+      "area_km2": 425722.3170855436
     },
     {
       "step": 3,
       "svg_file": "output/svg/erosion_step_3.svg",
-      "points": 9635,
-      "render_points": 5000,
-      "length_km": 6277.170494026561,
-      "area_km2": 425838.58574466006
+      "points": 1997,
+      "render_points": 1997,
+      "length_km": 5950.854725334857,
+      "area_km2": 425718.4813995015
     },
     {
       "step": 4,
       "svg_file": "output/svg/erosion_step_4.svg",
-      "points": 9635,
-      "render_points": 4999,
-      "length_km": 6248.706358610187,
-      "area_km2": 425833.6739160925
-    },
-    {
-      "step": 5,
-      "svg_file": "output/svg/erosion_step_5.svg",
-      "points": 9635,
-      "render_points": 4999,
-      "length_km": 6223.821314499526,
-      "area_km2": 425828.69713582646
+      "points": 1997,
+      "render_points": 1997,
+      "length_km": 5937.945977544343,
+      "area_km2": 425714.82461915753
     }
   ],
   "highlights": {
@@ -101,5 +93,22 @@
       }
     ],
     "duplicate_locations": []
+  },
+  "reproducibility": {
+    "metrics_schema_version": "1.0",
+    "application_version": "development",
+    "input_coordinate_system": "WGS 84 (EPSG:4326)",
+    "calculation_coordinate_system": "локальная равнопромежуточная метрическая проекция WGS 84",
+    "projection_reference_latitude": 44.01398785962021,
+    "projection_reference_longitude": 33.12130869192117,
+    "meters_per_degree_latitude": 111112.48376180703,
+    "meters_per_degree_longitude": 80187.31748822534,
+    "distance_unit": "м и км",
+    "grid_unit": "м",
+    "input_geometry_sha256": "f6922e461df150852cc07e6532116cbf37a042ca504d1a40fc908825ee917fe9",
+    "input_point_count": 9635,
+    "grid_type": "erosion",
+    "grid_cell_size_meters": 5000,
+    "grid_buffer_km": 59.78465015908033
   }
 }

@@ -30,6 +30,8 @@ type config struct {
 
 	// Общие поля
 	Command string
+	// BoxCountingBoxSize — фактический размер представительной ячейки анализа.
+	BoxCountingBoxSize float64
 }
 
 /*

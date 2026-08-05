@@ -16,6 +16,12 @@ type BoxCountingSample struct {
 	LogBoxes      float64 // Логарифм количества ячеек
 }
 
+// GridOffset представляет нормированное смещение расчётной сетки.
+type GridOffset struct {
+	X float64 // Смещение по оси X в долях размера ячейки
+	Y float64 // Смещение по оси Y в долях размера ячейки
+}
+
 // BoxCountingAnalysis представляет полный анализ фрактальной размерности
 type BoxCountingAnalysis struct {
 	Dimension          float64             // Вычисленная фрактальная размерность
@@ -24,5 +30,8 @@ type BoxCountingAnalysis struct {
 	StabilitySpread    float64             // Разброс локальных размерностей
 	Samples            []BoxCountingSample // Все замеры на разных масштабах
 	LocalDimensions    []float64           // Локальные фрактальные размерности
+	GridOffsets        []GridOffset        // Смещения, использованные для усреднения
+	RegressionStart    int                 // Первый индекс sample в регрессионном окне
+	RegressionEnd      int                 // Последний индекс sample в регрессионном окне
 	Valid              bool                // Валидность результата
 }

@@ -28,8 +28,9 @@ func AnalyzeBoxCounting(points []geometry.LatLon) BoxCountingAnalysis {
 	}
 
 	meters := make([]Point2D, len(points))
+	projection := geometry.NewLocalMetricProjection(points)
 	for i, p := range points {
-		meters[i] = latLonToMeters(p)
+		meters[i] = latLonToMeters(p, projection)
 	}
 
 	minX, maxX, minY, maxY := bboxMeters(meters)
@@ -69,12 +70,12 @@ func AnalyzeBoxCounting(points []geometry.LatLon) BoxCountingAnalysis {
 	}
 
 	if len(samples) < minScaleSamples {
-		return BoxCountingAnalysis{Samples: samples}
+		return BoxCountingAnalysis{Samples: samples, GridOffsets: gridOffsetsForAnalysis()}
 	}
 
 	window := bestRegressionWindow(logInvScale, logBoxes)
 	if window == nil || window.length < minScaleSamples {
-		return BoxCountingAnalysis{Samples: samples}
+		return BoxCountingAnalysis{Samples: samples, GridOffsets: gridOffsetsForAnalysis()}
 	}
 
 	localDimensions := localSlopeSeries(window.x, window.y)
@@ -89,6 +90,9 @@ func AnalyzeBoxCounting(points []geometry.LatLon) BoxCountingAnalysis {
 			LocalDimensions:    localDimensions,
 			RegressionRSquared: window.rSquared,
 			StabilitySpread:    spread,
+			GridOffsets:        gridOffsetsForAnalysis(),
+			RegressionStart:    window.start,
+			RegressionEnd:      window.end,
 		}
 	}
 
@@ -99,16 +103,27 @@ func AnalyzeBoxCounting(points []geometry.LatLon) BoxCountingAnalysis {
 		StabilitySpread:    spread,
 		Samples:            samples,
 		LocalDimensions:    localDimensions,
+		GridOffsets:        gridOffsetsForAnalysis(),
+		RegressionStart:    window.start,
+		RegressionEnd:      window.end,
 		Valid:              true,
 	}
 }
 
-// latLonToMeters преобразует географические координаты в метры относительно референсной точки
-func latLonToMeters(p geometry.LatLon) Point2D {
-	dLat := (p.Lat - refLat) * metersPerDegLat
-	dLon := (p.Lon - refLon) * metersPerDegLon
+// gridOffsetsForAnalysis возвращает копию смещений, чтобы состав расчётной
+// сетки был доступен в отчёте и не зависел от изменения внутреннего массива.
+func gridOffsetsForAnalysis() []GridOffset {
+	offsets := make([]GridOffset, 0, len(gridOffsets))
+	for _, offset := range gridOffsets {
+		offsets = append(offsets, GridOffset{X: offset[0], Y: offset[1]})
+	}
+	return offsets
+}
 
-	return Point2D{X: dLon, Y: dLat}
+// latLonToMeters преобразует географические координаты в метры относительно референсной точки
+func latLonToMeters(p geometry.LatLon, projection geometry.LocalMetricProjection) Point2D {
+	projected := projection.Project(p)
+	return Point2D{X: projected.X, Y: projected.Y}
 }
 
 // bboxMeters вычисляет ограничивающую рамку множества точек в метрах
@@ -347,6 +362,7 @@ func AnalyzeBoxCountingParallel(ctx context.Context, points []geometry.LatLon) B
 	}
 
 	meters := make([]Point2D, len(points))
+	projection := geometry.NewLocalMetricProjection(points)
 
 	// Конвертация точек параллельно
 	numConvWorkers := min(runtime.NumCPU(), maxConvWorkers)
@@ -366,7 +382,7 @@ func AnalyzeBoxCountingParallel(ctx context.Context, points []geometry.LatLon) B
 				case <-ctx.Done():
 					return
 				default:
-					meters[i] = latLonToMeters(points[i])
+					meters[i] = latLonToMeters(points[i], projection)
 				}
 			}
 		}(w)
@@ -446,7 +462,7 @@ func AnalyzeBoxCountingParallel(ctx context.Context, points []geometry.LatLon) B
 	}
 
 	if len(samples) < minScaleSamples {
-		return BoxCountingAnalysis{Samples: samples}
+		return BoxCountingAnalysis{Samples: samples, GridOffsets: gridOffsetsForAnalysis()}
 	}
 
 	// Prepare log arrays
@@ -459,7 +475,7 @@ func AnalyzeBoxCountingParallel(ctx context.Context, points []geometry.LatLon) B
 
 	window := bestRegressionWindowParallel(ctx, logInvScale, logBoxes)
 	if window == nil || window.length < minScaleSamples {
-		return BoxCountingAnalysis{Samples: samples}
+		return BoxCountingAnalysis{Samples: samples, GridOffsets: gridOffsetsForAnalysis()}
 	}
 
 	localDimensions := localSlopeSeries(window.x, window.y)
@@ -474,6 +490,9 @@ func AnalyzeBoxCountingParallel(ctx context.Context, points []geometry.LatLon) B
 			LocalDimensions:    localDimensions,
 			RegressionRSquared: window.rSquared,
 			StabilitySpread:    spread,
+			GridOffsets:        gridOffsetsForAnalysis(),
+			RegressionStart:    window.start,
+			RegressionEnd:      window.end,
 		}
 	}
 
@@ -484,6 +503,9 @@ func AnalyzeBoxCountingParallel(ctx context.Context, points []geometry.LatLon) B
 		StabilitySpread:    spread,
 		Samples:            samples,
 		LocalDimensions:    localDimensions,
+		GridOffsets:        gridOffsetsForAnalysis(),
+		RegressionStart:    window.start,
+		RegressionEnd:      window.end,
 		Valid:              true,
 	}
 }

@@ -4,7 +4,56 @@ import (
 	"coastal-geometry/internal/domain/geometry"
 	svgrender "coastal-geometry/internal/render/svg"
 	"fmt"
+	"math"
 )
+
+// adaptiveGridParameters возвращает размер ячейки и буфер вокруг береговой
+// линии для научной визуализации. Параметры зависят от протяжённости области.
+func adaptiveGridParameters(points []geometry.LatLon) (cellSizeMeters, bufferKM, maxSpanMeters float64) {
+	if len(points) == 0 {
+		return 0, 0, 0
+	}
+
+	minLat, maxLat := points[0].Lat, points[0].Lat
+	minLon, maxLon := points[0].Lon, points[0].Lon
+	for _, point := range points[1:] {
+		minLat = math.Min(minLat, point.Lat)
+		maxLat = math.Max(maxLat, point.Lat)
+		minLon = math.Min(minLon, point.Lon)
+		maxLon = math.Max(maxLon, point.Lon)
+	}
+
+	projection := geometry.NewLocalMetricProjection(points)
+	latSpan := (maxLat - minLat) * projection.MetersPerDegreeLatitude
+	lonSpan := (maxLon - minLon) * projection.MetersPerDegreeLongitude
+	maxSpanMeters = math.Max(latSpan, lonSpan)
+
+	switch {
+	case maxSpanMeters > 1000000:
+		cellSizeMeters = 5000
+	case maxSpanMeters > 500000:
+		cellSizeMeters = 3000
+	case maxSpanMeters > 200000:
+		cellSizeMeters = 2000
+	case maxSpanMeters > 100000:
+		cellSizeMeters = 1000
+	default:
+		cellSizeMeters = 500
+	}
+
+	switch {
+	case maxSpanMeters > 1000000:
+		bufferKM = math.Min(maxSpanMeters*0.05, 100000) / 1000
+	case maxSpanMeters > 500000:
+		bufferKM = math.Min(maxSpanMeters*0.08, 80000) / 1000
+	case maxSpanMeters > 100000:
+		bufferKM = math.Min(maxSpanMeters*0.10, 50000) / 1000
+	default:
+		bufferKM = 10
+	}
+
+	return cellSizeMeters, bufferKM, maxSpanMeters
+}
 
 // buildEnhancedOptions создаёт расширенные настройки SVG из конфигурации
 // Функция формирует опции для отображения сетки, компаса, маркеров и изолиний
@@ -35,14 +84,17 @@ func buildEnhancedOptions(cfg config, points []geometry.LatLon, waveDir float64)
 			Show:          true,
 			Size:          float64(cfg.CompassSize),
 			WindDirection: waveDir,
-			ShowWindArrow: true,
-			Label:         "Ветер",
+			ShowWindArrow: cfg.Command != cmdDimension,
+			Label:         "",
 			Style:         cfg.CompassStyle,
+		}
+		if cfg.Command == cmdDimension {
+			compassOpts.WindDirection = -1
 		}
 	}
 
 	var markerOpts *svgrender.MarkerOptions
-	if cfg.ShowMarkers && len(points) > 1 {
+	if cfg.ShowMarkers && len(points) > 1 && cfg.Command != cmdDimension && cfg.Command != cmdErosion {
 		markers := []svgrender.Marker{
 			{
 				Lat:     points[0].Lat,
@@ -107,12 +159,94 @@ func buildEnhancedOptions(cfg config, points []geometry.LatLon, waveDir float64)
 // wrapDocumentForEnhanced преобразует Document в EnhancedDocument с настройками конфигурации
 // Добавляет визуализацию транспорта наносов, если доступны данные
 func wrapDocumentForEnhanced(doc svgrender.Document, cfg config, points []geometry.LatLon, waveDir float64, sedimentResult *geometry.SedimentTransportResult, renderPoints []geometry.LatLon) svgrender.EnhancedDocument {
-	enhanced := buildEnhancedOptions(cfg, points, waveDir)
-	if enhanced == nil {
-		return svgrender.EnhancedDocument{Document: doc}
+	fmt.Printf("🔧 Научный SVG-режим: включён=%v, точек=%d\n", cfg.EnableEnhanced, len(points))
+
+	var enhanced *svgrender.EnhancedDocument
+
+	if cfg.EnableEnhanced {
+		enhanced = buildEnhancedOptions(cfg, points, waveDir)
+		fmt.Printf("   Расширенные элементы карты подготовлены: %v\n", enhanced != nil)
 	}
 
-	enhanced.Document = doc
+	// Create base enhanced document
+	enhancedDoc := svgrender.EnhancedDocument{Document: doc}
+	if enhanced != nil {
+		enhancedDoc.GridOptions = enhanced.GridOptions
+		enhancedDoc.CompassOptions = enhanced.CompassOptions
+		enhancedDoc.MarkerOptions = enhanced.MarkerOptions
+		enhancedDoc.IsolineOptions = enhanced.IsolineOptions
+	}
+	enhancedDoc.MinimalMap = cfg.Command == cmdDimension || cfg.Command == cmdErosion
+	if enhancedDoc.MinimalMap {
+		// На box-counting-карте аналитическая сетка заменяет координатную.
+		enhancedDoc.GridOptions = nil
+	}
+
+	// Добавляем визуализацию box-counting сетки для фрактального анализа
+	if cfg.EnableEnhanced && len(points) > 2 {
+		fmt.Printf("   🔧 Подготовка сетки box-counting для %d точек\n", len(points))
+
+		// Calculate bounding box
+		minLat, maxLat := points[0].Lat, points[0].Lat
+		minLon, maxLon := points[0].Lon, points[0].Lon
+		for _, p := range points[1:] {
+			if p.Lat < minLat {
+				minLat = p.Lat
+			}
+			if p.Lat > maxLat {
+				maxLat = p.Lat
+			}
+			if p.Lon < minLon {
+				minLon = p.Lon
+			}
+			if p.Lon > maxLon {
+				maxLon = p.Lon
+			}
+		}
+
+		fmt.Printf("   📍 Исходная область: широта [%.3f, %.3f], долгота [%.3f, %.3f]\n", minLat, maxLat, minLon, maxLon)
+
+		// Размер сетки зависит от протяжённости области, но при наличии
+		// расчётного размера используется именно он.
+		optimalCellSize, bufferKM, maxSpan := adaptiveGridParameters(points)
+		if cfg.BoxCountingBoxSize > 0 {
+			optimalCellSize = cfg.BoxCountingBoxSize
+			fmt.Printf("   📏 Размер сетки взят из расчёта box-counting: %.0f м\n", optimalCellSize)
+		}
+
+		if cfg.BoxCountingBoxSize <= 0 {
+			fmt.Printf("   📐 Размер сетки для визуализации: область %.0f км -> размер %.0f м\n", maxSpan/1000, optimalCellSize)
+		}
+
+		fmt.Printf("   🎯 Буферная зона вокруг берега: %.0f км\n", bufferKM)
+
+		// Add box-counting grid for visualization (using adaptive cell size and buffer zone)
+		enhancedDoc.BoxCountingGridOptions = &svgrender.BoxCountingGridOptions{
+			Show:               true,
+			Points:             points,
+			BoxSize:            optimalCellSize,
+			MinLat:             minLat,
+			MaxLat:             maxLat,
+			MinLon:             minLon,
+			MaxLon:             maxLon,
+			ShowCoveredBoxes:   true,
+			ShowAllBoxes:       true,
+			ShowCoverageDegree: true, // enable color coding by coverage degree
+			CoveredColor:       "rgba(193, 65, 12, 0.3)",
+			UncoveredColor:     "none",
+			LineColor:          "#8794a0",
+			LineWidth:          0.6,
+			Opacity:            0.32,
+			LabelScaleFactors:  []float64{64, 128, 256}, // дополнительные подписи масштабов
+			BufferZoneKM:       bufferKM,                // use buffer zone instead of full sea
+			ContextGrid:        false,                   // can be enabled for context grid
+		}
+
+		fmt.Printf("   ✅ Сетка box-counting настроена: включена=%v, размер ячейки=%.0f м\n",
+			enhancedDoc.BoxCountingGridOptions.Show, enhancedDoc.BoxCountingGridOptions.BoxSize)
+	} else {
+		fmt.Printf("   ⚠️  Сетка box-counting пропущена: включено=%v, точек=%d\n", cfg.EnableEnhanced, len(points))
+	}
 
 	// Добавляем визуализацию транспорта наносов если доступны данные
 	if sedimentResult != nil && len(sedimentResult.States) > 0 && cfg.EnableEnhanced {
@@ -140,7 +274,7 @@ func wrapDocumentForEnhanced(doc svgrender.Document, cfg config, points []geomet
 		fmt.Printf("   📊 Статистика наносов: %d аккумуляция, %d эрозия точек\n",
 			accumCount, erosionCount)
 
-		enhanced.SedimentTransportOptions = &svgrender.SedimentTransportOptions{
+		enhancedDoc.SedimentTransportOptions = &svgrender.SedimentTransportOptions{
 			Show:                 true,
 			Points:               displayPoints,
 			SedimentStates:       sedimentResult.States,
@@ -163,6 +297,79 @@ func wrapDocumentForEnhanced(doc svgrender.Document, cfg config, points []geomet
 				return 0
 			}(),
 			cfg.EnableEnhanced)
+	}
+
+	return enhancedDoc
+}
+
+// wrapErosionDocumentForEnhanced преобразует Document в EnhancedDocument с erosion grid
+func wrapErosionDocumentForEnhanced(doc svgrender.Document, cfg config, points []geometry.LatLon, waveOptions geometry.WaveErosionOptions) svgrender.EnhancedDocument {
+	fmt.Printf("🔧 wrapErosionDocumentForEnhanced: EnableEnhanced=%v, points=%d, waveDir=%.0f\n",
+		cfg.EnableEnhanced, len(points), waveOptions.WindSourceDirectionDeg)
+
+	enhanced := buildEnhancedOptions(cfg, points, waveOptions.WindSourceDirectionDeg)
+	if enhanced == nil {
+		fmt.Printf("   ⚠️  buildEnhancedOptions returned nil\n")
+		return svgrender.EnhancedDocument{Document: doc}
+	}
+
+	enhanced.Document = doc
+	enhanced.MinimalMap = cfg.Command == cmdDimension || cfg.Command == cmdErosion
+	if enhanced.MinimalMap {
+		// Аналитическая сетка заменяет координатную на научной карте.
+		enhanced.GridOptions = nil
+	}
+
+	// Add erosion grid for wave visualization
+	if cfg.EnableEnhanced && len(points) > 2 && waveOptions.WindSourceDirectionDeg >= 0 {
+		// Calculate bounding box
+		minLat, maxLat := points[0].Lat, points[0].Lat
+		minLon, maxLon := points[0].Lon, points[0].Lon
+		for _, p := range points[1:] {
+			if p.Lat < minLat {
+				minLat = p.Lat
+			}
+			if p.Lat > maxLat {
+				maxLat = p.Lat
+			}
+			if p.Lon < minLon {
+				minLon = p.Lon
+			}
+			if p.Lon > maxLon {
+				maxLon = p.Lon
+			}
+		}
+
+		optimalCellSize, bufferKM, _ := adaptiveGridParameters(points)
+
+		fmt.Printf("   📐 Размер ячейки эрозионной сетки: %.0f м\n", optimalCellSize)
+		fmt.Printf("   🎯 Буферная зона для эрозии: %.0f км\n", bufferKM)
+
+		// Add erosion cell grid for wave modeling visualization
+		enhanced.ErosionGridOptions = &svgrender.ErosionGridOptions{
+			Show:            true,
+			Points:          points,
+			CellSize:        optimalCellSize,
+			MinLat:          minLat,
+			MaxLat:          maxLat,
+			MinLon:          minLon,
+			MaxLon:          maxLon,
+			ShowCells:       true,
+			ShowWaveVectors: true,
+			WaveDirection:   waveOptions.WindSourceDirectionDeg,
+			LineColor:       "#8794a0",
+			LineWidth:       0.6,
+			Opacity:         0.32,
+			VectorColor:     "#c2410c",
+			VectorLength:    14.0,
+			BufferZoneKM:    bufferKM, // use buffer zone
+		}
+
+		fmt.Printf("   ✅ ErosionGridOptions set: Show=%v, CellSize=%.0f\n",
+			enhanced.ErosionGridOptions.Show, enhanced.ErosionGridOptions.CellSize)
+	} else {
+		fmt.Printf("   ⚠️  Skipping erosion grid: EnableEnhanced=%v, points=%d, waveDir=%.0f\n",
+			cfg.EnableEnhanced, len(points), waveOptions.WindSourceDirectionDeg)
 	}
 
 	return *enhanced
