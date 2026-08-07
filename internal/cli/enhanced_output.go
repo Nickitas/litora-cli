@@ -240,6 +240,10 @@ func wrapDocumentForEnhanced(doc svgrender.Document, cfg config, points []geomet
 			LabelScaleFactors:  []float64{64, 128, 256}, // дополнительные подписи масштабов
 			BufferZoneKM:       bufferKM,                // use buffer zone instead of full sea
 			ContextGrid:        false,                   // can be enabled for context grid
+			RegressionWindow:   cfg.BoxCountingRegressionMin > 0 && cfg.BoxCountingRegressionMax > 0 && optimalCellSize >= cfg.BoxCountingRegressionMin && optimalCellSize <= cfg.BoxCountingRegressionMax,
+			RegressionMinBox:   cfg.BoxCountingRegressionMin,
+			RegressionMaxBox:   cfg.BoxCountingRegressionMax,
+			LogLogSVGFile:      cfg.BoxCountingLogLogSVGFile,
 		}
 
 		fmt.Printf("   ✅ Сетка box-counting настроена: включена=%v, размер ячейки=%.0f м\n",

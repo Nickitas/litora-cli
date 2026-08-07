@@ -162,6 +162,22 @@ func writeErosionSVGSeries(originalBase, modelBase []geometry.LatLon, snapshots 
 	visualHints := coastline.BuildVisualizationHints(originalBase)
 	validationSummary := coastline.BuildValidationSummary(originalBase)
 
+	erosionChanges := make([][]svgrender.ErosionChangePoint, len(snapshots))
+	maxAbsChange := 0.0
+	for step := 1; step < len(snapshots); step++ {
+		erosionChanges[step] = erosionChangePoints(snapshots[step-1], snapshots[step], waveOptions.YearsPerStep)
+		for _, point := range erosionChanges[step] {
+			maxAbsChange = math.Max(maxAbsChange, math.Abs(point.ChangePerUnit))
+		}
+	}
+	changeUnit := "м/шаг"
+	if waveOptions.YearsPerStep > 0 && waveOptions.YearsPerStep != 1 {
+		changeUnit = "м/год"
+	}
+	if maxAbsChange > 0 {
+		fmt.Printf("🎨 Цветовая шкала эрозии: размыв — красный, накопление — синий, нейтральная зона — серая; максимум %.2f %s\n", maxAbsChange, changeUnit)
+	}
+
 	stepMetrics := make([]erosionStepMetrics, 0, len(snapshots))
 
 	for step := 0; step < len(snapshots); step++ {
@@ -192,6 +208,15 @@ func writeErosionSVGSeries(originalBase, modelBase []geometry.LatLon, snapshots 
 			fmt.Printf("🔧 Расширенный режим включён для шага эрозии\n")
 			// Подключаем сетку эрозионного моделирования.
 			enhancedDoc := wrapErosionDocumentForEnhanced(doc, ctx.Config, referenceRender, waveOptions)
+			if step > 0 && len(erosionChanges[step]) > 0 {
+				enhancedDoc.ErosionChangeOptions = &svgrender.ErosionChangeOptions{
+					Show:             true,
+					Points:           erosionChanges[step],
+					MaxAbsChange:     maxAbsChange,
+					NeutralThreshold: math.Max(0.1, maxAbsChange*0.03),
+					UnitLabel:        changeUnit,
+				}
+			}
 			// Добавляем транспорт наносов, если доступны его состояния.
 			if sedimentResult != nil && len(sedimentResult.States) > 0 {
 				// Merge sediment options into the enhanced document
@@ -214,6 +239,9 @@ func writeErosionSVGSeries(originalBase, modelBase []geometry.LatLon, snapshots 
 			LengthKM:     lengths[step],
 			RenderPoints: len(renderSnapshots[step]),
 			AreaKM:       areas[step],
+			MeanChange:   meanErosionChange(erosionChanges[step]),
+			MaxChange:    maxErosionChange(erosionChanges[step]),
+			ChangeUnit:   changeUnit,
 		})
 
 		fmt.Printf("SVG сохранён: %s\n", filename)
@@ -246,6 +274,7 @@ func writeErosionSVGSeries(originalBase, modelBase []geometry.LatLon, snapshots 
 		MaxFetchKM:          waveOptions.MaxFetchMeters / 1000,
 		DepthScaleMeters:    waveOptions.DepthScaleMeters,
 		ExposurePower:       waveOptions.ExposurePower,
+		YearsPerStep:        waveOptions.YearsPerStep,
 		Steps:               stepMetrics,
 		Highlights:          coastlineHighlightsMetricsFromHints(visualHints),
 		Validation:          validationMetricsFromData(ctx.Validation, validationSummary),
@@ -257,6 +286,73 @@ func writeErosionSVGSeries(originalBase, modelBase []geometry.LatLon, snapshots 
 	}
 	fmt.Printf("Метрики сохранены: %s\n", metricsPath)
 	return nil
+}
+
+// erosionChangePoints вычисляет подписанное смещение береговой линии по нормали.
+// Положительное значение означает отступ берега (размыв), отрицательное — накопление.
+func erosionChangePoints(previous, current []geometry.LatLon, yearsPerStep float64) []svgrender.ErosionChangePoint {
+	if len(previous) < 2 || len(previous) != len(current) {
+		return nil
+	}
+
+	projection := geometry.NewLocalMetricProjection(previous)
+	clockwise := geometry.SignedArea(previous) < 0
+	points := make([]svgrender.ErosionChangePoint, 0, len(current))
+	for index := range current {
+		previousProjected := projection.Project(previous[index])
+		currentProjected := projection.Project(current[index])
+		displacementX := currentProjected.X - previousProjected.X
+		displacementY := currentProjected.Y - previousProjected.Y
+
+		leftIndex := index - 1
+		rightIndex := index + 1
+		if leftIndex < 0 {
+			leftIndex = 0
+		}
+		if rightIndex >= len(previous) {
+			rightIndex = len(previous) - 1
+		}
+		left := projection.Project(previous[leftIndex])
+		right := projection.Project(previous[rightIndex])
+		tangentX := right.X - left.X
+		tangentY := right.Y - left.Y
+		tangentLength := math.Hypot(tangentX, tangentY)
+		if tangentLength == 0 {
+			continue
+		}
+		tangentX /= tangentLength
+		tangentY /= tangentLength
+
+		outwardX, outwardY := tangentY, -tangentX
+		if clockwise {
+			outwardX, outwardY = -tangentY, tangentX
+		}
+		change := displacementX*outwardX + displacementY*outwardY
+		if yearsPerStep > 0 && yearsPerStep != 1 {
+			change /= yearsPerStep
+		}
+		points = append(points, svgrender.ErosionChangePoint{Point: current[index], ChangePerUnit: change})
+	}
+	return points
+}
+
+func meanErosionChange(points []svgrender.ErosionChangePoint) float64 {
+	if len(points) == 0 {
+		return 0
+	}
+	total := 0.0
+	for _, point := range points {
+		total += point.ChangePerUnit
+	}
+	return total / float64(len(points))
+}
+
+func maxErosionChange(points []svgrender.ErosionChangePoint) float64 {
+	maximum := 0.0
+	for _, point := range points {
+		maximum = math.Max(maximum, math.Abs(point.ChangePerUnit))
+	}
+	return maximum
 }
 
 func writeFractalSeries(opts fractalSeriesOptions, output string, ctx exportContext, outputPathManager *OutputPathManager) error {
@@ -321,8 +417,9 @@ func writeFractalSeries(opts fractalSeriesOptions, output string, ctx exportCont
 	iterationsMetrics := make([]fractalIterationMetrics, 0, iterations+1)
 	for iter := 0; iter <= iterations; iter++ {
 		filename := filepath.Join(outputDir, fmt.Sprintf("%s_%d.svg", opts.Prefix, iter))
+		logLogFilename := ""
 		if dimensions[iter] != nil && len(dimensions[iter].Samples) > 1 {
-			logLogFilename := filepath.Join(outputDir, fmt.Sprintf("%s_loglog_%d.svg", opts.Prefix, iter))
+			logLogFilename = filepath.Join(outputDir, fmt.Sprintf("%s_loglog_%d.svg", opts.Prefix, iter))
 			analysis := fractal.AnalyzeBoxCounting(curves[iter])
 			if err := svgrender.DrawLogLogSVG(logLogPlotOptionsFromAnalysis(analysis, iter), logLogFilename); err != nil {
 				return err
@@ -377,6 +474,8 @@ func writeFractalSeries(opts fractalSeriesOptions, output string, ctx exportCont
 			renderConfig := ctx.Config
 			if dimensions[iter] != nil {
 				renderConfig.BoxCountingBoxSize = dimensions[iter].BoxSizeMeters
+				renderConfig.BoxCountingRegressionMin, renderConfig.BoxCountingRegressionMax = regressionBoxSizeRange(dimensions[iter])
+				renderConfig.BoxCountingLogLogSVGFile = logLogFilename
 			}
 			enhancedDoc := wrapDocumentForEnhanced(doc, renderConfig, referenceRender, 0, nil, nil)
 			if err := svgrender.DrawEnhancedSVG(enhancedDoc, filename); err != nil {
@@ -445,6 +544,21 @@ func writeFractalSeries(opts fractalSeriesOptions, output string, ctx exportCont
 
 	fmt.Printf("Метрики сохранены: %s\n", metricsPath)
 	return nil
+}
+
+// regressionBoxSizeRange возвращает диапазон размеров ячеек, использованных
+// в линейной регрессии log-log box-counting.
+func regressionBoxSizeRange(metrics *dimensionMetrics) (float64, float64) {
+	if metrics == nil || metrics.RegressionStart < 0 || metrics.RegressionEnd < metrics.RegressionStart || metrics.RegressionEnd >= len(metrics.Samples) {
+		return 0, 0
+	}
+	minimum := metrics.Samples[metrics.RegressionStart].BoxSizeMeters
+	maximum := minimum
+	for index := metrics.RegressionStart; index <= metrics.RegressionEnd; index++ {
+		minimum = math.Min(minimum, metrics.Samples[index].BoxSizeMeters)
+		maximum = math.Max(maximum, metrics.Samples[index].BoxSizeMeters)
+	}
+	return minimum, maximum
 }
 
 func makeFractalLayers(curves [][]geometry.LatLon, lengths []float64, iteration int) []svgrender.Layer {

@@ -32,6 +32,10 @@ type config struct {
 	Command string
 	// BoxCountingBoxSize — фактический размер представительной ячейки анализа.
 	BoxCountingBoxSize float64
+	// Параметры регрессионного окна box-counting для научной SVG-легенды.
+	BoxCountingRegressionMin float64
+	BoxCountingRegressionMax float64
+	BoxCountingLogLogSVGFile string
 }
 
 /*

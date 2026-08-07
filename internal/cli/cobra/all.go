@@ -189,6 +189,7 @@ func runAll(cmd *cobra.Command, args []string) error {
 			MaxFetchMeters:           allMaxFetchKM * 1000,
 			DepthScaleMeters:         allDepthScale,
 			ExposurePower:            allExposurePower,
+			YearsPerStep:             allYearsPerStep,
 		}, outputMgr); err != nil {
 		fmt.Printf("Предупреждение: не удалось создать SVG для эрозии: %v\n", err)
 	}

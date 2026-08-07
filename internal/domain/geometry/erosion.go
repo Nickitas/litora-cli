@@ -34,6 +34,7 @@ type WaveErosionOptions struct {
 	BathymetryGrid           *BathymetryGrid
 	LithologyProfile         *LithologyProfile
 	EnableLithology          bool
+	YearsPerStep             float64 // длительность одного шага в годах
 
 	// Динамическая литология (более реалистичная модель)
 	DynamicLithologyMap        *SpatialLithologyMap

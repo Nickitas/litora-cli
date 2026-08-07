@@ -218,6 +218,7 @@ func runErosion(cmd *cobra.Command, args []string) error {
 			MaxFetchMeters:           erosionMaxFetchKM * 1000,
 			DepthScaleMeters:         erosionDepthScale,
 			ExposurePower:            erosionExposurePower,
+			YearsPerStep:             erosionYearsPerStep,
 		}, outputMgr); err != nil {
 		fmt.Printf("Предупреждение: не удалось создать SVG: %v\n", err)
 	}

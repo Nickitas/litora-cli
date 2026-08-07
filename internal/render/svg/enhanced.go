@@ -3,8 +3,11 @@ package svg
 import (
 	"coastal-geometry/internal/domain/geometry"
 	"fmt"
+	"html"
 	"math"
 	"os"
+	"path/filepath"
+	"strconv"
 	"strings"
 )
 
@@ -20,6 +23,7 @@ type EnhancedDocument struct {
 	SedimentTransportOptions *SedimentTransportOptions
 	BoxCountingGridOptions   *BoxCountingGridOptions
 	ErosionGridOptions       *ErosionGridOptions
+	ErosionChangeOptions     *ErosionChangeOptions
 }
 
 // GridOptions configures coordinate grid display
@@ -120,6 +124,10 @@ type BoxCountingGridOptions struct {
 	BufferZoneKM       float64   // buffer zone around coastline for detailed grid (km)
 	ContextGrid        bool      // also show larger context grid
 	ContextCellSize    float64   // cell size for context grid (meters)
+	RegressionWindow   bool      // отображаемый масштаб входит в окно регрессии
+	RegressionMinBox   float64   // минимальный размер ячейки в окне регрессии
+	RegressionMaxBox   float64   // максимальный размер ячейки в окне регрессии
+	LogLogSVGFile      string    // связанный отчёт log-log
 }
 
 // ErosionGridOptions configures erosion cell grid visualization for wave erosion modeling
@@ -140,6 +148,21 @@ type ErosionGridOptions struct {
 	VectorColor     string  // wave vector color
 	VectorLength    float64 // length of wave vectors
 	BufferZoneKM    float64 // buffer zone around coastline for grid (km)
+}
+
+// ErosionChangePoint содержит локальное изменение положения берега.
+type ErosionChangePoint struct {
+	Point         geometry.LatLon
+	ChangePerUnit float64
+}
+
+// ErosionChangeOptions задаёт научную цветовую шкалу изменения берега.
+type ErosionChangeOptions struct {
+	Show             bool
+	Points           []ErosionChangePoint
+	MaxAbsChange     float64
+	NeutralThreshold float64
+	UnitLabel        string
 }
 
 // Isoline represents a contour line
@@ -233,7 +256,7 @@ func DrawEnhancedSVG(doc EnhancedDocument, filename string) error {
 	}
 
 	// Build additional elements
-	var gridElements, compassElements, markerElements, isolineElements, sedimentElements, boxCountingGridElements, erosionGridElements, axisElements, gridAnnotationElements string
+	var gridElements, compassElements, markerElements, isolineElements, sedimentElements, boxCountingGridElements, erosionGridElements, erosionChangeElements, axisElements, gridAnnotationElements string
 
 	if !minimalMap && doc.GridOptions != nil && doc.GridOptions.Show {
 		gridElements = buildCoordinateGrid(*doc.GridOptions, minLat, maxLat, minLon, maxLon, originX, originY, contentWidth, contentHeight, scale)
@@ -255,6 +278,11 @@ func DrawEnhancedSVG(doc EnhancedDocument, filename string) error {
 		sedimentElements = buildSedimentTransportVisualization(*doc.SedimentTransportOptions, minLat, minLon, originX, originY, contentHeight, scale)
 	}
 
+	if doc.ErosionChangeOptions != nil && doc.ErosionChangeOptions.Show {
+		erosionChangeElements = buildErosionChangeVisualization(*doc.ErosionChangeOptions, minLat, minLon, originX, originY, contentHeight, scale)
+		gridAnnotationElements += buildErosionChangeAnnotation(*doc.ErosionChangeOptions, originX, originY)
+	}
+
 	if doc.BoxCountingGridOptions != nil && doc.BoxCountingGridOptions.Show {
 		fmt.Printf("   🔧 Отрисовка сетки box-counting: включена=%v, точек=%d\n", doc.BoxCountingGridOptions.Show, len(doc.BoxCountingGridOptions.Points))
 		boxCountingGridElements = buildBoxCountingGrid(*doc.BoxCountingGridOptions, originX, originY, contentWidth, contentHeight, scale)
@@ -270,7 +298,7 @@ func DrawEnhancedSVG(doc EnhancedDocument, filename string) error {
 		fmt.Printf("   🔧 Отрисовка эрозионной сетки: включена=%v, точек=%d, размер ячейки=%.0f м\n",
 			doc.ErosionGridOptions.Show, len(doc.ErosionGridOptions.Points), doc.ErosionGridOptions.CellSize)
 		erosionGridElements = buildErosionGrid(*doc.ErosionGridOptions, originX, originY, contentWidth, contentHeight, scale)
-		gridAnnotationElements = buildErosionGridAnnotation(*doc.ErosionGridOptions, originX, originY)
+		gridAnnotationElements += buildErosionGridAnnotation(*doc.ErosionGridOptions, originX, originY)
 		if len(erosionGridElements) > 0 {
 			fmt.Printf("   ✅ Эрозионная сетка отрисована: %d символов SVG\n", len(erosionGridElements))
 		} else {
@@ -292,6 +320,7 @@ func DrawEnhancedSVG(doc EnhancedDocument, filename string) error {
 	if minimalMap {
 		legend, statCards, charts, alerts, meta = "", "", "", "", ""
 	}
+	highlights.WriteString(erosionChangeElements)
 
 	documentHeight := canvasHeight
 	if minimalMap {
@@ -304,7 +333,8 @@ func DrawEnhancedSVG(doc EnhancedDocument, filename string) error {
 		documentHeight = requiredHeight
 	}
 
-	scaleBar := buildScaleBar(minLat, maxLat, minLon, maxLon, plotWidth, scale, padding, float64(documentHeight)-padding-scaleBarYGap)
+	scaleBarY := math.Max(float64(documentHeight)-padding-scaleBarYGap, originY+contentHeight+68)
+	scaleBar := buildScaleBar(minLat, maxLat, minLon, maxLon, plotWidth, scale, padding, scaleBarY)
 
 	sidebarBackground := fmt.Sprintf(`<rect x="%.0f" y="20" width="%.0f" height="%d" rx="24" fill="#f0ece2" stroke="#d6d0c4"/>`, padding+plotWidth+8, sidebarWidth-16, documentHeight-40)
 	if minimalMap {
@@ -321,11 +351,11 @@ func DrawEnhancedSVG(doc EnhancedDocument, filename string) error {
   </defs>
   <g>
 %s  </g>
+  <g clip-path="url(#map-clip)">
+%s  </g>
+  <g clip-path="url(#map-clip)">
+%s  </g>
   <g>
-%s  </g>
-  <g clip-path="url(#map-clip)">
-%s  </g>
-  <g clip-path="url(#map-clip)">
 %s  </g>
   <g>
 %s  </g>
@@ -441,7 +471,7 @@ func buildScientificAxes(minLat, maxLat, minLon, maxLon, originX, originY, conte
 	))
 	out.WriteString(fmt.Sprintf(
 		`    <text x="%.1f" y="%.1f" font-family="Helvetica, Arial, sans-serif" font-size="10" font-weight="700" fill="#16324f" text-anchor="middle" transform="rotate(-90, %.1f, %.1f)">OY — широта, °</text>`+"\n",
-		originX-42, originY+contentHeight/2, originX-42, originY+contentHeight/2,
+		originX-24, originY+contentHeight/2, originX-24, originY+contentHeight/2,
 	))
 	return out.String()
 }
@@ -1035,6 +1065,7 @@ func buildBoxCountingGrid(opts BoxCountingGridOptions, originX, originY, content
 	minLat, maxLat := opts.MinLat, opts.MaxLat
 	minLon, maxLon := opts.MinLon, opts.MaxLon
 	mapMinLat, mapMinLon := minLat, minLon
+	gridAnchorLat, gridAnchorLon := minLat, minLon
 
 	// If buffer zone specified, use smaller area around coastline for better visualization
 	if opts.BufferZoneKM > 0 {
@@ -1052,6 +1083,8 @@ func buildBoxCountingGrid(opts BoxCountingGridOptions, originX, originY, content
 	projection := geometry.NewLocalMetricProjection(opts.Points)
 	metersPerDegLat := projection.MetersPerDegreeLatitude
 	metersPerDegLon := projection.MetersPerDegreeLongitude
+	minLat = gridAnchorLat + math.Floor((minLat-gridAnchorLat)*metersPerDegLat/boxSizeMeters)*boxSizeMeters/metersPerDegLat
+	minLon = gridAnchorLon + math.Floor((minLon-gridAnchorLon)*metersPerDegLon/boxSizeMeters)*boxSizeMeters/metersPerDegLon
 
 	latSpan := (maxLat - minLat) * metersPerDegLat
 	lonSpan := (maxLon - minLon) * metersPerDegLon
@@ -1132,9 +1165,15 @@ func buildBoxCountingGrid(opts BoxCountingGridOptions, originX, originY, content
 			}
 
 			if opts.ShowAllBoxes || (opts.ShowCoveredBoxes && isCovered) {
+				stroke := lineColor
+				strokeWidth := lineWidth
+				if opts.RegressionWindow {
+					stroke = "#7c2d12"
+					strokeWidth = math.Max(lineWidth, 1.1)
+				}
 				out.WriteString(fmt.Sprintf(
 					`    <rect x="%.2f" y="%.2f" width="%.2f" height="%.2f" fill="%s" stroke="%s" stroke-width="%.2f" stroke-opacity="%.2f" fill-opacity="%.2f"/>`+"\n",
-					x1, y1, width, height, fillColor, lineColor, lineWidth, opacity, opacity,
+					x1, y1, width, height, fillColor, stroke, strokeWidth, opacity, opacity,
 				))
 				boxCount++ // increment counter only when actually drawing
 			}
@@ -1154,12 +1193,25 @@ func buildBoxCountingGridAnnotation(opts BoxCountingGridOptions, originX, origin
 		boxSize = 1000
 	}
 	labelY := math.Max(108, originY-84)
-	return fmt.Sprintf(
+	annotation := fmt.Sprintf(
 		`    <text x="%.0f" y="%.0f" font-family="Helvetica, Arial, sans-serif" font-size="10" fill="#6b7a87">Сетка box-counting: ячейка %.0f м</text>`+"\n"+
 			`    <text x="%.0f" y="%.0f" font-family="Helvetica, Arial, sans-serif" font-size="9" fill="#6b7a87">Оранжевые ячейки — покрытые N(ε); насыщенность показывает плотность прохождения линии</text>`+"\n",
 		padding, labelY, boxSize,
 		padding, labelY+15,
 	)
+	if opts.RegressionWindow {
+		annotation += fmt.Sprintf(
+			`    <rect x="%.0f" y="%.0f" width="10" height="10" fill="#c2410c" fill-opacity="0.45" stroke="#7c2d12" stroke-width="1.2"/><text x="%.0f" y="%.0f" font-family="Helvetica, Arial, sans-serif" font-size="9" fill="#6b7a87">тёмная рамка — ячейки на масштабе ε в регрессионном окне (%.0f–%.0f м)</text>`+"\n",
+			padding, labelY+32, padding+15, labelY+41, opts.RegressionMinBox, opts.RegressionMaxBox,
+		)
+	}
+	if opts.LogLogSVGFile != "" {
+		annotation += fmt.Sprintf(
+			`    <a href="%s"><text x="%.0f" y="%.0f" font-family="Helvetica, Arial, sans-serif" font-size="9" fill="#1f6f8b" text-decoration="underline">Открыть отдельный график: %s</text></a>`+"\n",
+			html.EscapeString(filepath.Base(opts.LogLogSVGFile)), padding, labelY+48, html.EscapeString(filepath.Base(opts.LogLogSVGFile)),
+		)
+	}
+	return annotation
 }
 
 // markCoveredBoxes marks which grid boxes are intersected by the coastline
@@ -1289,6 +1341,7 @@ func buildErosionGrid(opts ErosionGridOptions, originX, originY, contentWidth, c
 	minLat, maxLat := opts.MinLat, opts.MaxLat
 	minLon, maxLon := opts.MinLon, opts.MaxLon
 	mapMinLat, mapMinLon := minLat, minLon
+	gridAnchorLat, gridAnchorLon := minLat, minLon
 
 	// If buffer zone specified, use smaller area around coastline for better visualization
 	if opts.BufferZoneKM > 0 {
@@ -1306,6 +1359,8 @@ func buildErosionGrid(opts ErosionGridOptions, originX, originY, contentWidth, c
 	projection := geometry.NewLocalMetricProjection(opts.Points)
 	metersPerDegLat := projection.MetersPerDegreeLatitude
 	metersPerDegLon := projection.MetersPerDegreeLongitude
+	minLat = gridAnchorLat + math.Floor((minLat-gridAnchorLat)*metersPerDegLat/cellSizeMeters)*cellSizeMeters/metersPerDegLat
+	minLon = gridAnchorLon + math.Floor((minLon-gridAnchorLon)*metersPerDegLon/cellSizeMeters)*cellSizeMeters/metersPerDegLon
 
 	latSpan := (maxLat - minLat) * metersPerDegLat
 	lonSpan := (maxLon - minLon) * metersPerDegLon
@@ -1422,6 +1477,92 @@ func buildErosionGridAnnotation(opts ErosionGridOptions, originX, originY float6
 	return fmt.Sprintf(
 		`    <text x="%.0f" y="%.0f" font-family="Helvetica, Arial, sans-serif" font-size="10" fill="#6b7a87">Эрозионная сетка: ячейка %.0f м; стрелки — направление волн %.0f°</text>`+"\n",
 		padding, math.Max(108, originY-84), cellSize, opts.WaveDirection,
+	)
+}
+
+func buildErosionChangeVisualization(opts ErosionChangeOptions, minLat, minLon, originX, originY, contentHeight, scale float64) string {
+	if len(opts.Points) < 2 {
+		return ""
+	}
+
+	maxAbs := opts.MaxAbsChange
+	if maxAbs <= 0 {
+		for _, point := range opts.Points {
+			maxAbs = math.Max(maxAbs, math.Abs(point.ChangePerUnit))
+		}
+	}
+	if maxAbs <= 0 {
+		return ""
+	}
+	neutralThreshold := opts.NeutralThreshold
+	if neutralThreshold <= 0 {
+		neutralThreshold = math.Max(0.1, maxAbs*0.03)
+	}
+
+	var out strings.Builder
+	for index := 1; index < len(opts.Points); index++ {
+		previous := opts.Points[index-1]
+		current := opts.Points[index]
+		value := (previous.ChangePerUnit + current.ChangePerUnit) / 2
+		color := erosionChangeColor(value, maxAbs, neutralThreshold)
+		x1 := originX + (previous.Point.Lon-minLon)*scale
+		y1 := originY + contentHeight - (previous.Point.Lat-minLat)*scale
+		x2 := originX + (current.Point.Lon-minLon)*scale
+		y2 := originY + contentHeight - (current.Point.Lat-minLat)*scale
+		out.WriteString(fmt.Sprintf(
+			`    <line x1="%.2f" y1="%.2f" x2="%.2f" y2="%.2f" stroke="%s" stroke-width="4.6" stroke-opacity="0.9" stroke-linecap="round"/>`+"\n",
+			x1, y1, x2, y2, color,
+		))
+	}
+	return out.String()
+}
+
+func erosionChangeColor(value, maxAbs, neutralThreshold float64) string {
+	if math.Abs(value) <= neutralThreshold {
+		return "#9aa3ab"
+	}
+	ratio := math.Min(1, math.Abs(value)/maxAbs)
+	if value > 0 {
+		return blendHexColor("#c2410c", ratio)
+	}
+	return blendHexColor("#1f6f8b", ratio)
+}
+
+func blendHexColor(base string, intensity float64) string {
+	red, errRed := strconv.ParseUint(base[1:3], 16, 8)
+	green, errGreen := strconv.ParseUint(base[3:5], 16, 8)
+	blue, errBlue := strconv.ParseUint(base[5:7], 16, 8)
+	if errRed != nil || errGreen != nil || errBlue != nil {
+		return base
+	}
+	whiteShare := 0.72 * (1 - intensity)
+	return fmt.Sprintf("#%02x%02x%02x",
+		uint8(float64(red)*(1-whiteShare)+255*whiteShare),
+		uint8(float64(green)*(1-whiteShare)+255*whiteShare),
+		uint8(float64(blue)*(1-whiteShare)+255*whiteShare))
+}
+
+func buildErosionChangeAnnotation(opts ErosionChangeOptions, originX, originY float64) string {
+	if !opts.Show || len(opts.Points) == 0 {
+		return ""
+	}
+	maxAbs := opts.MaxAbsChange
+	if maxAbs <= 0 {
+		for _, point := range opts.Points {
+			maxAbs = math.Max(maxAbs, math.Abs(point.ChangePerUnit))
+		}
+	}
+	unit := opts.UnitLabel
+	if unit == "" {
+		unit = "м/шаг"
+	}
+	labelY := math.Max(108, originY-84)
+	return fmt.Sprintf(
+		`    <rect x="%.0f" y="%.0f" width="10" height="10" fill="#c2410c"/><text x="%.0f" y="%.0f" font-family="Helvetica, Arial, sans-serif" font-size="9" fill="#6b7a87">размыв</text>`+"\n"+`    <rect x="%.0f" y="%.0f" width="10" height="10" fill="#9aa3ab"/><text x="%.0f" y="%.0f" font-family="Helvetica, Arial, sans-serif" font-size="9" fill="#6b7a87">нейтральная зона</text>`+"\n"+`    <rect x="%.0f" y="%.0f" width="10" height="10" fill="#1f6f8b"/><text x="%.0f" y="%.0f" font-family="Helvetica, Arial, sans-serif" font-size="9" fill="#6b7a87">накопление</text>`+"\n"+`    <text x="%.0f" y="%.0f" font-family="Helvetica, Arial, sans-serif" font-size="9" fill="#6b7a87">шкала: 0–%.1f %s</text>`+"\n",
+		padding, labelY+17, padding+15, labelY+26,
+		padding+75, labelY+17, padding+90, labelY+26,
+		padding+190, labelY+17, padding+205, labelY+26,
+		padding+300, labelY+26, maxAbs, unit,
 	)
 }
 

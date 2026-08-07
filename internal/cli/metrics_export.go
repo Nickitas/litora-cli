@@ -190,6 +190,9 @@ type erosionStepMetrics struct {
 	RenderPoints int     `json:"render_points"`
 	LengthKM     float64 `json:"length_km"`
 	AreaKM       float64 `json:"area_km2"`
+	MeanChange   float64 `json:"mean_change_per_unit,omitempty"`
+	MaxChange    float64 `json:"max_abs_change_per_unit,omitempty"`
+	ChangeUnit   string  `json:"change_unit,omitempty"`
 }
 
 type erosionSeriesArtifactMetrics struct {
@@ -211,6 +214,7 @@ type erosionSeriesArtifactMetrics struct {
 	MaxFetchKM          float64                    `json:"max_fetch_km,omitempty"`
 	DepthScaleMeters    float64                    `json:"depth_scale_meters,omitempty"`
 	ExposurePower       float64                    `json:"exposure_power,omitempty"`
+	YearsPerStep        float64                    `json:"years_per_step,omitempty"`
 	Steps               []erosionStepMetrics       `json:"steps"`
 	Highlights          coastlineHighlightsMetrics `json:"highlights"`
 	Validation          validationMetrics          `json:"validation"`
