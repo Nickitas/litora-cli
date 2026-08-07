@@ -66,8 +66,8 @@ func init() {
 	rootCmd.AddCommand(allCmd)
 
 	// Input options
-	allCmd.Flags().StringVar(&allInput, "input", coastline.DefaultCoastlineJSONPath, "путь к локальному JSON/GeoJSON береговой линии")
-	allCmd.Flags().StringVar(&allSourceURL, "source-url", coastline.DefaultCoastlineGeoJSONURL, "URL удалённого GeoJSON")
+	allCmd.Flags().StringVar(&allInput, "input", "", "путь к локальному JSON/GeoJSON береговой линии")
+	allCmd.Flags().StringVar(&allSourceURL, "source-url", "", "явно включить удалённый GeoJSON-источник")
 	allCmd.Flags().BoolVar(&allRefresh, "refresh", false, "принудительное обновление удалённого кэша")
 	allCmd.Flags().StringVar(&allOutput, "output", "", "каталог для вывода (по умолчанию: ./output)")
 

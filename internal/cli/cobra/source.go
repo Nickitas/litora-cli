@@ -26,8 +26,8 @@ var sourceCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(sourceCmd)
 
-	sourceCmd.Flags().StringVar(&sourceInput, "input", coastline.DefaultCoastlineJSONPath, "path to local coastline JSON/GeoJSON fallback file")
-	sourceCmd.Flags().StringVar(&sourceURL, "source-url", coastline.DefaultCoastlineGeoJSONURL, "remote GeoJSON URL (empty disables HTTP loading)")
+	sourceCmd.Flags().StringVar(&sourceInput, "input", "", "путь к локальному JSON/GeoJSON береговой линии")
+	sourceCmd.Flags().StringVar(&sourceURL, "source-url", "", "явно включить удалённый GeoJSON-источник")
 	sourceCmd.Flags().BoolVar(&sourceRefresh, "refresh", false, "force refresh of remote cache")
 	sourceCmd.Flags().StringVar(&sourceOutput, "output", "", "snapshot file or directory (default: ./data/snapshots)")
 }

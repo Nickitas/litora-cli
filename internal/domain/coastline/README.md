@@ -113,7 +113,7 @@ type LoadResult struct {
     Validation   ValidationReport  // Отчёт валидации
     Source       string            // Фактический источник данных
     DatasetName  string            // Имя набора (из метаданных или файла)
-    LoadWarnings []string          // Предупреждения при загрузке (fallback и т.д.)
+    LoadWarnings []string          // Предупреждения при загрузке кэша или удалённого источника
 }
 ```
 
@@ -176,11 +176,13 @@ var DefaultBlackSeaBounds = GeoBounds{
 
 ### Источники данных
 
-Модуль поддерживает три уровня источников с приоритетом:
+Модуль поддерживает два взаимно однозначных режима:
 
-1. **Удалённый GeoJSON** — WFS-эндпоинт Marine Regions или произвольный URL
-2. **Локальный кэш** — `data/cache/black-sea.geojson` или хэш URL
-3. **Локальный fallback** — `data/black-sea.json`
+1. **Локальный режим** — если `LocalPath` задан, читается только этот файл.
+   Ошибка чтения немедленно возвращается вызывающему коду; кэш и URL не
+   используются.
+2. **Удалённый режим** — если `LocalPath` пуст, используется `RemoteURL` и его
+   кэш. Если URL также пуст, читается `data/black-sea.json`.
 
 Константы по умолчанию:
 
@@ -205,19 +207,16 @@ https://geo.vliz.be/geoserver/MarineRegions/wfs?
 
 ### Алгоритм разрешения источника
 
-Функция `resolveSourcePayload()` реализует стратегию загрузки с fallback:
+Функция `resolveSourcePayload()` реализует строгую стратегию выбора источника:
 
 ```
-1. Если RemoteURL пуст → читать из LocalPath
-2. Иначе:
-   2a. Если Refresh=false и кэш существует → вернуть кэш
-   2b. Попытаться скачать удалённый GeoJSON
-       - Успех → обновить кэш, вернуть удалённый
-       - Неудача → попробовать кэш
-         - Кэш есть → вернуть с warning
-         - Кэша нет → попробовать LocalPath
-           - Файл есть → вернуть с warning
-           - Файла нет → ошибка
+1. Если LocalPath задан → читать только LocalPath; ошибка сразу завершается
+2. Если LocalPath пуст и RemoteURL пуст → читать локальный файл по умолчанию
+3. Если LocalPath пуст и RemoteURL задан:
+   3a. Если Refresh=false и кэш существует → вернуть кэш
+   3b. Попытаться скачать удалённый GeoJSON
+       - Успех → обновить кэш и вернуть удалённый источник
+       - Неудача → попробовать кэш; при отсутствии кэша вернуть ошибку
 ```
 
 ### Парсинг GeoJSON
@@ -727,7 +726,7 @@ data/snapshots/
 
 | Константа | Значение | Описание |
 |-----------|----------|----------|
-| `DefaultCoastlineJSONPath` | `"data/black-sea.json"` | Путь к локальному fallback |
+| `DefaultCoastlineJSONPath` | `"data/black-sea.json"` | Локальный путь по умолчанию |
 | `DefaultCoastlineCacheDir` | `"data/cache"` | Директория кэша |
 | `DefaultCoastlineSnapshotDir` | `"data/snapshots"` | Директория snapshot-ов |
 | `EarthRadiusKM` | `6371.0` | Средний радиус Земли |
@@ -956,8 +955,8 @@ go test ./internal/domain/coastline/...
 | `findSelfIntersections` | ✅ Обнаружение пересекающихся сегментов |
 | `SanityCheck` |✅ Warning для известного набора с некорректной длиной<br>✅ Пропуск для неизвестного набора |
 | `FetchCoastlineData` | ✅ Парсинг GeoJSON Polygon с фильтрацией по bounds<br>✅ Сохранение замкнутого кольца |
-| `Load` | ✅ Использование удалённого GeoJSON<br>✅ Сохранение замкнутого кольца<br>✅ Fallback на локальный JSON при ошибке remote<br>✅ Использование кэша без remote-запроса<br>✅ Обновление кэша при `Refresh=true`<br>✅ Использование stale-кэша при ошибке refresh |
-| `InspectSource` | ✅ Сохранение snapshot + извлечение метаданных из GeoJSON<br>✅ Fallback на локальный + генерация `.json` snapshot |
+| `Load` | ✅ Приоритет явного локального файла<br>✅ Ошибка без локального fallback<br>✅ Использование удалённого GeoJSON<br>✅ Сохранение замкнутого кольца<br>✅ Использование кэша без remote-запроса<br>✅ Обновление кэша при `Refresh=true`<br>✅ Использование stale-кэша при ошибке refresh |
+| `InspectSource` | ✅ Строгий выбор локального или удалённого режима<br>✅ Сохранение snapshot + извлечение метаданных из GeoJSON |
 | `BuildValidationSummary` | ✅ Включение длинных сегментов и дубликатов<br>✅ Стабильные строки с count=0 для чистой геометрии |
 | `BuildVisualizationHints` | ✅ Обнаружение длинных сегментов с правильными индексами |
 

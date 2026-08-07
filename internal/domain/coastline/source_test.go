@@ -93,7 +93,7 @@ func TestLoadUsesRemoteGeoJSONWhenAvailable(t *testing.T) {
 	defer server.Close()
 
 	result, err := Load(LoadOptions{
-		LocalPath:    fallbackPath,
+		LocalPath:    "",
 		RemoteURL:    server.URL,
 		RemoteBounds: DefaultBlackSeaBounds,
 		CachePath:    cachePath,
@@ -111,6 +111,50 @@ func TestLoadUsesRemoteGeoJSONWhenAvailable(t *testing.T) {
 	}
 	if len(result.Points) != 4 {
 		t.Fatalf("expected 4 remote points, got %d", len(result.Points))
+	}
+}
+
+func TestLoadUsesExplicitLocalInputWithoutFallback(t *testing.T) {
+	dir := t.TempDir()
+	localPath := filepath.Join(dir, "local.json")
+	cachePath := filepath.Join(dir, "cache.geojson")
+	if err := os.WriteFile(localPath, []byte(`[
+		{"lat": 10.0, "lon": 10.0},
+		{"lat": 11.0, "lon": 11.0}
+	]`), 0o644); err != nil {
+		t.Fatalf("write local json: %v", err)
+	}
+	if err := os.WriteFile(cachePath, []byte(`{
+		"type": "Feature",
+		"geometry": {"type": "LineString", "coordinates": [[30.73, 46.48], [32.49, 45.33], [34.10, 44.94]]}
+	}`), 0o644); err != nil {
+		t.Fatalf("write cache geojson: %v", err)
+	}
+
+	var hits atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hits.Add(1)
+		http.Error(w, "локальный режим не должен обращаться к URL", http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	result, err := Load(LoadOptions{
+		LocalPath:  localPath,
+		RemoteURL:  server.URL,
+		CachePath:  cachePath,
+		HTTPClient: server.Client(),
+	})
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	if result.Source != localPath {
+		t.Fatalf("expected explicit local source %q, got %q", localPath, result.Source)
+	}
+	if len(result.Points) != 2 {
+		t.Fatalf("expected 2 local points, got %d", len(result.Points))
+	}
+	if hits.Load() != 0 {
+		t.Fatalf("expected no remote requests, got %d", hits.Load())
 	}
 }
 
@@ -144,7 +188,7 @@ func TestLoadPreservesClosedPolygonRing(t *testing.T) {
 	defer server.Close()
 
 	result, err := Load(LoadOptions{
-		LocalPath:  fallbackPath,
+		LocalPath:  "",
 		RemoteURL:  server.URL,
 		CachePath:  cachePath,
 		HTTPClient: server.Client(),
@@ -161,7 +205,7 @@ func TestLoadPreservesClosedPolygonRing(t *testing.T) {
 	}
 }
 
-func TestLoadFallsBackToLocalJSONWhenRemoteFails(t *testing.T) {
+func TestLoadDoesNotFallbackToLocalJSONWhenRemoteFails(t *testing.T) {
 	dir := t.TempDir()
 	fallbackPath := filepath.Join(dir, "fallback.json")
 	cachePath := filepath.Join(dir, "cache.geojson")
@@ -177,28 +221,18 @@ func TestLoadFallsBackToLocalJSONWhenRemoteFails(t *testing.T) {
 	}))
 	defer server.Close()
 
-	result, err := Load(LoadOptions{
-		LocalPath:    fallbackPath,
+	_, err := Load(LoadOptions{
+		LocalPath:    "",
 		RemoteURL:    server.URL,
 		RemoteBounds: DefaultBlackSeaBounds,
 		CachePath:    cachePath,
 		HTTPClient:   server.Client(),
 	})
-	if err != nil {
-		t.Fatalf("Load returned error: %v", err)
+	if err == nil {
+		t.Fatal("expected remote loading error without local fallback")
 	}
-
-	if result.Source != fallbackPath {
-		t.Fatalf("expected fallback source %q, got %q", fallbackPath, result.Source)
-	}
-	if len(result.Points) != 2 {
-		t.Fatalf("expected 2 fallback points, got %d", len(result.Points))
-	}
-	if len(result.LoadWarnings) != 1 {
-		t.Fatalf("expected one load warning, got %+v", result.LoadWarnings)
-	}
-	if !strings.Contains(result.LoadWarnings[0], "используется локальная копия") {
-		t.Fatalf("unexpected load warning: %+v", result.LoadWarnings)
+	if !strings.Contains(err.Error(), "ошибка загрузки из удалённого источника") {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
 
@@ -235,7 +269,7 @@ func TestLoadUsesCacheWithoutRemoteRequest(t *testing.T) {
 	defer server.Close()
 
 	result, err := Load(LoadOptions{
-		LocalPath:  fallbackPath,
+		LocalPath:  "",
 		RemoteURL:  server.URL,
 		CachePath:  cachePath,
 		HTTPClient: server.Client(),
@@ -296,7 +330,7 @@ func TestLoadRefreshesRemoteCache(t *testing.T) {
 	defer server.Close()
 
 	result, err := Load(LoadOptions{
-		LocalPath:  fallbackPath,
+		LocalPath:  "",
 		RemoteURL:  server.URL,
 		CachePath:  cachePath,
 		Refresh:    true,
@@ -352,7 +386,7 @@ func TestLoadUsesStaleCacheWhenRefreshFails(t *testing.T) {
 	defer server.Close()
 
 	result, err := Load(LoadOptions{
-		LocalPath:  fallbackPath,
+		LocalPath:  "",
 		RemoteURL:  server.URL,
 		CachePath:  cachePath,
 		Refresh:    true,
@@ -413,7 +447,7 @@ func TestInspectSourceSavesSnapshotAndExtractsMetadata(t *testing.T) {
 	defer server.Close()
 
 	result, err := InspectSource(InspectOptions{
-		LocalPath:    fallbackPath,
+		LocalPath:    "",
 		RemoteURL:    server.URL,
 		CachePath:    cachePath,
 		SnapshotPath: snapshotPath,
@@ -480,7 +514,7 @@ func TestInspectSourceSavesSnapshotAndExtractsMetadata(t *testing.T) {
 	}
 }
 
-func TestInspectSourceFallsBackToLocalAndGeneratesSnapshot(t *testing.T) {
+func TestInspectSourceDoesNotFallbackToLocal(t *testing.T) {
 	dir := t.TempDir()
 	fallbackPath := filepath.Join(dir, "fallback.json")
 	cachePath := filepath.Join(dir, "cache.geojson")
@@ -497,33 +531,17 @@ func TestInspectSourceFallsBackToLocalAndGeneratesSnapshot(t *testing.T) {
 	}))
 	defer server.Close()
 
-	result, err := InspectSource(InspectOptions{
-		LocalPath:    fallbackPath,
+	_, err := InspectSource(InspectOptions{
+		LocalPath:    "",
 		RemoteURL:    server.URL,
 		CachePath:    cachePath,
 		SnapshotPath: snapshotDir,
 		HTTPClient:   server.Client(),
 	})
-	if err != nil {
-		t.Fatalf("InspectSource returned error: %v", err)
+	if err == nil {
+		t.Fatal("expected remote inspection error without local fallback")
 	}
-
-	if result.Source != fallbackPath {
-		t.Fatalf("expected local fallback source %q, got %q", fallbackPath, result.Source)
-	}
-	if result.Metadata.Format != "point-array" {
-		t.Fatalf("expected point-array format, got %q", result.Metadata.Format)
-	}
-	if len(result.LoadWarnings) != 1 || !strings.Contains(result.LoadWarnings[0], "используется локальная копия") {
-		t.Fatalf("expected local fallback warning, got %+v", result.LoadWarnings)
-	}
-	if !strings.HasPrefix(result.SnapshotPath, snapshotDir) {
-		t.Fatalf("expected snapshot in %q, got %q", snapshotDir, result.SnapshotPath)
-	}
-	if !strings.HasSuffix(result.SnapshotPath, ".json") {
-		t.Fatalf("expected JSON snapshot, got %q", result.SnapshotPath)
-	}
-	if _, err := os.Stat(result.SnapshotPath); err != nil {
-		t.Fatalf("expected snapshot to exist: %v", err)
+	if !strings.Contains(err.Error(), "ошибка загрузки из удалённого источника") {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }

@@ -39,8 +39,8 @@ var dimensionCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(dimensionCmd)
 
-	dimensionCmd.Flags().StringVar(&dimInput, "input", coastline.DefaultCoastlineJSONPath, "путь к локальному JSON/GeoJSON береговой линии")
-	dimensionCmd.Flags().StringVar(&dimSourceURL, "source-url", coastline.DefaultCoastlineGeoJSONURL, "URL удалённого GeoJSON")
+	dimensionCmd.Flags().StringVar(&dimInput, "input", "", "путь к локальному JSON/GeoJSON береговой линии")
+	dimensionCmd.Flags().StringVar(&dimSourceURL, "source-url", "", "явно включить удалённый GeoJSON-источник")
 	dimensionCmd.Flags().BoolVar(&dimRefresh, "refresh", false, "принудительное обновление удалённого кэша")
 	dimensionCmd.Flags().StringVar(&dimOutput, "output", "", "каталог для вывода (по умолчанию: ./output)")
 	dimensionCmd.Flags().IntVar(&dimIterations, "iterations", 5, "максимальное количество органических итераций Коха")

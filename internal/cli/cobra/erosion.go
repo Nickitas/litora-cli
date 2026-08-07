@@ -60,8 +60,8 @@ func init() {
 	rootCmd.AddCommand(erosionCmd)
 
 	// Input options
-	erosionCmd.Flags().StringVar(&erosionInput, "input", coastline.DefaultCoastlineJSONPath, "путь к локальному JSON/GeoJSON береговой линии")
-	erosionCmd.Flags().StringVar(&erosionSourceURL, "source-url", coastline.DefaultCoastlineGeoJSONURL, "URL удалённого GeoJSON")
+	erosionCmd.Flags().StringVar(&erosionInput, "input", "", "путь к локальному JSON/GeoJSON береговой линии")
+	erosionCmd.Flags().StringVar(&erosionSourceURL, "source-url", "", "явно включить удалённый GeoJSON-источник")
 	erosionCmd.Flags().BoolVar(&erosionRefresh, "refresh", false, "принудительное обновление удалённого кэша")
 	erosionCmd.Flags().StringVar(&erosionOutput, "output", "", "каталог для вывода (по умолчанию: ./output)")
 

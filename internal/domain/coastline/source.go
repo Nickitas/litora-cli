@@ -43,8 +43,8 @@ func (b GeoBounds) Contains(point geometry.LatLon) bool {
 
 // LoadOptions параметры загрузки береговой линии
 type LoadOptions struct {
-	LocalPath    string       // Локальный путь к файлу
-	RemoteURL    string       // URL удалённого источника
+	LocalPath    string       // Локальный путь к файлу; если задан, имеет приоритет над удалённым источником
+	RemoteURL    string       // URL удалённого источника; используется только при пустом LocalPath
 	RemoteBounds GeoBounds    // Границы для фильтрации
 	CachePath    string       // Путь к кэшу
 	Refresh      bool         // Принудительное обновление кэша
@@ -77,11 +77,7 @@ func LoadFromJSON(filename string) ([]geometry.LatLon, ValidationReport, error) 
 
 // Load загружает береговую линию с различными источниками данных
 func Load(options LoadOptions) (LoadResult, error) {
-	localPath := options.LocalPath
-	if strings.TrimSpace(localPath) == "" {
-		localPath = DefaultCoastlineJSONPath
-	}
-
+	localPath := strings.TrimSpace(options.LocalPath)
 	remoteURL := strings.TrimSpace(options.RemoteURL)
 	cachePath := strings.TrimSpace(options.CachePath)
 	payload, err := resolveSourcePayload(localPath, remoteURL, cachePath, options.Refresh, options.HTTPClient)
@@ -623,14 +619,10 @@ type sourceGeoJSONFeature struct {
 
 // InspectSource инспектирует источник данных береговой линии
 func InspectSource(options InspectOptions) (SourceInspection, error) {
-	localPath := options.LocalPath
-	if strings.TrimSpace(localPath) == "" {
-		localPath = DefaultCoastlineJSONPath
-	}
-
+	localPath := strings.TrimSpace(options.LocalPath)
 	remoteURL := strings.TrimSpace(options.RemoteURL)
 	cachePath := strings.TrimSpace(options.CachePath)
-	if remoteURL != "" && cachePath == "" {
+	if localPath == "" && remoteURL != "" && cachePath == "" {
 		cachePath = defaultCoastlineCachePath(remoteURL)
 	}
 
@@ -666,12 +658,21 @@ func InspectSource(options InspectOptions) (SourceInspection, error) {
 
 // resolveSourcePayload разрешает источник данных (локальный, удалённый или кэш)
 func resolveSourcePayload(localPath, remoteURL, cachePath string, refresh bool, client *http.Client) (resolvedSourcePayload, error) {
-	if strings.TrimSpace(localPath) == "" {
-		localPath = DefaultCoastlineJSONPath
+	localPath = strings.TrimSpace(localPath)
+	remoteURL = strings.TrimSpace(remoteURL)
+	if localPath != "" {
+		payload, err := os.ReadFile(localPath)
+		if err != nil {
+			return resolvedSourcePayload{}, fmt.Errorf("ошибка чтения JSON береговой линии %q: %w", localPath, err)
+		}
+		return resolvedSourcePayload{
+			Payload: payload,
+			Source:  localPath,
+		}, nil
 	}
 
-	remoteURL = strings.TrimSpace(remoteURL)
 	if remoteURL == "" {
+		localPath = DefaultCoastlineJSONPath
 		payload, err := os.ReadFile(localPath)
 		if err != nil {
 			return resolvedSourcePayload{}, fmt.Errorf("ошибка чтения JSON береговой линии %q: %w", localPath, err)
@@ -722,18 +723,7 @@ func resolveSourcePayload(localPath, remoteURL, cachePath string, refresh bool, 
 		}, nil
 	}
 
-	localPayload, localErr := os.ReadFile(localPath)
-	if localErr != nil {
-		return resolvedSourcePayload{}, fmt.Errorf("ошибка загрузки из удалённого источника %q: %v; ошибка загрузки из кэша %q: %v; ошибка загрузки из локального источника %q: %w", remoteURL, remoteErr, cachePath, cacheErr, localPath, localErr)
-	}
-
-	return resolvedSourcePayload{
-		Payload: localPayload,
-		Source:  localPath,
-		LoadWarnings: []string{
-			fmt.Sprintf("удалённый источник %q недоступен, используется локальная копия %q: %v", remoteURL, localPath, remoteErr),
-		},
-	}, nil
+	return resolvedSourcePayload{}, fmt.Errorf("ошибка загрузки из удалённого источника %q: %v; ошибка загрузки из кэша %q: %w", remoteURL, remoteErr, cachePath, cacheErr)
 }
 
 // inspectSourceMetadata инспектирует метаданные источника
@@ -900,6 +890,9 @@ func datasetNameFromMetadata(meta SourceMetadata, localPath, remoteURL string) s
 	if strings.TrimSpace(meta.Name) != "" {
 		return strings.TrimSpace(meta.Name)
 	}
+	if strings.TrimSpace(localPath) != "" {
+		return filepath.Base(localPath)
+	}
 	if strings.TrimSpace(remoteURL) != "" {
 		if parsed, err := url.Parse(remoteURL); err == nil {
 			if base := filepath.Base(parsed.Path); base != "." && base != "/" && base != "" {
@@ -910,9 +903,6 @@ func datasetNameFromMetadata(meta SourceMetadata, localPath, remoteURL string) s
 			}
 		}
 		return remoteURL
-	}
-	if strings.TrimSpace(localPath) != "" {
-		return filepath.Base(localPath)
 	}
 	return "coastline"
 }
