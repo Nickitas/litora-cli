@@ -132,6 +132,8 @@ func writeOrganicKochSVGSeries(originalBase, modelBase []geometry.LatLon, iterat
 }
 
 func writeErosionSVGSeries(originalBase, modelBase []geometry.LatLon, snapshots [][]geometry.LatLon, steps int, strength float64, seed int64, waveOptions geometry.WaveErosionOptions, output string, ctx exportContext, outputPathManager *OutputPathManager, sedimentResult *geometry.SedimentTransportResult) error {
+	ctx.Report = buildReportMetadata(ctx, originalBase, fmt.Sprintf("strength=%.6f|seed=%d|steps=%d|years=%.6f", strength, seed, steps, waveOptions.YearsPerStep))
+	fmt.Printf("🧾 Научный отчёт: эксперимент %s, источник %s, версия данных %s\n", ctx.Report.ExperimentID, ctx.Report.GeometrySource, ctx.Report.InputDataVersion[:12])
 	outputDir := outputPathManager.SVGDir()
 
 	if len(originalBase) == 0 {
@@ -192,13 +194,14 @@ func writeErosionSVGSeries(originalBase, modelBase []geometry.LatLon, snapshots 
 		}
 		meta = append(meta, fmt.Sprintf("Эрозия: базовый отступ %.0f м, seed=%d", strength, seed))
 		meta = append(meta, fmt.Sprintf("Волны: %.0f° от севера, ветер %.1f м/с, сектор ±%.0f°, fetch <= %.0f км", waveOptions.WindSourceDirectionDeg, waveOptions.WindSpeedMetersPerSecond, waveOptions.FetchSpreadDeg, waveOptions.MaxFetchMeters/1000))
+		metadataSubtitle := reportMetadataLines(ctx.Report)
 
 		// Build document and apply enhanced options if enabled
 		doc := svgrender.Document{
 			Title: "Волновая эрозия береговой линии",
-			Subtitle: fmt.Sprintf("Модель: волновая эрозия · шаг %d · сетка ячеек\nВолны: %.0f° от севера · ветер %.1f м/с · сектор ±%.0f° · fetch ≤ %.0f км\nОтступ %.0f м · seed=%d · масштаб глубины %.0f м · экспозиция %.2f · samples=%d",
+			Subtitle: fmt.Sprintf("Модель: волновая эрозия · шаг %d · сетка ячеек\nВолны: %.0f° от севера · ветер %.1f м/с · сектор ±%.0f° · fetch ≤ %.0f км\nОтступ %.0f м · seed=%d · масштаб глубины %.0f м · экспозиция %.2f · samples=%d\n%s",
 				step, waveOptions.WindSourceDirectionDeg, waveOptions.WindSpeedMetersPerSecond, waveOptions.FetchSpreadDeg, waveOptions.MaxFetchMeters/1000,
-				strength, seed, waveOptions.DepthScaleMeters, waveOptions.ExposurePower, waveOptions.FetchSamples),
+				strength, seed, waveOptions.DepthScaleMeters, waveOptions.ExposurePower, waveOptions.FetchSamples, metadataSubtitle),
 			Layers:    layers,
 			StatCards: makeValidationStatCards(ctx.Validation, validationSummary),
 			Meta:      meta,
@@ -275,6 +278,7 @@ func writeErosionSVGSeries(originalBase, modelBase []geometry.LatLon, snapshots 
 		DepthScaleMeters:    waveOptions.DepthScaleMeters,
 		ExposurePower:       waveOptions.ExposurePower,
 		YearsPerStep:        waveOptions.YearsPerStep,
+		Report:              ctx.Report,
 		Steps:               stepMetrics,
 		Highlights:          coastlineHighlightsMetricsFromHints(visualHints),
 		Validation:          validationMetricsFromData(ctx.Validation, validationSummary),
@@ -356,6 +360,17 @@ func maxErosionChange(points []svgrender.ErosionChangePoint) float64 {
 }
 
 func writeFractalSeries(opts fractalSeriesOptions, output string, ctx exportContext, outputPathManager *OutputPathManager) error {
+	angleJitter, heightJitter := 0.0, 0.0
+	if opts.OrganicOptions != nil {
+		angleJitter = opts.OrganicOptions.AngleJitterDeg
+		heightJitter = opts.OrganicOptions.HeightJitterPct
+	}
+	metadataPoints := opts.OriginalBase
+	if len(metadataPoints) == 0 {
+		metadataPoints = opts.ModelBase
+	}
+	ctx.Report = buildReportMetadata(ctx, metadataPoints, fmt.Sprintf("seed=%d|iterations=%d|angle=%.6f|height=%.6f", opts.ErosionSeed, opts.Iterations, angleJitter, heightJitter))
+	fmt.Printf("🧾 Научный отчёт: эксперимент %s, источник %s, версия данных %s\n", ctx.Report.ExperimentID, ctx.Report.GeometrySource, ctx.Report.InputDataVersion[:12])
 	outputDir := outputPathManager.SVGDir()
 
 	originalBase := opts.OriginalBase
@@ -457,6 +472,7 @@ func writeFractalSeries(opts fractalSeriesOptions, output string, ctx exportCont
 				subtitle += fmt.Sprintf("\nЭрозионное возмущение: %.0f м · seed=%d", opts.ErosionStrength, opts.ErosionSeed)
 			}
 		}
+		subtitle += "\n" + reportMetadataLines(ctx.Report)
 
 		// Build document and apply enhanced options if enabled
 		doc := svgrender.Document{
@@ -526,6 +542,7 @@ func writeFractalSeries(opts fractalSeriesOptions, output string, ctx exportCont
 		ModelSimplification: modelSimplification,
 		ErosionStrength:     opts.ErosionStrength,
 		ErosionSeed:         opts.ErosionSeed,
+		Report:              ctx.Report,
 		Iterations:          iterationsMetrics,
 		Highlights:          coastlineHighlightsMetricsFromHints(visualHints),
 		Validation:          validationMetricsFromData(ctx.Validation, validationSummary),
@@ -996,23 +1013,23 @@ func WriteCoastlineSVG(points []geometry.LatLon, validation coastline.Validation
 }
 
 // WriteDimensionSVGSeries создаёт SVG-файлы для каждой итерации фрактальной размерности
-func WriteDimensionSVGSeries(basePoints []geometry.LatLon, iterations int, opts koch.OrganicOptions, outputPathManager *OutputPathManager) error {
+func WriteDimensionSVGSeries(basePoints []geometry.LatLon, iterations int, opts koch.OrganicOptions, outputPathManager *OutputPathManager, dataset, source string, validation coastline.ValidationReport) error {
 	if len(basePoints) == 0 {
 		return fmt.Errorf("нет базовых точек")
 	}
 
-	ctx := newExportContext("dimension", "coastline", "unknown", coastline.ValidationReport{})
+	ctx := newExportContext("dimension", dataset, source, validation)
 
 	return writeOrganicKochSVGSeries(nil, basePoints, iterations, "", opts, 0, "dimension", "dimension", true, ctx, outputPathManager)
 }
 
 // WriteErosionSVGSeries создаёт SVG-файлы для каждого шага эрозии
-func WriteErosionSVGSeries(originalBase []geometry.LatLon, snapshots [][]geometry.LatLon, steps int, strength float64, seed int64, waveOptions geometry.WaveErosionOptions, outputPathManager *OutputPathManager) error {
+func WriteErosionSVGSeries(originalBase []geometry.LatLon, snapshots [][]geometry.LatLon, steps int, strength float64, seed int64, waveOptions geometry.WaveErosionOptions, outputPathManager *OutputPathManager, dataset, source string, validation coastline.ValidationReport) error {
 	if len(originalBase) == 0 && len(snapshots) == 0 {
 		return fmt.Errorf("нет данных для рендеринга")
 	}
 
-	ctx := newExportContext("erosion", "coastline", "unknown", coastline.ValidationReport{})
+	ctx := newExportContext("erosion", dataset, source, validation)
 
 	return writeErosionSVGSeries(originalBase, nil, snapshots, steps, strength, seed, waveOptions, "", ctx, outputPathManager, nil)
 }

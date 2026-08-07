@@ -219,7 +219,7 @@ func runErosion(cmd *cobra.Command, args []string) error {
 			DepthScaleMeters:         erosionDepthScale,
 			ExposurePower:            erosionExposurePower,
 			YearsPerStep:             erosionYearsPerStep,
-		}, outputMgr); err != nil {
+		}, outputMgr, result.DatasetName, result.Source, result.Validation); err != nil {
 		fmt.Printf("Предупреждение: не удалось создать SVG: %v\n", err)
 	}
 

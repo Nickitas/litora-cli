@@ -20,6 +20,18 @@ type exportContext struct {
 	Source     string
 	Validation coastline.ValidationReport
 	Config     config
+	Report     reportMetadata
+}
+
+// reportMetadata содержит идентификационные данные научного отчёта.
+type reportMetadata struct {
+	GeneratedAt        string  `json:"generated_at"`
+	InputDataVersion   string  `json:"input_data_version"`
+	GeometrySource     string  `json:"geometry_source"`
+	ExperimentID       string  `json:"experiment_id"`
+	Projection         string  `json:"projection"`
+	ReferenceLatitude  float64 `json:"reference_latitude"`
+	ReferenceLongitude float64 `json:"reference_longitude"`
 }
 
 type polylineMetrics struct {
@@ -104,6 +116,7 @@ type coastlineArtifactMetrics struct {
 	RenderSimplification simplificationMetrics      `json:"render_simplification"`
 	Highlights           coastlineHighlightsMetrics `json:"highlights"`
 	Validation           validationMetrics          `json:"validation"`
+	Report               reportMetadata             `json:"report_metadata"`
 }
 
 type fractalSeriesArtifactMetrics struct {
@@ -123,6 +136,7 @@ type fractalSeriesArtifactMetrics struct {
 	Iterations          []fractalIterationMetrics  `json:"iterations"`
 	Highlights          coastlineHighlightsMetrics `json:"highlights"`
 	Validation          validationMetrics          `json:"validation"`
+	Report              reportMetadata             `json:"report_metadata"`
 	Reproducibility     reproducibilityMetrics     `json:"reproducibility"`
 }
 
@@ -218,6 +232,7 @@ type erosionSeriesArtifactMetrics struct {
 	Steps               []erosionStepMetrics       `json:"steps"`
 	Highlights          coastlineHighlightsMetrics `json:"highlights"`
 	Validation          validationMetrics          `json:"validation"`
+	Report              reportMetadata             `json:"report_metadata"`
 	Reproducibility     reproducibilityMetrics     `json:"reproducibility"`
 }
 
@@ -248,6 +263,36 @@ func reproducibilityForGeometry(points []geometry.LatLon) reproducibilityMetrics
 	metrics.InputGeometrySHA256 = fmt.Sprintf("%x", hash.Sum(nil))
 	metrics.InputPointCount = len(points)
 	return metrics
+}
+
+// buildReportMetadata формирует воспроизводимые метаданные для SVG и JSON.
+func buildReportMetadata(ctx exportContext, points []geometry.LatLon, parameters string) reportMetadata {
+	reproducibility := reproducibilityForGeometry(points)
+	identity := sha256.Sum256([]byte(ctx.Command + "|" + reproducibility.InputGeometrySHA256 + "|" + parameters))
+	return reportMetadata{
+		GeneratedAt:        nowTimestamp(),
+		InputDataVersion:   reproducibility.InputGeometrySHA256,
+		GeometrySource:     ctx.Source,
+		ExperimentID:       fmt.Sprintf("exp-%x", identity[:6]),
+		Projection:         reproducibility.CalculationCoordinateSystem,
+		ReferenceLatitude:  reproducibility.ProjectionReferenceLat,
+		ReferenceLongitude: reproducibility.ProjectionReferenceLon,
+	}
+}
+
+// reportMetadataLines подготавливает компактное описание для научной карты.
+func reportMetadataLines(metadata reportMetadata) string {
+	source := metadata.GeometrySource
+	if cacheIndex := strings.Index(source, " (кешированная копия"); cacheIndex > 0 {
+		source = source[:cacheIndex] + " (кешированная копия)"
+	}
+	if len(source) > 96 {
+		source = source[:93] + "..."
+	}
+	return fmt.Sprintf("Эксперимент: %s · дата: %s\nИсточник: %s · версия данных: %s\nПроекция: %s · референс: %.4f° с.ш., %.4f° в.д.",
+		metadata.ExperimentID, metadata.GeneratedAt, source,
+		metadata.InputDataVersion[:12], metadata.Projection,
+		metadata.ReferenceLatitude, metadata.ReferenceLongitude)
 }
 
 func newExportContext(command, dataset, source string, validation coastline.ValidationReport) exportContext {

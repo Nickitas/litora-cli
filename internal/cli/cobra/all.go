@@ -174,7 +174,7 @@ func runAll(cmd *cobra.Command, args []string) error {
 		Seed:            allSeed,
 		AngleJitterDeg:  allAngleJitter,
 		HeightJitterPct: allHeightJitter,
-	}, outputMgr); err != nil {
+	}, outputMgr, result.DatasetName, result.Source, result.Validation); err != nil {
 		fmt.Printf("Предупреждение: не удалось создать SVG для размерности: %v\n", err)
 	}
 
@@ -190,7 +190,7 @@ func runAll(cmd *cobra.Command, args []string) error {
 			DepthScaleMeters:         allDepthScale,
 			ExposurePower:            allExposurePower,
 			YearsPerStep:             allYearsPerStep,
-		}, outputMgr); err != nil {
+		}, outputMgr, result.DatasetName, result.Source, result.Validation); err != nil {
 		fmt.Printf("Предупреждение: не удалось создать SVG для эрозии: %v\n", err)
 	}
 

@@ -126,7 +126,7 @@ func runDimension(cmd *cobra.Command, args []string) error {
 		Seed:            dimSeed,
 		AngleJitterDeg:  dimAngleJitter,
 		HeightJitterPct: dimHeightJitter,
-	}, outputMgr); err != nil {
+	}, outputMgr, result.DatasetName, result.Source, result.Validation); err != nil {
 		fmt.Printf("Предупреждение: не удалось создать SVG: %v\n", err)
 	}
 

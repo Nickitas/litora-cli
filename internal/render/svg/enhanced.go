@@ -204,7 +204,17 @@ func DrawEnhancedSVG(doc EnhancedDocument, filename string) error {
 	if minimalMap {
 		header, headerBottom = buildScientificHeader(doc.Title, doc.Subtitle, padding)
 	}
-	plotTopY := headerBottom + 24
+	annotationTopY := headerBottom + 8
+	annotationHeight := 0.0
+	if doc.BoxCountingGridOptions != nil && doc.BoxCountingGridOptions.Show {
+		annotationHeight = 58
+	} else if doc.ErosionGridOptions != nil && doc.ErosionGridOptions.Show {
+		annotationHeight = 20
+		if doc.ErosionChangeOptions != nil && doc.ErosionChangeOptions.Show {
+			annotationHeight = 52
+		}
+	}
+	plotTopY := headerBottom + 24 + annotationHeight
 	plotHeight := float64(canvasHeight) - plotTopY - padding
 	scale := math.Min(plotWidth/lonSpan, plotHeight/latSpan)
 	contentWidth := lonSpan * scale
@@ -280,13 +290,13 @@ func DrawEnhancedSVG(doc EnhancedDocument, filename string) error {
 
 	if doc.ErosionChangeOptions != nil && doc.ErosionChangeOptions.Show {
 		erosionChangeElements = buildErosionChangeVisualization(*doc.ErosionChangeOptions, minLat, minLon, originX, originY, contentHeight, scale)
-		gridAnnotationElements += buildErosionChangeAnnotation(*doc.ErosionChangeOptions, originX, originY)
+		gridAnnotationElements += buildErosionChangeAnnotation(*doc.ErosionChangeOptions, annotationTopY+18)
 	}
 
 	if doc.BoxCountingGridOptions != nil && doc.BoxCountingGridOptions.Show {
 		fmt.Printf("   🔧 Отрисовка сетки box-counting: включена=%v, точек=%d\n", doc.BoxCountingGridOptions.Show, len(doc.BoxCountingGridOptions.Points))
 		boxCountingGridElements = buildBoxCountingGrid(*doc.BoxCountingGridOptions, originX, originY, contentWidth, contentHeight, scale)
-		gridAnnotationElements = buildBoxCountingGridAnnotation(*doc.BoxCountingGridOptions, originX, originY)
+		gridAnnotationElements = buildBoxCountingGridAnnotation(*doc.BoxCountingGridOptions, padding, annotationTopY)
 		if len(boxCountingGridElements) > 0 {
 			fmt.Printf("   ✅ Сетка box-counting отрисована: %d символов SVG\n", len(boxCountingGridElements))
 		} else {
@@ -298,7 +308,7 @@ func DrawEnhancedSVG(doc EnhancedDocument, filename string) error {
 		fmt.Printf("   🔧 Отрисовка эрозионной сетки: включена=%v, точек=%d, размер ячейки=%.0f м\n",
 			doc.ErosionGridOptions.Show, len(doc.ErosionGridOptions.Points), doc.ErosionGridOptions.CellSize)
 		erosionGridElements = buildErosionGrid(*doc.ErosionGridOptions, originX, originY, contentWidth, contentHeight, scale)
-		gridAnnotationElements += buildErosionGridAnnotation(*doc.ErosionGridOptions, originX, originY)
+		gridAnnotationElements += buildErosionGridAnnotation(*doc.ErosionGridOptions, padding, annotationTopY)
 		if len(erosionGridElements) > 0 {
 			fmt.Printf("   ✅ Эрозионная сетка отрисована: %d символов SVG\n", len(erosionGridElements))
 		} else {
@@ -1187,12 +1197,11 @@ func buildBoxCountingGrid(opts BoxCountingGridOptions, originX, originY, content
 }
 
 // buildBoxCountingGridAnnotation создаёт пояснение сетки вне клиппинга карты.
-func buildBoxCountingGridAnnotation(opts BoxCountingGridOptions, originX, originY float64) string {
+func buildBoxCountingGridAnnotation(opts BoxCountingGridOptions, originX, labelY float64) string {
 	boxSize := opts.BoxSize
 	if boxSize <= 0 {
 		boxSize = 1000
 	}
-	labelY := math.Max(108, originY-84)
 	annotation := fmt.Sprintf(
 		`    <text x="%.0f" y="%.0f" font-family="Helvetica, Arial, sans-serif" font-size="10" fill="#6b7a87">Сетка box-counting: ячейка %.0f м</text>`+"\n"+
 			`    <text x="%.0f" y="%.0f" font-family="Helvetica, Arial, sans-serif" font-size="9" fill="#6b7a87">Оранжевые ячейки — покрытые N(ε); насыщенность показывает плотность прохождения линии</text>`+"\n",
@@ -1469,14 +1478,14 @@ func buildErosionGrid(opts ErosionGridOptions, originX, originY, contentWidth, c
 }
 
 // buildErosionGridAnnotation создаёт подпись сетки вне клиппинга карты.
-func buildErosionGridAnnotation(opts ErosionGridOptions, originX, originY float64) string {
+func buildErosionGridAnnotation(opts ErosionGridOptions, originX, labelY float64) string {
 	cellSize := opts.CellSize
 	if cellSize <= 0 {
 		cellSize = 500
 	}
 	return fmt.Sprintf(
 		`    <text x="%.0f" y="%.0f" font-family="Helvetica, Arial, sans-serif" font-size="10" fill="#6b7a87">Эрозионная сетка: ячейка %.0f м; стрелки — направление волн %.0f°</text>`+"\n",
-		padding, math.Max(108, originY-84), cellSize, opts.WaveDirection,
+		padding, labelY, cellSize, opts.WaveDirection,
 	)
 }
 
@@ -1542,7 +1551,7 @@ func blendHexColor(base string, intensity float64) string {
 		uint8(float64(blue)*(1-whiteShare)+255*whiteShare))
 }
 
-func buildErosionChangeAnnotation(opts ErosionChangeOptions, originX, originY float64) string {
+func buildErosionChangeAnnotation(opts ErosionChangeOptions, labelY float64) string {
 	if !opts.Show || len(opts.Points) == 0 {
 		return ""
 	}
@@ -1556,7 +1565,6 @@ func buildErosionChangeAnnotation(opts ErosionChangeOptions, originX, originY fl
 	if unit == "" {
 		unit = "м/шаг"
 	}
-	labelY := math.Max(108, originY-84)
 	return fmt.Sprintf(
 		`    <rect x="%.0f" y="%.0f" width="10" height="10" fill="#c2410c"/><text x="%.0f" y="%.0f" font-family="Helvetica, Arial, sans-serif" font-size="9" fill="#6b7a87">размыв</text>`+"\n"+`    <rect x="%.0f" y="%.0f" width="10" height="10" fill="#9aa3ab"/><text x="%.0f" y="%.0f" font-family="Helvetica, Arial, sans-serif" font-size="9" fill="#6b7a87">нейтральная зона</text>`+"\n"+`    <rect x="%.0f" y="%.0f" width="10" height="10" fill="#1f6f8b"/><text x="%.0f" y="%.0f" font-family="Helvetica, Arial, sans-serif" font-size="9" fill="#6b7a87">накопление</text>`+"\n"+`    <text x="%.0f" y="%.0f" font-family="Helvetica, Arial, sans-serif" font-size="9" fill="#6b7a87">шкала: 0–%.1f %s</text>`+"\n",
 		padding, labelY+17, padding+15, labelY+26,

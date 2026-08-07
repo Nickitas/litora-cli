@@ -8,7 +8,7 @@
   <line x1="100.00" y1="100.00" x2="100.00" y2="630.00" stroke="#d6d0c4" stroke-width="1"/>
   <line x1="100.00" y1="630.00" x2="1058.00" y2="630.00" stroke="#d6d0c4" stroke-width="1"/>
   <text x="100.00" y="652.00" font-family="Helvetica, Arial, sans-serif" font-size="10" fill="#4f6d7a" text-anchor="middle">1.05</text>
-  <text x="90.00" y="634.00" font-family="Helvetica, Arial, sans-serif" font-size="10" fill="#4f6d7a" text-anchor="end">2.11</text>
+  <text x="90.00" y="634.00" font-family="Helvetica, Arial, sans-serif" font-size="10" fill="#4f6d7a" text-anchor="end">2.10</text>
   <line x1="291.60" y1="100.00" x2="291.60" y2="630.00" stroke="#d6d0c4" stroke-width="1"/>
   <line x1="100.00" y1="524.00" x2="1058.00" y2="524.00" stroke="#d6d0c4" stroke-width="1"/>
   <text x="291.60" y="652.00" font-family="Helvetica, Arial, sans-serif" font-size="10" fill="#4f6d7a" text-anchor="middle">2.02</text>
@@ -16,45 +16,45 @@
   <line x1="483.20" y1="100.00" x2="483.20" y2="630.00" stroke="#d6d0c4" stroke-width="1"/>
   <line x1="100.00" y1="418.00" x2="1058.00" y2="418.00" stroke="#d6d0c4" stroke-width="1"/>
   <text x="483.20" y="652.00" font-family="Helvetica, Arial, sans-serif" font-size="10" fill="#4f6d7a" text-anchor="middle">2.98</text>
-  <text x="90.00" y="422.00" font-family="Helvetica, Arial, sans-serif" font-size="10" fill="#4f6d7a" text-anchor="end">4.31</text>
+  <text x="90.00" y="422.00" font-family="Helvetica, Arial, sans-serif" font-size="10" fill="#4f6d7a" text-anchor="end">4.32</text>
   <line x1="674.80" y1="100.00" x2="674.80" y2="630.00" stroke="#d6d0c4" stroke-width="1"/>
   <line x1="100.00" y1="312.00" x2="1058.00" y2="312.00" stroke="#d6d0c4" stroke-width="1"/>
   <text x="674.80" y="652.00" font-family="Helvetica, Arial, sans-serif" font-size="10" fill="#4f6d7a" text-anchor="middle">3.95</text>
-  <text x="90.00" y="316.00" font-family="Helvetica, Arial, sans-serif" font-size="10" fill="#4f6d7a" text-anchor="end">5.41</text>
+  <text x="90.00" y="316.00" font-family="Helvetica, Arial, sans-serif" font-size="10" fill="#4f6d7a" text-anchor="end">5.44</text>
   <line x1="866.40" y1="100.00" x2="866.40" y2="630.00" stroke="#d6d0c4" stroke-width="1"/>
   <line x1="100.00" y1="206.00" x2="1058.00" y2="206.00" stroke="#d6d0c4" stroke-width="1"/>
   <text x="866.40" y="652.00" font-family="Helvetica, Arial, sans-serif" font-size="10" fill="#4f6d7a" text-anchor="middle">4.91</text>
-  <text x="90.00" y="210.00" font-family="Helvetica, Arial, sans-serif" font-size="10" fill="#4f6d7a" text-anchor="end">6.51</text>
+  <text x="90.00" y="210.00" font-family="Helvetica, Arial, sans-serif" font-size="10" fill="#4f6d7a" text-anchor="end">6.55</text>
   <line x1="1058.00" y1="100.00" x2="1058.00" y2="630.00" stroke="#d6d0c4" stroke-width="1"/>
   <line x1="100.00" y1="100.00" x2="1058.00" y2="100.00" stroke="#d6d0c4" stroke-width="1"/>
   <text x="1058.00" y="652.00" font-family="Helvetica, Arial, sans-serif" font-size="10" fill="#4f6d7a" text-anchor="middle">5.88</text>
-  <text x="90.00" y="104.00" font-family="Helvetica, Arial, sans-serif" font-size="10" fill="#4f6d7a" text-anchor="end">7.61</text>
-  <line x1="246.59" y1="541.92" x2="991.93" y2="135.59" stroke="#16324f" stroke-width="2.4" stroke-dasharray="8 5"/>
-  <circle cx="166.07" cy="593.45" r="5.0" fill="#6b7a87"><title>ε=298756 м, N(ε)=12</title></circle>
-  <circle cx="246.59" cy="541.92" r="6.5" fill="#c2410c"><title>ε=199171 м, N(ε)=20</title></circle>
-  <circle cx="303.71" cy="513.65" r="6.5" fill="#c2410c"><title>ε=149378 м, N(ε)=28</title></circle>
-  <circle cx="384.23" cy="467.34" r="6.5" fill="#c2410c"><title>ε=99585 м, N(ε)=45</title></circle>
-  <circle cx="441.36" cy="438.18" r="6.5" fill="#c2410c"><title>ε=74689 м, N(ε)=60</title></circle>
-  <circle cx="521.87" cy="393.10" r="6.5" fill="#c2410c"><title>ε=49793 м, N(ε)=96</title></circle>
-  <circle cx="579.00" cy="361.26" r="6.5" fill="#c2410c"><title>ε=37345 м, N(ε)=134</title></circle>
-  <circle cx="659.52" cy="318.61" r="6.5" fill="#c2410c"><title>ε=24896 м, N(ε)=209</title></circle>
-  <circle cx="716.64" cy="286.72" r="6.5" fill="#c2410c"><title>ε=18672 м, N(ε)=291</title></circle>
-  <circle cx="797.16" cy="242.89" r="6.5" fill="#c2410c"><title>ε=12448 м, N(ε)=458</title></circle>
-  <circle cx="854.29" cy="212.05" r="6.5" fill="#c2410c"><title>ε=9336 м, N(ε)=632</title></circle>
-  <circle cx="934.80" cy="168.41" r="6.5" fill="#c2410c"><title>ε=6224 м, N(ε)=994</title></circle>
-  <circle cx="991.93" cy="136.55" r="6.5" fill="#c2410c"><title>ε=4668 м, N(ε)=1384</title></circle>
+  <text x="90.00" y="104.00" font-family="Helvetica, Arial, sans-serif" font-size="10" fill="#4f6d7a" text-anchor="end">7.66</text>
+  <line x1="246.59" y1="542.37" x2="991.93" y2="135.24" stroke="#16324f" stroke-width="2.4" stroke-dasharray="8 5"/>
+  <circle cx="166.07" cy="593.45" r="5.0" fill="#6b7a87"><title>ε=297910 м, N(ε)=12</title></circle>
+  <circle cx="246.59" cy="542.37" r="6.5" fill="#c2410c"><title>ε=198606 м, N(ε)=20</title></circle>
+  <circle cx="303.71" cy="514.35" r="6.5" fill="#c2410c"><title>ε=148955 м, N(ε)=28</title></circle>
+  <circle cx="384.23" cy="468.44" r="6.5" fill="#c2410c"><title>ε=99303 м, N(ε)=45</title></circle>
+  <circle cx="441.36" cy="439.93" r="6.5" fill="#c2410c"><title>ε=74477 м, N(ε)=60</title></circle>
+  <circle cx="521.87" cy="393.62" r="6.5" fill="#c2410c"><title>ε=49652 м, N(ε)=98</title></circle>
+  <circle cx="579.00" cy="362.22" r="6.5" fill="#c2410c"><title>ε=37239 м, N(ε)=136</title></circle>
+  <circle cx="659.52" cy="320.09" r="6.5" fill="#c2410c"><title>ε=24826 м, N(ε)=211</title></circle>
+  <circle cx="716.64" cy="287.21" r="6.5" fill="#c2410c"><title>ε=18619 м, N(ε)=298</title></circle>
+  <circle cx="797.16" cy="244.25" r="6.5" fill="#c2410c"><title>ε=12413 м, N(ε)=467</title></circle>
+  <circle cx="854.29" cy="212.58" r="6.5" fill="#c2410c"><title>ε=9310 м, N(ε)=651</title></circle>
+  <circle cx="934.80" cy="167.92" r="6.5" fill="#c2410c"><title>ε=6206 м, N(ε)=1039</title></circle>
+  <circle cx="991.93" cy="136.55" r="6.5" fill="#c2410c"><title>ε=4655 м, N(ε)=1443</title></circle>
   <text x="166.07" y="581.45" font-family="Helvetica, Arial, sans-serif" font-size="9" fill="#6b7a87" text-anchor="middle">1</text>
-  <text x="246.59" y="529.92" font-family="Helvetica, Arial, sans-serif" font-size="9" fill="#6b7a87" text-anchor="middle">2</text>
-  <text x="303.71" y="501.65" font-family="Helvetica, Arial, sans-serif" font-size="9" fill="#6b7a87" text-anchor="middle">3</text>
-  <text x="384.23" y="455.34" font-family="Helvetica, Arial, sans-serif" font-size="9" fill="#6b7a87" text-anchor="middle">4</text>
-  <text x="441.36" y="426.18" font-family="Helvetica, Arial, sans-serif" font-size="9" fill="#6b7a87" text-anchor="middle">5</text>
-  <text x="521.87" y="381.10" font-family="Helvetica, Arial, sans-serif" font-size="9" fill="#6b7a87" text-anchor="middle">6</text>
-  <text x="579.00" y="349.26" font-family="Helvetica, Arial, sans-serif" font-size="9" fill="#6b7a87" text-anchor="middle">7</text>
-  <text x="659.52" y="306.61" font-family="Helvetica, Arial, sans-serif" font-size="9" fill="#6b7a87" text-anchor="middle">8</text>
-  <text x="716.64" y="274.72" font-family="Helvetica, Arial, sans-serif" font-size="9" fill="#6b7a87" text-anchor="middle">9</text>
-  <text x="797.16" y="230.89" font-family="Helvetica, Arial, sans-serif" font-size="9" fill="#6b7a87" text-anchor="middle">10</text>
-  <text x="854.29" y="200.05" font-family="Helvetica, Arial, sans-serif" font-size="9" fill="#6b7a87" text-anchor="middle">11</text>
-  <text x="934.80" y="156.41" font-family="Helvetica, Arial, sans-serif" font-size="9" fill="#6b7a87" text-anchor="middle">12</text>
+  <text x="246.59" y="530.37" font-family="Helvetica, Arial, sans-serif" font-size="9" fill="#6b7a87" text-anchor="middle">2</text>
+  <text x="303.71" y="502.35" font-family="Helvetica, Arial, sans-serif" font-size="9" fill="#6b7a87" text-anchor="middle">3</text>
+  <text x="384.23" y="456.44" font-family="Helvetica, Arial, sans-serif" font-size="9" fill="#6b7a87" text-anchor="middle">4</text>
+  <text x="441.36" y="427.93" font-family="Helvetica, Arial, sans-serif" font-size="9" fill="#6b7a87" text-anchor="middle">5</text>
+  <text x="521.87" y="381.62" font-family="Helvetica, Arial, sans-serif" font-size="9" fill="#6b7a87" text-anchor="middle">6</text>
+  <text x="579.00" y="350.22" font-family="Helvetica, Arial, sans-serif" font-size="9" fill="#6b7a87" text-anchor="middle">7</text>
+  <text x="659.52" y="308.09" font-family="Helvetica, Arial, sans-serif" font-size="9" fill="#6b7a87" text-anchor="middle">8</text>
+  <text x="716.64" y="275.21" font-family="Helvetica, Arial, sans-serif" font-size="9" fill="#6b7a87" text-anchor="middle">9</text>
+  <text x="797.16" y="232.25" font-family="Helvetica, Arial, sans-serif" font-size="9" fill="#6b7a87" text-anchor="middle">10</text>
+  <text x="854.29" y="200.58" font-family="Helvetica, Arial, sans-serif" font-size="9" fill="#6b7a87" text-anchor="middle">11</text>
+  <text x="934.80" y="155.92" font-family="Helvetica, Arial, sans-serif" font-size="9" fill="#6b7a87" text-anchor="middle">12</text>
   <text x="991.93" y="124.55" font-family="Helvetica, Arial, sans-serif" font-size="9" fill="#6b7a87" text-anchor="middle">13</text>
 
   <line x1="100.00" y1="630.00" x2="1058.00" y2="630.00" stroke="#16324f" stroke-width="1.5"/>
@@ -62,5 +62,5 @@
   <text x="579.00" y="690.00" font-family="Helvetica, Arial, sans-serif" font-size="12" font-weight="700" fill="#16324f" text-anchor="middle">log(1/ε)</text>
   <text x="36.00" y="365.00" font-family="Helvetica, Arial, sans-serif" font-size="12" font-weight="700" fill="#16324f" text-anchor="middle" transform="rotate(-90, 36.00, 365.00)">log(N(ε))</text>
   <text x="798" y="692" font-family="Helvetica, Arial, sans-serif" font-size="11" fill="#c2410c">оранжевые точки — регрессионное окно</text>
-  <text x="888" y="692" font-family="Helvetica, Arial, sans-serif" font-size="11" fill="#16324f">D=1.12501 · R²=1.0000</text>
+  <text x="888" y="692" font-family="Helvetica, Arial, sans-serif" font-size="11" fill="#16324f">D=1.13715 · R²=0.9999</text>
 </svg>

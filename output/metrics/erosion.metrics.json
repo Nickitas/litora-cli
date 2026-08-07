@@ -1,8 +1,8 @@
 {
-  "generated_at": "2026-08-07T09:25:38Z",
+  "generated_at": "2026-08-07T09:50:12Z",
   "command": "lito erosion",
-  "dataset": "coastline",
-  "source": "unknown",
+  "dataset": "Black Sea",
+  "source": "data/cache/black-sea.geojson (кешированная копия https://geo.vliz.be/geoserver/MarineRegions/wfs?cql_filter=mrgid%3D3319\u0026outputFormat=application%2Fjson\u0026request=GetFeature\u0026service=WFS\u0026typeName=iho\u0026version=1.0.0)",
   "output_dir": "output",
   "reference_coastline": {
     "points_count": 9635,
@@ -25,7 +25,7 @@
     "length_delta_km": 0,
     "length_delta_percent": 0
   },
-  "erosion_strength_meters": 50,
+  "erosion_strength_meters": 30,
   "erosion_seed": 42,
   "wind_speed_mps": 12,
   "fetch_spread_deg": 55,
@@ -33,67 +33,69 @@
   "max_fetch_km": 150,
   "depth_scale_meters": 4000,
   "exposure_power": 1.5,
-  "years_per_step": 2,
+  "years_per_step": 1,
   "steps": [
     {
       "step": 0,
       "svg_file": "output/svg/erosion_step_0.svg",
-      "points": 9635,
-      "render_points": 4998,
-      "length_km": 6398.216681057437,
-      "area_km2": 425852.50980567577,
-      "change_unit": "м/год"
+      "points": 1997,
+      "render_points": 1997,
+      "length_km": 5991.086374433781,
+      "area_km2": 425730.1953419444,
+      "change_unit": "м/шаг"
     },
     {
       "step": 1,
       "svg_file": "output/svg/erosion_step_1.svg",
-      "points": 9635,
-      "render_points": 5000,
-      "length_km": 6350.1476041439155,
-      "area_km2": 425848.061533114,
-      "mean_change_per_unit": 0.1487612147479583,
-      "max_abs_change_per_unit": 48.83358719629106,
-      "change_unit": "м/год"
+      "points": 1997,
+      "render_points": 1997,
+      "length_km": 5977.384955478131,
+      "area_km2": 425726.246458408,
+      "mean_change_per_unit": -0.9225970510979523,
+      "max_abs_change_per_unit": 59.129063737160855,
+      "change_unit": "м/шаг"
     },
     {
       "step": 2,
       "svg_file": "output/svg/erosion_step_2.svg",
-      "points": 9635,
-      "render_points": 4999,
-      "length_km": 6310.538367370181,
-      "area_km2": 425843.408706129,
-      "mean_change_per_unit": 0.10718010999536819,
-      "max_abs_change_per_unit": 47.979551746519064,
-      "change_unit": "м/год"
+      "points": 1997,
+      "render_points": 1997,
+      "length_km": 5963.994835074808,
+      "area_km2": 425722.3170855436,
+      "mean_change_per_unit": -0.9163326480444528,
+      "max_abs_change_per_unit": 59.01147753360215,
+      "change_unit": "м/шаг"
     },
     {
       "step": 3,
       "svg_file": "output/svg/erosion_step_3.svg",
-      "points": 9635,
-      "render_points": 5000,
-      "length_km": 6277.170494026561,
-      "area_km2": 425838.58574466006,
-      "mean_change_per_unit": 0.07376342553571512,
-      "max_abs_change_per_unit": 46.764552035066686,
-      "change_unit": "м/год"
+      "points": 1997,
+      "render_points": 1997,
+      "length_km": 5950.854725334857,
+      "area_km2": 425718.4813995015,
+      "mean_change_per_unit": -0.8876810221524153,
+      "max_abs_change_per_unit": 58.8708101945884,
+      "change_unit": "м/шаг"
     },
     {
       "step": 4,
       "svg_file": "output/svg/erosion_step_4.svg",
-      "points": 9635,
-      "render_points": 4999,
-      "length_km": 6248.706358610187,
-      "area_km2": 425833.6739160925,
-      "mean_change_per_unit": 0.05456776793758274,
-      "max_abs_change_per_unit": 44.6658187591825,
-      "change_unit": "м/год"
+      "points": 1997,
+      "render_points": 1997,
+      "length_km": 5937.945977544343,
+      "area_km2": 425714.82461915753,
+      "mean_change_per_unit": -0.8440558924278736,
+      "max_abs_change_per_unit": 58.703991841668135,
+      "change_unit": "м/шаг"
     }
   ],
   "highlights": {
     "long_segments": []
   },
   "validation": {
-    "fixes": [],
+    "fixes": [
+      "точки автоматически переупорядочены по обходу контура"
+    ],
     "warnings": [],
     "summary": [
       {
@@ -107,6 +109,15 @@
       }
     ],
     "duplicate_locations": []
+  },
+  "report_metadata": {
+    "generated_at": "2026-08-07T09:50:11Z",
+    "input_data_version": "f6922e461df150852cc07e6532116cbf37a042ca504d1a40fc908825ee917fe9",
+    "geometry_source": "data/cache/black-sea.geojson (кешированная копия https://geo.vliz.be/geoserver/MarineRegions/wfs?cql_filter=mrgid%3D3319\u0026outputFormat=application%2Fjson\u0026request=GetFeature\u0026service=WFS\u0026typeName=iho\u0026version=1.0.0)",
+    "experiment_id": "exp-b220f6ca770d",
+    "projection": "локальная равнопромежуточная метрическая проекция WGS 84",
+    "reference_latitude": 44.01398785962021,
+    "reference_longitude": 33.12130869192117
   },
   "reproducibility": {
     "metrics_schema_version": "1.0",
