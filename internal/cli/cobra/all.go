@@ -39,6 +39,11 @@ var (
 	allSeaLevelRise      float64
 	allEnableSeasonality bool
 	allSeasonalPhase     float64
+	allOutputCSV         string
+	allCSVFormat         string
+	allOutputGIF         string
+	allGIFFPS            int
+	allGIFSkip           int
 	allModelMaxPoints    int
 	allDisableSimplify   bool
 )
@@ -95,6 +100,13 @@ func init() {
 	allCmd.Flags().BoolVar(&allEnableSeasonality, "enable-seasonality", false, "включить сезонные колебания")
 	allCmd.Flags().Float64Var(&allSeasonalPhase, "seasonal-phase", 0, "сезонная фаза в радианах")
 
+	// Export options
+	allCmd.Flags().StringVar(&allOutputCSV, "output-csv", "", "путь к CSV файлу для экспорта метрик")
+	allCmd.Flags().StringVar(&allCSVFormat, "csv-format", "long", "формат CSV: long или wide")
+	allCmd.Flags().StringVar(&allOutputGIF, "output-gif", "", "путь к GIF файлу для анимации")
+	allCmd.Flags().IntVar(&allGIFFPS, "gif-fps", 10, "кадров в секунду для GIF")
+	allCmd.Flags().IntVar(&allGIFSkip, "gif-skip", 1, "пропускать каждые N кадров")
+
 	// Model options
 	allCmd.Flags().IntVar(&allModelMaxPoints, "model-max-points", 0, "максимальное количество точек для базовой модели")
 	allCmd.Flags().BoolVar(&allDisableSimplify, "no-model-simplify", false, "отключить упрощение базовой модели")
@@ -112,6 +124,17 @@ func runAll(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Printf("Загружено: %s (%d точек)\n", result.Source, len(result.Points))
+
+	modelInputs, err := loadModelInputs(allBathymetry, allLithology, allEnableLithology)
+	if err != nil {
+		return err
+	}
+	if modelInputs.BathymetryGrid != nil {
+		fmt.Printf("✓ Батиметрия загружена: %s (%d точек)\n", modelInputs.BathymetryPath, len(modelInputs.BathymetryGrid.Points))
+	}
+	if modelInputs.LithologyProfile != nil {
+		fmt.Printf("✓ Литология загружена: %s (%d точек)\n", modelInputs.LithologyPath, len(modelInputs.LithologyProfile.Points))
+	}
 
 	// Print validation report
 	for _, fix := range result.Validation.Fixes {
@@ -147,6 +170,14 @@ func runAll(cmd *cobra.Command, args []string) error {
 
 	// Run erosion simulation
 	fmt.Println("\nВыполнение моделирования волновой эрозии...")
+	if temporalParametersRequested(allTargetYears, allYearsPerStep, allStormProbability, allStormIntensity, allSeaLevelRise, allEnableSeasonality, allSeasonalPhase) {
+		if allTargetYears <= 0 {
+			return fmt.Errorf("для временных параметров укажите --target-years больше нуля")
+		}
+		if allYearsPerStep <= 0 {
+			return fmt.Errorf("--years-per-step должен быть больше нуля")
+		}
+	}
 	waveOptions := geometry.WaveErosionOptions{
 		StrengthMeters:           allErosionStrength,
 		WindSourceDirectionDeg:   allWaveDirection,
@@ -156,9 +187,30 @@ func runAll(cmd *cobra.Command, args []string) error {
 		MaxFetchMeters:           allMaxFetchKM * 1000,
 		DepthScaleMeters:         allDepthScale,
 		ExposurePower:            allExposurePower,
+		BathymetryGrid:           modelInputs.BathymetryGrid,
+		LithologyProfile:         modelInputs.LithologyProfile,
+		EnableLithology:          modelInputs.LithologyEnabled,
+		YearsPerStep:             allYearsPerStep,
 	}
 
-	snapshots := geometry.SimulateWaveErosionWithSeed(modelBase, allSteps, waveOptions, allSeed)
+	var snapshots [][]geometry.LatLon
+	var temporalResult *geometry.TemporalResult
+	if allTargetYears > 0 {
+		fmt.Printf("Временная динамика: %d лет, %.2f лет на шаг\n", allTargetYears, allYearsPerStep)
+		temporalParams := geometry.TemporalParameters{
+			YearsPerStep:       allYearsPerStep,
+			StormProbability:   allStormProbability,
+			StormIntensityMult: allStormIntensity,
+			SeaLevelRise:       allSeaLevelRise,
+			Seasonality:        allEnableSeasonality,
+			SeasonalPhase:      allSeasonalPhase,
+		}
+		result := geometry.SimulateErosionWithDurationSeed(modelBase, allTargetYears, temporalParams, waveOptions, allSeed)
+		temporalResult = &result
+		snapshots = result.Snapshots
+	} else {
+		snapshots = geometry.SimulateWaveErosionWithSeed(modelBase, allSteps, waveOptions, allSeed)
+	}
 	for i, state := range snapshots {
 		fmt.Printf("  Шаг %d: %d точек, длина %.0f км, площадь %.0f км²\n",
 			i, len(state), geometry.PolylineLength(state), geometry.Area(state))
@@ -168,6 +220,9 @@ func runAll(cmd *cobra.Command, args []string) error {
 
 	// Create SVG visualizations
 	outputMgr := cli.NewOutputPathManager(allOutput)
+	if err := outputMgr.EnsureDirectories(); err != nil {
+		return fmt.Errorf("подготовка каталогов вывода: %w", err)
+	}
 
 	// Dimension series SVG
 	if err := cli.WriteDimensionSVGSeries(modelBase, allIterations, koch.OrganicOptions{
@@ -179,19 +234,16 @@ func runAll(cmd *cobra.Command, args []string) error {
 	}
 
 	// Erosion series SVG
-	if err := cli.WriteErosionSVGSeries(result.Points, snapshots, allSteps, allErosionStrength, allSeed,
-		geometry.WaveErosionOptions{
-			StrengthMeters:           allErosionStrength,
-			WindSourceDirectionDeg:   allWaveDirection,
-			WindSpeedMetersPerSecond: allWindSpeed,
-			FetchSpreadDeg:           allFetchSpread,
-			FetchSamples:             allFetchSamples,
-			MaxFetchMeters:           allMaxFetchKM * 1000,
-			DepthScaleMeters:         allDepthScale,
-			ExposurePower:            allExposurePower,
-			YearsPerStep:             allYearsPerStep,
-		}, outputMgr, result.DatasetName, result.Source, result.Validation); err != nil {
+	simulationSteps := len(snapshots) - 1
+	if simulationSteps < 0 {
+		simulationSteps = 0
+	}
+	if err := cli.WriteErosionSVGSeries(result.Points, snapshots, simulationSteps, allErosionStrength, allSeed,
+		waveOptions, outputMgr, result.DatasetName, result.Source, result.Validation); err != nil {
 		fmt.Printf("Предупреждение: не удалось создать SVG для эрозии: %v\n", err)
+	}
+	if err := exportErosionArtifacts(outputMgr, snapshots, temporalResult, allOutputCSV, allCSVFormat, allOutputGIF, allGIFFPS, allGIFSkip); err != nil {
+		return err
 	}
 
 	return nil

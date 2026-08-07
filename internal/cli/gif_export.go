@@ -9,6 +9,7 @@ import (
 	"image/gif"
 	"math"
 	"os"
+	"path/filepath"
 )
 
 // GIFConfig содержит настройки для генерации GIF анимации
@@ -67,6 +68,15 @@ func GenerateErosionGIF(snapshots [][]geometry.LatLon, outputPath string, fps in
 func GenerateErosionGIFWithConfig(snapshots [][]geometry.LatLon, config GIFConfig) error {
 	if len(snapshots) == 0 {
 		return nil
+	}
+	if config.OutputPath == "" {
+		return fmt.Errorf("путь к выходному GIF-файлу не может быть пустым")
+	}
+	if config.Width <= 0 || config.Height <= 0 {
+		return fmt.Errorf("размер GIF должен быть положительным")
+	}
+	if err := os.MkdirAll(filepath.Dir(config.OutputPath), 0o755); err != nil {
+		return fmt.Errorf("создать каталог для GIF: %w", err)
 	}
 
 	// Фильтруем кадры

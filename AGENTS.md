@@ -118,9 +118,6 @@ Each command file follows the pattern: flag variables in `init()`, command logic
 ### Render Layer (`internal/render/svg/`)
 SVG visualization with multi-layer rendering, stat cards, charts, scale bars. Key function: `DrawSVG()`.
 
-### Concurrency (`internal/pkg/concurrency/`)
-Worker pool utilities for parallel geometric processing.
-
 ## Key Data Flows
 
 1. **Coastline loading**: `coastline.Load()` → local file or remote URL with caching → `[]geometry.LatLon`

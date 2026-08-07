@@ -11,6 +11,7 @@ const (
 	subdirSVG        = "svg"
 	subdirMetrics    = "metrics"
 	subdirCSV        = "csv"
+	subdirGIF        = "gif"
 	defaultOutputDir = "output"
 )
 
@@ -32,12 +33,13 @@ func NewOutputPathManager(baseDir string) *OutputPathManager {
 }
 
 // EnsureDirectories создаёт все выходные подкаталоги, если они не существуют
-// Создаёт каталоги для SVG, метрик и CSV с правами 0o755
+// Создаёт каталоги для SVG, метрик, CSV и GIF с правами 0o755
 func (opm *OutputPathManager) EnsureDirectories() error {
 	dirs := []string{
 		opm.SVGDir(),
 		opm.MetricsDir(),
 		opm.CSVDir(),
+		opm.GIFDir(),
 	}
 
 	for _, dir := range dirs {
@@ -69,6 +71,11 @@ func (opm *OutputPathManager) CSVDir() string {
 	return filepath.Join(opm.baseDir, subdirCSV)
 }
 
+// GIFDir возвращает каталог для вывода GIF-анимаций.
+func (opm *OutputPathManager) GIFDir() string {
+	return filepath.Join(opm.baseDir, subdirGIF)
+}
+
 // SVGPath возвращает полный путь к SVG файлу
 func (opm *OutputPathManager) SVGPath(filename string) string {
 	return filepath.Join(opm.SVGDir(), filename)
@@ -84,9 +91,14 @@ func (opm *OutputPathManager) CSVPath(filename string) string {
 	return filepath.Join(opm.CSVDir(), filename)
 }
 
+// GIFPath возвращает полный путь к GIF-файлу.
+func (opm *OutputPathManager) GIFPath(filename string) string {
+	return filepath.Join(opm.GIFDir(), filename)
+}
+
 // ResolveUserPath преобразует пользовательский путь в соответствующий подкаталог
 // Если путь абсолютный, использует его как есть
-// Если путь относительный и начинается с имени подкаталога (svg/, metrics/, csv/),
+// Если путь относительный и начинается с имени подкаталога (svg/, metrics/, csv/, gif/),
 // помещает его в соответствующий подкаталог
 // Иначе использует базовый каталог
 func (opm *OutputPathManager) ResolveUserPath(userPath string, fileType string) string {
@@ -119,6 +131,11 @@ func (opm *OutputPathManager) ResolveUserPath(userPath string, fileType string) 
 			return filepath.Join(opm.baseDir, userPath)
 		}
 		return opm.CSVPath(base)
+	case "gif":
+		if dir == subdirGIF {
+			return filepath.Join(opm.baseDir, userPath)
+		}
+		return opm.GIFPath(base)
 	default:
 		// Неизвестный тип файла, помещаем в базовый каталог
 		return filepath.Join(opm.baseDir, userPath)
@@ -126,7 +143,7 @@ func (opm *OutputPathManager) ResolveUserPath(userPath string, fileType string) 
 }
 
 // ParseFileType определяет тип файла по имени/расширению
-// Возвращает: "svg", "metrics" (JSON), "csv" или "unknown"
+// Возвращает: "svg", "metrics" (JSON), "csv", "gif" или "unknown"
 func ParseFileType(filename string) string {
 	ext := filepath.Ext(filename)
 	switch ext {
@@ -136,6 +153,8 @@ func ParseFileType(filename string) string {
 		return "metrics"
 	case ".csv":
 		return "csv"
+	case ".gif":
+		return "gif"
 	default:
 		return "unknown"
 	}

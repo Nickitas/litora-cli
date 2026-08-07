@@ -2,7 +2,6 @@ package cobra
 
 import (
 	"fmt"
-	"os"
 
 	"coastal-geometry/internal/cli"
 	"coastal-geometry/internal/domain/coastline"
@@ -110,27 +109,15 @@ func runErosion(cmd *cobra.Command, args []string) error {
 
 	fmt.Printf("Загружено: %s (%d точек)\n", result.Source, len(result.Points))
 
-	// Load bathymetry
-	bathymetryPath := erosionBathymetry
-	if bathymetryPath == "" {
-		if _, err := os.Stat("data/black-sea-bathymetry.json"); err == nil {
-			bathymetryPath = "data/black-sea-bathymetry.json"
-			fmt.Printf("✓ Батиметрия: %s\n", bathymetryPath)
-		}
+	modelInputs, err := loadModelInputs(erosionBathymetry, erosionLithology, erosionEnableLithology)
+	if err != nil {
+		return err
 	}
-
-	var bathymetryGrid *geometry.BathymetryGrid
-	if bathymetryPath != "" {
-		data, err := os.ReadFile(bathymetryPath)
-		if err != nil {
-			return fmt.Errorf("чтение батиметрии: %w", err)
-		}
-		bathymetryGrid, err = geometry.LoadBathymetryFromJSON(data, geometry.BathymetryLoadOptions{
-			Resolution: 0.01,
-		})
-		if err != nil {
-			return fmt.Errorf("загрузка батиметрии: %w", err)
-		}
+	if modelInputs.BathymetryGrid != nil {
+		fmt.Printf("✓ Батиметрия загружена: %s (%d точек)\n", modelInputs.BathymetryPath, len(modelInputs.BathymetryGrid.Points))
+	}
+	if modelInputs.LithologyProfile != nil {
+		fmt.Printf("✓ Литология загружена: %s (%d точек)\n", modelInputs.LithologyPath, len(modelInputs.LithologyProfile.Points))
 	}
 
 	waveOptions := geometry.WaveErosionOptions{
@@ -142,15 +129,25 @@ func runErosion(cmd *cobra.Command, args []string) error {
 		MaxFetchMeters:           erosionMaxFetchKM * 1000,
 		DepthScaleMeters:         erosionDepthScale,
 		ExposurePower:            erosionExposurePower,
-		BathymetryGrid:           bathymetryGrid,
-		LithologyProfile:         nil,
-		EnableLithology:          erosionEnableLithology,
+		YearsPerStep:             erosionYearsPerStep,
+		BathymetryGrid:           modelInputs.BathymetryGrid,
+		LithologyProfile:         modelInputs.LithologyProfile,
+		EnableLithology:          modelInputs.LithologyEnabled,
 	}
 
-	// Check for temporal dynamics
-	useTemporal := erosionTargetYears > 0 && erosionYearsPerStep > 0
+	// Check for temporal dynamics and reject silently ignored temporal flags.
+	if temporalParametersRequested(erosionTargetYears, erosionYearsPerStep, erosionStormProbability, erosionStormIntensity, erosionSeaLevelRise, erosionEnableSeasonality, erosionSeasonalPhase) {
+		if erosionTargetYears <= 0 {
+			return fmt.Errorf("для временных параметров укажите --target-years больше нуля")
+		}
+		if erosionYearsPerStep <= 0 {
+			return fmt.Errorf("--years-per-step должен быть больше нуля")
+		}
+	}
+	useTemporal := erosionTargetYears > 0
 
 	var snapshots [][]geometry.LatLon
+	var temporalResult *geometry.TemporalResult
 
 	if useTemporal {
 		fmt.Printf("Запуск временного моделирования на %d лет...\n", erosionTargetYears)
@@ -164,9 +161,10 @@ func runErosion(cmd *cobra.Command, args []string) error {
 			SeasonalPhase:      erosionSeasonalPhase,
 		}
 
-		temporalResult := geometry.SimulateErosionWithDurationSeed(
+		result := geometry.SimulateErosionWithDurationSeed(
 			result.Points, erosionTargetYears, temporalParams, waveOptions, erosionSeed)
-		snapshots = temporalResult.Snapshots
+		temporalResult = &result
+		snapshots = result.Snapshots
 
 		fmt.Println("\n  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 		fmt.Println("  ВОЛНОВАЯ ЭРОЗИЯ С ВРЕМЕННОЙ ДИНАМИКОЙ")
@@ -208,20 +206,19 @@ func runErosion(cmd *cobra.Command, args []string) error {
 
 	// Create SVG visualizations
 	outputMgr := cli.NewOutputPathManager(erosionOutput)
-	if err := cli.WriteErosionSVGSeries(result.Points, snapshots, erosionSteps, erosionStrength, erosionSeed,
-		geometry.WaveErosionOptions{
-			StrengthMeters:           erosionStrength,
-			WindSourceDirectionDeg:   erosionWaveDirection,
-			WindSpeedMetersPerSecond: erosionWindSpeed,
-			FetchSpreadDeg:           erosionFetchSpread,
-			FetchSamples:             erosionFetchSamples,
-			MaxFetchMeters:           erosionMaxFetchKM * 1000,
-			DepthScaleMeters:         erosionDepthScale,
-			ExposurePower:            erosionExposurePower,
-			YearsPerStep:             erosionYearsPerStep,
-		}, outputMgr, result.DatasetName, result.Source, result.Validation); err != nil {
+	if err := outputMgr.EnsureDirectories(); err != nil {
+		return fmt.Errorf("подготовка каталогов вывода: %w", err)
+	}
+	simulationSteps := len(snapshots) - 1
+	if simulationSteps < 0 {
+		simulationSteps = 0
+	}
+	if err := cli.WriteErosionSVGSeries(result.Points, snapshots, simulationSteps, erosionStrength, erosionSeed,
+		waveOptions, outputMgr, result.DatasetName, result.Source, result.Validation); err != nil {
 		fmt.Printf("Предупреждение: не удалось создать SVG: %v\n", err)
 	}
-
+	if err := exportErosionArtifacts(outputMgr, snapshots, temporalResult, erosionOutputCSV, erosionCSVFormat, erosionOutputGIF, erosionGIFFPS, erosionGIFSkip); err != nil {
+		return err
+	}
 	return nil
 }

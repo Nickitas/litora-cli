@@ -1,12 +1,30 @@
 package cli
 
 import (
-	"coastal-geometry/internal/domain/geometry"
 	"encoding/csv"
 	"fmt"
 	"os"
 	"strconv"
+
+	"coastal-geometry/internal/domain/geometry"
 )
+
+// WriteErosionCSV экспортирует метрики эрозии в CSV через менеджер выходных путей.
+func WriteErosionCSV(
+	snapshots [][]geometry.LatLon,
+	temporalResult *geometry.TemporalResult,
+	outputPath string,
+	format string,
+	outputPathManager *OutputPathManager,
+) error {
+	if outputPathManager == nil {
+		return fmt.Errorf("менеджер выходных путей не задан")
+	}
+	if err := outputPathManager.EnsureDirectories(); err != nil {
+		return err
+	}
+	return writeErosionCSV(snapshots, temporalResult, outputPath, format, outputPathManager)
+}
 
 // writeErosionCSV экспортирует метрики эрозии в формат CSV
 // Поддерживает два формата: "long" (одна строка на шаг) и "wide" (одна строка с колонками шагов)
