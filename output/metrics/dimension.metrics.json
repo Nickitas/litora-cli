@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-07T09:50:11Z",
+  "generated_at": "2026-08-07T10:02:39Z",
   "command": "lito dimension",
   "dataset": "Black Sea",
   "source": "data/cache/black-sea.geojson (кешированная копия https://geo.vliz.be/geoserver/MarineRegions/wfs?cql_filter=mrgid%3D3319\u0026outputFormat=application%2Fjson\u0026request=GetFeature\u0026service=WFS\u0026typeName=iho\u0026version=1.0.0)",
@@ -858,7 +858,7 @@
     "duplicate_locations": []
   },
   "report_metadata": {
-    "generated_at": "2026-08-07T09:50:07Z",
+    "generated_at": "2026-08-07T10:02:35Z",
     "input_data_version": "104d217c3f73e164d340325c5a92b15f7d43fc9768ce83d1b41ba96ca1b85981",
     "geometry_source": "data/cache/black-sea.geojson (кешированная копия https://geo.vliz.be/geoserver/MarineRegions/wfs?cql_filter=mrgid%3D3319\u0026outputFormat=application%2Fjson\u0026request=GetFeature\u0026service=WFS\u0026typeName=iho\u0026version=1.0.0)",
     "experiment_id": "exp-0359cf0d110f",

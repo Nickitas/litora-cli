@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"coastal-geometry/internal/domain/benchmark"
 	"coastal-geometry/internal/domain/coastline"
 	"coastal-geometry/internal/domain/fractal"
 	"coastal-geometry/internal/domain/generators/koch"
@@ -172,6 +173,10 @@ func writeErosionSVGSeries(originalBase, modelBase []geometry.LatLon, snapshots 
 			maxAbsChange = math.Max(maxAbsChange, math.Abs(point.ChangePerUnit))
 		}
 	}
+	erosionControls := make([][]svgrender.ErosionControlPoint, len(snapshots))
+	for step := 1; step < len(snapshots); step++ {
+		erosionControls[step] = buildErosionControlPoints(erosionChanges[step], waveOptions.YearsPerStep)
+	}
 	changeUnit := "м/шаг"
 	if waveOptions.YearsPerStep > 0 && waveOptions.YearsPerStep != 1 {
 		changeUnit = "м/год"
@@ -220,6 +225,12 @@ func writeErosionSVGSeries(originalBase, modelBase []geometry.LatLon, snapshots 
 					UnitLabel:        changeUnit,
 				}
 			}
+			if step > 0 && len(erosionControls[step]) > 0 {
+				enhancedDoc.ErosionControlOptions = &svgrender.ErosionControlOptions{
+					Show:   true,
+					Points: erosionControls[step],
+				}
+			}
 			// Добавляем транспорт наносов, если доступны его состояния.
 			if sedimentResult != nil && len(sedimentResult.States) > 0 {
 				// Merge sediment options into the enhanced document
@@ -245,6 +256,8 @@ func writeErosionSVGSeries(originalBase, modelBase []geometry.LatLon, snapshots 
 			MeanChange:   meanErosionChange(erosionChanges[step]),
 			MaxChange:    maxErosionChange(erosionChanges[step]),
 			ChangeUnit:   changeUnit,
+			ControlCount: len(erosionControls[step]),
+			ControlMatch: countMatchingControls(erosionControls[step]),
 		})
 
 		fmt.Printf("SVG сохранён: %s\n", filename)
@@ -359,6 +372,61 @@ func maxErosionChange(points []svgrender.ErosionChangePoint) float64 {
 	return maximum
 }
 
+// buildErosionControlPoints сопоставляет модельные изменения с наблюдениями
+// на стандартных контрольных участках Чёрного моря.
+func buildErosionControlPoints(changes []svgrender.ErosionChangePoint, yearsPerStep float64) []svgrender.ErosionControlPoint {
+	if len(changes) == 0 {
+		return nil
+	}
+	unit := "м/шаг"
+	if yearsPerStep > 0 && yearsPerStep != 1 {
+		unit = "м/год"
+	}
+	controls := make([]svgrender.ErosionControlPoint, 0)
+	for _, site := range benchmark.StandardSites() {
+		observations := benchmark.ObservationsForSite(site.ID)
+		for index, observation := range observations {
+			nearest := -1
+			nearestDistance := math.Inf(1)
+			for changeIndex, change := range changes {
+				distance := geometry.Haversine(observation.LatLon, change.Point)
+				if distance < nearestDistance {
+					nearest = changeIndex
+					nearestDistance = distance
+				}
+			}
+			if nearest < 0 || nearestDistance > 25 {
+				continue
+			}
+			modelChange := changes[nearest].ChangePerUnit
+			observedChange := observation.ShorelineChangeRate
+			if unit == "м/шаг" && yearsPerStep > 0 && yearsPerStep != 1 {
+				observedChange *= yearsPerStep
+			}
+			controls = append(controls, svgrender.ErosionControlPoint{
+				Point:          observation.LatLon,
+				Label:          fmt.Sprintf("%s, наблюдение %d", site.Name, index+1),
+				ObservedChange: observedChange,
+				ModelChange:    modelChange,
+				Uncertainty:    observation.Uncertainty,
+				Matches:        math.Abs(modelChange-observedChange) <= observation.Uncertainty,
+				UnitLabel:      unit,
+			})
+		}
+	}
+	return controls
+}
+
+func countMatchingControls(points []svgrender.ErosionControlPoint) int {
+	matched := 0
+	for _, point := range points {
+		if point.Matches {
+			matched++
+		}
+	}
+	return matched
+}
+
 func writeFractalSeries(opts fractalSeriesOptions, output string, ctx exportContext, outputPathManager *OutputPathManager) error {
 	angleJitter, heightJitter := 0.0, 0.0
 	if opts.OrganicOptions != nil {
@@ -467,6 +535,11 @@ func writeFractalSeries(opts fractalSeriesOptions, output string, ctx exportCont
 			if dimensions[iter] != nil {
 				subtitle += fmt.Sprintf("\nМасштабов ε: %d · εпредст.=%.0f м · D=%.5f · R²=%.4f\nУстойчивость по масштабам: %t",
 					dimensions[iter].SampleCount, dimensions[iter].BoxSizeMeters, dimensions[iter].Dimension, dimensions[iter].RegressionRSquared, dimensions[iter].StableAcrossScales)
+				if dimensions[iter].DimensionCI95High > dimensions[iter].DimensionCI95Low {
+					subtitle += fmt.Sprintf("\n95%% ДИ размерности: [%.5f; %.5f]", dimensions[iter].DimensionCI95Low, dimensions[iter].DimensionCI95High)
+				} else {
+					subtitle += "\n95% ДИ размерности: не оценён"
+				}
 			}
 			if opts.ErosionStrength > 0 {
 				subtitle += fmt.Sprintf("\nЭрозионное возмущение: %.0f м · seed=%d", opts.ErosionStrength, opts.ErosionSeed)

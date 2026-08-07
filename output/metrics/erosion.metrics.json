@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-07T09:50:12Z",
+  "generated_at": "2026-08-07T10:02:39Z",
   "command": "lito erosion",
   "dataset": "Black Sea",
   "source": "data/cache/black-sea.geojson (кешированная копия https://geo.vliz.be/geoserver/MarineRegions/wfs?cql_filter=mrgid%3D3319\u0026outputFormat=application%2Fjson\u0026request=GetFeature\u0026service=WFS\u0026typeName=iho\u0026version=1.0.0)",
@@ -53,7 +53,9 @@
       "area_km2": 425726.246458408,
       "mean_change_per_unit": -0.9225970510979523,
       "max_abs_change_per_unit": 59.129063737160855,
-      "change_unit": "м/шаг"
+      "change_unit": "м/шаг",
+      "control_count": 24,
+      "control_matches": 1
     },
     {
       "step": 2,
@@ -64,7 +66,9 @@
       "area_km2": 425722.3170855436,
       "mean_change_per_unit": -0.9163326480444528,
       "max_abs_change_per_unit": 59.01147753360215,
-      "change_unit": "м/шаг"
+      "change_unit": "м/шаг",
+      "control_count": 24,
+      "control_matches": 1
     },
     {
       "step": 3,
@@ -75,7 +79,9 @@
       "area_km2": 425718.4813995015,
       "mean_change_per_unit": -0.8876810221524153,
       "max_abs_change_per_unit": 58.8708101945884,
-      "change_unit": "м/шаг"
+      "change_unit": "м/шаг",
+      "control_count": 24,
+      "control_matches": 1
     },
     {
       "step": 4,
@@ -86,7 +92,9 @@
       "area_km2": 425714.82461915753,
       "mean_change_per_unit": -0.8440558924278736,
       "max_abs_change_per_unit": 58.703991841668135,
-      "change_unit": "м/шаг"
+      "change_unit": "м/шаг",
+      "control_count": 24,
+      "control_matches": 1
     }
   ],
   "highlights": {
@@ -111,7 +119,7 @@
     "duplicate_locations": []
   },
   "report_metadata": {
-    "generated_at": "2026-08-07T09:50:11Z",
+    "generated_at": "2026-08-07T10:02:39Z",
     "input_data_version": "f6922e461df150852cc07e6532116cbf37a042ca504d1a40fc908825ee917fe9",
     "geometry_source": "data/cache/black-sea.geojson (кешированная копия https://geo.vliz.be/geoserver/MarineRegions/wfs?cql_filter=mrgid%3D3319\u0026outputFormat=application%2Fjson\u0026request=GetFeature\u0026service=WFS\u0026typeName=iho\u0026version=1.0.0)",
     "experiment_id": "exp-b220f6ca770d",

@@ -24,6 +24,7 @@ type EnhancedDocument struct {
 	BoxCountingGridOptions   *BoxCountingGridOptions
 	ErosionGridOptions       *ErosionGridOptions
 	ErosionChangeOptions     *ErosionChangeOptions
+	ErosionControlOptions    *ErosionControlOptions
 }
 
 // GridOptions configures coordinate grid display
@@ -165,6 +166,23 @@ type ErosionChangeOptions struct {
 	UnitLabel        string
 }
 
+// ErosionControlPoint содержит сравнение модели с контрольным наблюдением.
+type ErosionControlPoint struct {
+	Point          geometry.LatLon
+	Label          string
+	ObservedChange float64
+	ModelChange    float64
+	Uncertainty    float64
+	Matches        bool
+	UnitLabel      string
+}
+
+// ErosionControlOptions задаёт отображение контрольных участков эрозии.
+type ErosionControlOptions struct {
+	Show   bool
+	Points []ErosionControlPoint
+}
+
 // Isoline represents a contour line
 type Isoline struct {
 	Depth  float64
@@ -212,6 +230,9 @@ func DrawEnhancedSVG(doc EnhancedDocument, filename string) error {
 		annotationHeight = 20
 		if doc.ErosionChangeOptions != nil && doc.ErosionChangeOptions.Show {
 			annotationHeight = 52
+		}
+		if doc.ErosionControlOptions != nil && doc.ErosionControlOptions.Show {
+			annotationHeight += 42
 		}
 	}
 	plotTopY := headerBottom + 24 + annotationHeight
@@ -266,7 +287,7 @@ func DrawEnhancedSVG(doc EnhancedDocument, filename string) error {
 	}
 
 	// Build additional elements
-	var gridElements, compassElements, markerElements, isolineElements, sedimentElements, boxCountingGridElements, erosionGridElements, erosionChangeElements, axisElements, gridAnnotationElements string
+	var gridElements, compassElements, markerElements, isolineElements, sedimentElements, boxCountingGridElements, erosionGridElements, erosionChangeElements, erosionControlElements, axisElements, gridAnnotationElements string
 
 	if !minimalMap && doc.GridOptions != nil && doc.GridOptions.Show {
 		gridElements = buildCoordinateGrid(*doc.GridOptions, minLat, maxLat, minLon, maxLon, originX, originY, contentWidth, contentHeight, scale)
@@ -291,6 +312,10 @@ func DrawEnhancedSVG(doc EnhancedDocument, filename string) error {
 	if doc.ErosionChangeOptions != nil && doc.ErosionChangeOptions.Show {
 		erosionChangeElements = buildErosionChangeVisualization(*doc.ErosionChangeOptions, minLat, minLon, originX, originY, contentHeight, scale)
 		gridAnnotationElements += buildErosionChangeAnnotation(*doc.ErosionChangeOptions, annotationTopY+18)
+	}
+	if doc.ErosionControlOptions != nil && doc.ErosionControlOptions.Show {
+		erosionControlElements = buildErosionControlVisualization(*doc.ErosionControlOptions, minLat, minLon, originX, originY, contentHeight, scale)
+		gridAnnotationElements += buildErosionControlAnnotation(*doc.ErosionControlOptions, annotationTopY+60)
 	}
 
 	if doc.BoxCountingGridOptions != nil && doc.BoxCountingGridOptions.Show {
@@ -367,15 +392,17 @@ func DrawEnhancedSVG(doc EnhancedDocument, filename string) error {
 %s  </g>
   <g>
 %s  </g>
+  <g clip-path="url(#map-clip)">
+%s  </g>
   <g>
 %s  </g>
   <g clip-path="url(#map-clip)">
 %s  </g>
   <g clip-path="url(#map-clip)">
 %s  </g>
-  <g clip-path="url(#map-clip)">
+  <g>
 %s  </g>
-  <g clip-path="url(#map-clip)">
+  <g>
 %s  </g>
   <g clip-path="url(#map-clip)">
 %s  </g>
@@ -411,6 +438,7 @@ func DrawEnhancedSVG(doc EnhancedDocument, filename string) error {
 		highlights.String(),
 		markerElements,
 		sedimentElements,
+		erosionControlElements,
 		legend,
 		statCards,
 		charts,
@@ -1566,11 +1594,48 @@ func buildErosionChangeAnnotation(opts ErosionChangeOptions, labelY float64) str
 		unit = "м/шаг"
 	}
 	return fmt.Sprintf(
-		`    <rect x="%.0f" y="%.0f" width="10" height="10" fill="#c2410c"/><text x="%.0f" y="%.0f" font-family="Helvetica, Arial, sans-serif" font-size="9" fill="#6b7a87">размыв</text>`+"\n"+`    <rect x="%.0f" y="%.0f" width="10" height="10" fill="#9aa3ab"/><text x="%.0f" y="%.0f" font-family="Helvetica, Arial, sans-serif" font-size="9" fill="#6b7a87">нейтральная зона</text>`+"\n"+`    <rect x="%.0f" y="%.0f" width="10" height="10" fill="#1f6f8b"/><text x="%.0f" y="%.0f" font-family="Helvetica, Arial, sans-serif" font-size="9" fill="#6b7a87">накопление</text>`+"\n"+`    <text x="%.0f" y="%.0f" font-family="Helvetica, Arial, sans-serif" font-size="9" fill="#6b7a87">шкала: 0–%.1f %s</text>`+"\n",
+		`    <rect x="%.0f" y="%.0f" width="10" height="10" fill="#c2410c"/><text x="%.0f" y="%.0f" font-family="Helvetica, Arial, sans-serif" font-size="9" fill="#6b7a87">размыв</text>`+"\n"+`    <rect x="%.0f" y="%.0f" width="10" height="10" fill="#9aa3ab"/><text x="%.0f" y="%.0f" font-family="Helvetica, Arial, sans-serif" font-size="9" fill="#6b7a87">нейтральная зона — низкая устойчивость</text>`+"\n"+`    <rect x="%.0f" y="%.0f" width="10" height="10" fill="#1f6f8b"/><text x="%.0f" y="%.0f" font-family="Helvetica, Arial, sans-serif" font-size="9" fill="#6b7a87">накопление</text>`+"\n"+`    <text x="%.0f" y="%.0f" font-family="Helvetica, Arial, sans-serif" font-size="9" fill="#6b7a87">шкала: 0–%.1f %s</text>`+"\n",
 		padding, labelY+17, padding+15, labelY+26,
 		padding+75, labelY+17, padding+90, labelY+26,
 		padding+190, labelY+17, padding+205, labelY+26,
 		padding+300, labelY+26, maxAbs, unit,
+	)
+}
+
+func buildErosionControlVisualization(opts ErosionControlOptions, minLat, minLon, originX, originY, contentHeight, scale float64) string {
+	var out strings.Builder
+	for _, control := range opts.Points {
+		x := originX + (control.Point.Lon-minLon)*scale
+		y := originY + contentHeight - (control.Point.Lat-minLat)*scale
+		color := "#c2410c"
+		if control.Matches {
+			color = "#3f6b4b"
+		}
+		unit := control.UnitLabel
+		if unit == "" {
+			unit = "м/год"
+		}
+		out.WriteString(fmt.Sprintf(
+			`    <circle cx="%.2f" cy="%.2f" r="5.5" fill="%s" stroke="#ffffff" stroke-width="1.5"><title>%s: наблюдение %.2f %s ± %.2f; модель %.2f %s</title></circle>`+"\n",
+			x, y, color, escapeText(control.Label), control.ObservedChange, unit, control.Uncertainty, control.ModelChange, unit,
+		))
+	}
+	return out.String()
+}
+
+func buildErosionControlAnnotation(opts ErosionControlOptions, labelY float64) string {
+	if !opts.Show || len(opts.Points) == 0 {
+		return ""
+	}
+	matched := 0
+	for _, point := range opts.Points {
+		if point.Matches {
+			matched++
+		}
+	}
+	return fmt.Sprintf(
+		`    <rect x="%.0f" y="%.0f" width="10" height="10" fill="#3f6b4b"/><text x="%.0f" y="%.0f" font-family="Helvetica, Arial, sans-serif" font-size="9" fill="#6b7a87">контрольные участки: зелёный — согласуется (%d/%d), оранжевый — расхождение; погрешность показана в подсказке</text>`+"\n",
+		padding, labelY-9, padding+15, labelY, matched, len(opts.Points),
 	)
 }
 

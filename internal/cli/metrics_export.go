@@ -207,6 +207,8 @@ type erosionStepMetrics struct {
 	MeanChange   float64 `json:"mean_change_per_unit,omitempty"`
 	MaxChange    float64 `json:"max_abs_change_per_unit,omitempty"`
 	ChangeUnit   string  `json:"change_unit,omitempty"`
+	ControlCount int     `json:"control_count,omitempty"`
+	ControlMatch int     `json:"control_matches,omitempty"`
 }
 
 type erosionSeriesArtifactMetrics struct {
