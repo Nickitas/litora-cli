@@ -250,6 +250,16 @@ func TestWindFactorScaling(t *testing.T) {
 	}
 }
 
+// TestLegacyWaveEnergyFactorUsesObservedWaveParameters проверяет, что
+// калибровочные Hs и Tp больше не теряются в историческом API.
+func TestLegacyWaveEnergyFactorUsesObservedWaveParameters(t *testing.T) {
+	low := legacyWaveEnergyFactor(WaveErosionOptions{SignificantWaveHeightM: 1, PeakWavePeriodSeconds: 4})
+	high := legacyWaveEnergyFactor(WaveErosionOptions{SignificantWaveHeightM: 2, PeakWavePeriodSeconds: 8})
+	if high <= low {
+		t.Fatalf("ожидалось увеличение потока при больших Hs и Tp: %.6f <= %.6f", high, low)
+	}
+}
+
 // TestFetchFactorCalculation проверяет корректность расчёта fetch factor
 func TestFetchFactorCalculation(t *testing.T) {
 	tests := []struct {

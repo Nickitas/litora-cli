@@ -155,6 +155,51 @@ func (g *BathymetryGrid) InterpolateDepth(lat, lon float64) (float64, error) {
 	return depth, nil
 }
 
+// SampleDepth возвращает билинейно интерполированную глубину. Если около
+// береговой линии не хватает соседних ячеек, функция ищет ближайшее реальное
+// измерение, но только в пределах maxDistanceMeters. Расстояние 0 означает
+// интерполяцию; положительное значение должно быть учтено при анализе точности.
+func (g *BathymetryGrid) SampleDepth(lat, lon, maxDistanceMeters float64) (depth, distanceMeters float64, err error) {
+	if g == nil {
+		return 0, 0, fmt.Errorf("батиметрическая сетка не задана")
+	}
+	depth, err = g.InterpolateDepth(lat, lon)
+	if err == nil {
+		return depth, 0, nil
+	}
+	if maxDistanceMeters <= 0 || g.Resolution <= 0 {
+		return 0, 0, err
+	}
+
+	latRadius := int(math.Ceil(maxDistanceMeters / metersPerDegLat / g.Resolution))
+	metersPerDegLon := metersPerDegLat * math.Cos(lat*math.Pi/180)
+	if math.Abs(metersPerDegLon) < 1e-9 {
+		metersPerDegLon = metersPerDegLat
+	}
+	lonRadius := int(math.Ceil(maxDistanceMeters / metersPerDegLon / g.Resolution))
+	latIndex := int(math.Floor(lat / g.Resolution))
+	lonIndex := int(math.Floor(lon / g.Resolution))
+	bestDistance := math.Inf(1)
+	bestDepth := 0.0
+	for latitude := latIndex - latRadius; latitude <= latIndex+latRadius; latitude++ {
+		for longitude := lonIndex - lonRadius; longitude <= lonIndex+lonRadius; longitude++ {
+			point, ok := g.Points[fmt.Sprintf("%d,%d", latitude, longitude)]
+			if !ok {
+				continue
+			}
+			distance := Haversine(LatLon{Lat: lat, Lon: lon}, LatLon{Lat: point.Lat, Lon: point.Lon}) * 1000
+			if distance < bestDistance {
+				bestDistance = distance
+				bestDepth = point.Depth
+			}
+		}
+	}
+	if bestDistance <= maxDistanceMeters {
+		return bestDepth, bestDistance, nil
+	}
+	return 0, 0, fmt.Errorf("%w; ближайшая точка не найдена в радиусе %.0f м", err, maxDistanceMeters)
+}
+
 func gridKey(lat, lon, resolution float64) string {
 	latIdx := math.Floor(lat / resolution)
 	lonIdx := math.Floor(lon / resolution)

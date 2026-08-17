@@ -46,6 +46,18 @@ var (
 	allGIFSkip           int
 	allModelMaxPoints    int
 	allDisableSimplify   bool
+	allWaveInput         string
+	allWaveSource        string
+	allBreakingIndex     float64
+	allBermHeight        float64
+	allClosureDepth      float64
+	allPorosity          float64
+	allCERCCoefficient   float64
+	allOffshoreDistance  float64
+	allMaxChange         float64
+	allMaxBathymetryGap  float64
+	allBlackSeaSochi     bool
+	allWaterbody         string
 )
 
 var allCmd = &cobra.Command{
@@ -55,10 +67,10 @@ var allCmd = &cobra.Command{
 
 1. Проверка береговой линии и метрики
 2. Анализ фрактальной размерности
-3. Моделирование волновой эрозии с учетом временной динамики
-4. Оценка качества модели
+3. Одномерное моделирование CERC по фактическому волновому ряду
+4. Пространственный баланс наносов и экспорт результатов
 
-Это рекомендуемая команда для всестороннего анализа.`,
+Для эрозионной части обязательны --wave-input и батиметрия.`,
 	RunE: runAll,
 }
 
@@ -78,27 +90,20 @@ func init() {
 	allCmd.Flags().Float64Var(&allHeightJitter, "height-jitter", 0.25, "максимальное случайное отклонение высоты как отношение")
 
 	// Erosion options
-	allCmd.Flags().IntVar(&allSteps, "steps", 5, "количество шагов волновой эрозии")
-	allCmd.Flags().Float64Var(&allErosionStrength, "erosion-strength", 30, "сила эрозии в метрах")
-	allCmd.Flags().Float64Var(&allWaveDirection, "wave-direction", 0, "направление волны в градусах от севера")
-	allCmd.Flags().Float64Var(&allWindSpeed, "wind-speed", 12, "скорость ветра в м/с")
-	allCmd.Flags().Float64Var(&allFetchSpread, "fetch-spread", 55, "разброс разгон в градусах")
-	allCmd.Flags().IntVar(&allFetchSamples, "fetch-samples", 9, "количество выборок разгон")
-	allCmd.Flags().Float64Var(&allMaxFetchKM, "max-fetch-km", 150, "максимальное расстояние разгон в км")
-	allCmd.Flags().Float64Var(&allDepthScale, "depth-scale", 4000, "масштаб глубины в метрах")
-	allCmd.Flags().Float64Var(&allExposurePower, "exposure-power", 1.5, "степень экспозиции")
+	allCmd.Flags().IntVar(&allSteps, "steps", 0, "ограничить число первых состояний волнового ряда (0 — использовать все)")
 	allCmd.Flags().StringVar(&allBathymetry, "bathymetry", "", "путь к JSON батиметрии")
-	allCmd.Flags().StringVar(&allLithology, "lithology", "", "путь к JSON литологии")
-	allCmd.Flags().BoolVar(&allEnableLithology, "enable-lithology", false, "включить эрозию на основе литологии")
-
-	// Temporal dynamics
-	allCmd.Flags().IntVar(&allTargetYears, "target-years", 0, "целевая продолжительность моделирования в годах")
-	allCmd.Flags().Float64Var(&allYearsPerStep, "years-per-step", 1.0, "лет на шаг эрозии")
-	allCmd.Flags().Float64Var(&allStormProbability, "storm-probability", 0, "вероятность шторма на шаг [0-1]")
-	allCmd.Flags().Float64Var(&allStormIntensity, "storm-intensity", 2.0, "множитель интенсивности шторма")
-	allCmd.Flags().Float64Var(&allSeaLevelRise, "sea-level-rise", 0, "повышение уровня моря в метрах в год")
-	allCmd.Flags().BoolVar(&allEnableSeasonality, "enable-seasonality", false, "включить сезонные колебания")
-	allCmd.Flags().Float64Var(&allSeasonalPhase, "seasonal-phase", 0, "сезонная фаза в радианах")
+	allCmd.Flags().StringVar(&allWaveInput, "wave-input", "", "путь к фактическому волновому ряду CSV или JSON (обязателен)")
+	allCmd.Flags().StringVar(&allWaveSource, "wave-source", "", "источник волнового ряда, если он не указан в JSON")
+	allCmd.Flags().Float64Var(&allBreakingIndex, "breaking-index", 0.78, "индекс разрушения H_b/h_b")
+	allCmd.Flags().Float64Var(&allBermHeight, "berm-height", 2, "высота бермы активного профиля, м")
+	allCmd.Flags().Float64Var(&allClosureDepth, "closure-depth", 8, "глубина замыкания активного профиля, м")
+	allCmd.Flags().Float64Var(&allPorosity, "porosity", 0.4, "пористость наносов")
+	allCmd.Flags().Float64Var(&allCERCCoefficient, "cerc-coefficient", 0.39, "безразмерный коэффициент CERC")
+	allCmd.Flags().Float64Var(&allOffshoreDistance, "offshore-sample-distance", 300, "расстояние отбора глубины от берега, м")
+	allCmd.Flags().Float64Var(&allMaxChange, "max-shoreline-change", 25, "максимальное смещение берега за одно состояние волн, м")
+	allCmd.Flags().Float64Var(&allMaxBathymetryGap, "max-bathymetry-gap", 1500, "максимальная дистанция до реальной точки глубины, м")
+	allCmd.Flags().BoolVar(&allBlackSeaSochi, "black-sea-sochi", false, "самостоятельно загрузить открытые данные Сочи для полного конвейера")
+	allCmd.Flags().StringVar(&allWaterbody, "waterbody", "", "водоём РФ из lito waterbody list")
 
 	// Export options
 	allCmd.Flags().StringVar(&allOutputCSV, "output-csv", "", "путь к CSV файлу для экспорта метрик")
@@ -113,6 +118,51 @@ func init() {
 }
 
 func runAll(cmd *cobra.Command, args []string) error {
+	if allWaterbody != "" {
+		body, err := selectedWaterbody(allWaterbody)
+		if err != nil {
+			return err
+		}
+		if allBlackSeaSochi && body.ID != "black-sea-sochi" {
+			return fmt.Errorf("--black-sea-sochi можно сочетать только с --waterbody black-sea-sochi")
+		}
+		// Автосценарий активируется только когда пользователь не передал свои данные.
+		if body.ID == "black-sea-sochi" && allInput == "" && allBathymetry == "" && allWaveInput == "" {
+			allBlackSeaSochi = true
+		}
+		fmt.Printf("✓ Выбран водоём: %s (%s)\n", body.Name, body.Availability)
+	}
+	// Ручной выбор обязан иметь собственные данные участка, а не значения по
+	// умолчанию, предназначенные для другого бассейна.
+	if allWaterbody != "" && !allBlackSeaSochi {
+		if allInput == "" {
+			return fmt.Errorf("для выбранного водоёма укажите локальный --input")
+		}
+		if allBathymetry == "" {
+			return fmt.Errorf("для выбранного водоёма укажите локальную --bathymetry")
+		}
+	}
+	if allBlackSeaSochi {
+		if allWaterbody == "" {
+			allWaterbody = "black-sea-sochi"
+		}
+		paths, err := prepareBlackSeaSochiData()
+		if err != nil {
+			return fmt.Errorf("подготовка набора Сочи: %w", err)
+		}
+		allInput = paths.Coastline
+		allBathymetry = paths.Bathymetry
+		allWaveInput = paths.Waves
+		allWaveSource = paths.WaveSource
+		if !cmd.Flags().Changed("max-bathymetry-gap") {
+			allMaxBathymetryGap = 3000
+		}
+		if allSteps == 0 {
+			allSteps = 24
+		}
+		fmt.Printf("✓ Загружен стартовый набор Сочи: %s\n", blackSeaSochiDataDir)
+	}
+
 	// Load coastline
 	result, err := coastline.Load(coastline.LoadOptions{
 		LocalPath: allInput,
@@ -170,47 +220,34 @@ func runAll(cmd *cobra.Command, args []string) error {
 
 	// Run erosion simulation
 	fmt.Println("\nВыполнение моделирования волновой эрозии...")
-	if temporalParametersRequested(allTargetYears, allYearsPerStep, allStormProbability, allStormIntensity, allSeaLevelRise, allEnableSeasonality, allSeasonalPhase) {
-		if allTargetYears <= 0 {
-			return fmt.Errorf("для временных параметров укажите --target-years больше нуля")
-		}
-		if allYearsPerStep <= 0 {
-			return fmt.Errorf("--years-per-step должен быть больше нуля")
-		}
+	if allWaveInput == "" {
+		return fmt.Errorf("укажите --wave-input: полный конвейер не использует вымышленные волновые условия")
 	}
-	waveOptions := geometry.WaveErosionOptions{
-		StrengthMeters:           allErosionStrength,
-		WindSourceDirectionDeg:   allWaveDirection,
-		WindSpeedMetersPerSecond: allWindSpeed,
-		FetchSpreadDeg:           allFetchSpread,
-		FetchSamples:             allFetchSamples,
-		MaxFetchMeters:           allMaxFetchKM * 1000,
-		DepthScaleMeters:         allDepthScale,
-		ExposurePower:            allExposurePower,
-		BathymetryGrid:           modelInputs.BathymetryGrid,
-		LithologyProfile:         modelInputs.LithologyProfile,
-		EnableLithology:          modelInputs.LithologyEnabled,
-		YearsPerStep:             allYearsPerStep,
+	climate, err := geometry.LoadWaveClimate(allWaveInput, allWaveSource)
+	if err != nil {
+		return err
 	}
-
-	var snapshots [][]geometry.LatLon
-	var temporalResult *geometry.TemporalResult
-	if allTargetYears > 0 {
-		fmt.Printf("Временная динамика: %d лет, %.2f лет на шаг\n", allTargetYears, allYearsPerStep)
-		temporalParams := geometry.TemporalParameters{
-			YearsPerStep:       allYearsPerStep,
-			StormProbability:   allStormProbability,
-			StormIntensityMult: allStormIntensity,
-			SeaLevelRise:       allSeaLevelRise,
-			Seasonality:        allEnableSeasonality,
-			SeasonalPhase:      allSeasonalPhase,
-		}
-		result := geometry.SimulateErosionWithDurationSeed(modelBase, allTargetYears, temporalParams, waveOptions, allSeed)
-		temporalResult = &result
-		snapshots = result.Snapshots
-	} else {
-		snapshots = geometry.SimulateWaveErosionWithSeed(modelBase, allSteps, waveOptions, allSeed)
+	if allSteps > 0 && allSteps < len(climate.Conditions) {
+		climate.Conditions = climate.Conditions[:allSteps]
 	}
+	model, err := geometry.RunLongshoreCERC(modelBase, climate, geometry.LongshoreModelConfig{
+		Bathymetry:               modelInputs.BathymetryGrid,
+		BathymetrySource:         modelInputs.BathymetryPath,
+		WaterbodyID:              allWaterbody,
+		BreakingIndex:            allBreakingIndex,
+		BermHeightMeters:         allBermHeight,
+		ClosureDepthMeters:       allClosureDepth,
+		Porosity:                 allPorosity,
+		CERCCoefficient:          allCERCCoefficient,
+		OffshoreSampleDistanceM:  allOffshoreDistance,
+		MaxShorelineChangeMeters: allMaxChange,
+		MaxBathymetryGapMeters:   allMaxBathymetryGap,
+	})
+	if err != nil {
+		return fmt.Errorf("расчёт вдольберегового транспорта: %w", err)
+	}
+	snapshots := model.Snapshots
+	waveOptions := geometry.WaveErosionOptions{WindSourceDirectionDeg: climate.Conditions[0].DirectionFromDeg, BathymetryGrid: modelInputs.BathymetryGrid}
 	for i, state := range snapshots {
 		fmt.Printf("  Шаг %d: %d точек, длина %.0f км, площадь %.0f км²\n",
 			i, len(state), geometry.PolylineLength(state), geometry.Area(state))
@@ -238,11 +275,14 @@ func runAll(cmd *cobra.Command, args []string) error {
 	if simulationSteps < 0 {
 		simulationSteps = 0
 	}
-	if err := cli.WriteErosionSVGSeries(result.Points, snapshots, simulationSteps, allErosionStrength, allSeed,
+	if err := cli.WriteErosionSVGSeries(result.Points, snapshots, simulationSteps, 0, 0,
 		waveOptions, outputMgr, result.DatasetName, result.Source, result.Validation); err != nil {
 		fmt.Printf("Предупреждение: не удалось создать SVG для эрозии: %v\n", err)
 	}
-	if err := exportErosionArtifacts(outputMgr, snapshots, temporalResult, allOutputCSV, allCSVFormat, allOutputGIF, allGIFFPS, allGIFSkip); err != nil {
+	if err := cli.WriteLongshoreModelJSON(model, outputMgr); err != nil {
+		return fmt.Errorf("сохранение баланса наносов: %w", err)
+	}
+	if err := exportErosionArtifacts(outputMgr, snapshots, nil, allOutputCSV, allCSVFormat, allOutputGIF, allGIFFPS, allGIFSkip); err != nil {
 		return err
 	}
 

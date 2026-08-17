@@ -1,0 +1,9 @@
+{
+  "bathymetry_endpoint": "https://rest.emodnet-bathymetry.eu/depth_sample",
+  "bathymetry_source": "EMODnet Bathymetry REST /depth_sample; reference GEBCO",
+  "coastline": "data/examples/sochi-local-segment.geojson",
+  "coastline_source": "OpenStreetMap, way 59530506, выгрузка 2026-08-17, ODbL",
+  "generated_at": "2026-08-17T18:39:24Z",
+  "wave_endpoint": "https://marine-api.open-meteo.com/v1/marine?latitude=43.62\u0026longitude=39.68\u0026hourly=wave_height,wave_period,wave_direction\u0026forecast_days=7\u0026timezone=UTC",
+  "wave_source": "Open-Meteo Marine, точка 43.625N 39.70834E, выгружено 2026-08-17T18:39:24Z"
+}

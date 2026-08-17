@@ -35,6 +35,10 @@ type WaveErosionOptions struct {
 	LithologyProfile         *LithologyProfile
 	EnableLithology          bool
 	YearsPerStep             float64 // длительность одного шага в годах
+	// SignificantWaveHeightM и PeakWavePeriodSeconds влияют только на
+	// исторический эвристический API. Расчётное ядро CLI использует WaveClimate.
+	SignificantWaveHeightM float64
+	PeakWavePeriodSeconds  float64
 
 	// Динамическая литология (более реалистичная модель)
 	DynamicLithologyMap        *SpatialLithologyMap
@@ -314,10 +318,9 @@ func waveErodeStep(points []LatLon, options WaveErosionOptions, seed int64, step
 		protrusion := clamp(-dotXY(shapeDelta, seawardNormal)/localScale, 0, 1.5)
 		bayShelter := clamp(dotXY(shapeDelta, seawardNormal)/localScale, 0, 1.2)
 
-		windFactor := math.Pow(options.WindSpeedMetersPerSecond/12.0, 2)
-		windFactor = clamp(windFactor, 0.1, 4.0)
+		waveEnergyFactor := legacyWaveEnergyFactor(options)
 
-		retreatMeters := options.StrengthMeters * windFactor * response.Score
+		retreatMeters := options.StrengthMeters * waveEnergyFactor * response.Score
 		retreatMeters *= clamp(0.55+protrusion-bayShelter*0.35, 0.1, 1.75)
 		if options.MaxRetreatMeters > 0 {
 			retreatMeters = math.Min(retreatMeters, options.MaxRetreatMeters)
@@ -387,6 +390,24 @@ func waveErodeStep(points []LatLon, options WaveErosionOptions, seed int64, step
 		updated = append(updated, updated[0])
 	}
 	return updated
+}
+
+// legacyWaveEnergyFactor переводит Hs и период в относительный поток энергии
+// глубоководной волны для обратной совместимости старой модели. Эта функция не
+// заменяет преобразование волн и не используется CERC-пайплайном.
+func legacyWaveEnergyFactor(options WaveErosionOptions) float64 {
+	height := options.SignificantWaveHeightM
+	if height <= 0 {
+		// Исторические вызовы без Hs сохраняют прежнее масштабирование ветром.
+		return clamp(math.Pow(options.WindSpeedMetersPerSecond/12.0, 2), 0.1, 4)
+	}
+	period := options.PeakWavePeriodSeconds
+	if period <= 0 {
+		period = 5
+	}
+	_, group := waveCelerityAndGroup(period, 10000)
+	_, referenceGroup := waveCelerityAndGroup(5, 10000)
+	return clamp(height*height*group/(1.5*1.5*referenceGroup), 0.02, 6)
 }
 
 func sampleWaveSide(projected []pointXY, index int, normal, mainDirection pointXY, closed bool, options WaveErosionOptions, lat, lon float64) waveSideResponse {
@@ -939,10 +960,9 @@ func processErosionJob(job erosionJob) erosionResult {
 	protrusion := clamp(-dotXY(shapeDelta, seawardNormal)/job.localScale, 0, 1.5)
 	bayShelter := clamp(dotXY(shapeDelta, seawardNormal)/job.localScale, 0, 1.2)
 
-	windFactor := math.Pow(job.options.WindSpeedMetersPerSecond/12.0, 2)
-	windFactor = clamp(windFactor, 0.1, 4.0)
+	waveEnergyFactor := legacyWaveEnergyFactor(job.options)
 
-	retreatMeters := job.options.StrengthMeters * windFactor * response.Score
+	retreatMeters := job.options.StrengthMeters * waveEnergyFactor * response.Score
 	retreatMeters *= clamp(0.55+protrusion-bayShelter*0.35, 0.1, 1.75)
 	if job.options.MaxRetreatMeters > 0 {
 		retreatMeters = math.Min(retreatMeters, job.options.MaxRetreatMeters)

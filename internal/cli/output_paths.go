@@ -12,6 +12,8 @@ const (
 	subdirMetrics    = "metrics"
 	subdirCSV        = "csv"
 	subdirGIF        = "gif"
+	subdirErosion    = "erosion"
+	subdirWaterbody  = "waterbody"
 	defaultOutputDir = "output"
 )
 
@@ -40,6 +42,8 @@ func (opm *OutputPathManager) EnsureDirectories() error {
 		opm.MetricsDir(),
 		opm.CSVDir(),
 		opm.GIFDir(),
+		opm.ErosionDir(),
+		opm.WaterbodyDir(),
 	}
 
 	for _, dir := range dirs {
@@ -74,6 +78,26 @@ func (opm *OutputPathManager) CSVDir() string {
 // GIFDir возвращает каталог для вывода GIF-анимаций.
 func (opm *OutputPathManager) GIFDir() string {
 	return filepath.Join(opm.baseDir, subdirGIF)
+}
+
+// ErosionDir возвращает каталог расчётных результатов эрозии и транспорта.
+func (opm *OutputPathManager) ErosionDir() string {
+	return filepath.Join(opm.baseDir, subdirErosion)
+}
+
+// ErosionPath возвращает путь к файлу результатов расчёта эрозии.
+func (opm *OutputPathManager) ErosionPath(filename string) string {
+	return filepath.Join(opm.ErosionDir(), filename)
+}
+
+// WaterbodyDir возвращает каталог экспортов каталога водоёмов.
+func (opm *OutputPathManager) WaterbodyDir() string {
+	return filepath.Join(opm.baseDir, subdirWaterbody)
+}
+
+// WaterbodyPath возвращает путь к файлу экспорта каталога водоёмов.
+func (opm *OutputPathManager) WaterbodyPath(filename string) string {
+	return filepath.Join(opm.WaterbodyDir(), filename)
 }
 
 // SVGPath возвращает полный путь к SVG файлу

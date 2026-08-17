@@ -213,6 +213,8 @@ func runCalibrationIteration(
 		ExposurePower:            1.5,
 		MaxRetreatMeters:         strength * 3,
 		BathymetryGrid:           config.BathymetryGrid,
+		SignificantWaveHeightM:   site.MeanWaveHeight,
+		PeakWavePeriodSeconds:    site.MeanWavePeriod,
 	}
 
 	snapshots := geometry.SimulateWaveErosionWithSeed(site.Coastline, steps, options, 42)
@@ -280,6 +282,8 @@ func runCalibrationWithSpectrum(
 			ExposurePower:            1.5,
 			MaxRetreatMeters:         binStrength * 3,
 			BathymetryGrid:           config.BathymetryGrid,
+			SignificantWaveHeightM:   waveHeightForBin(site.MeanWaveHeight, bin),
+			PeakWavePeriodSeconds:    site.MeanWavePeriod,
 		}
 
 		snapshots := geometry.SimulateWaveErosionWithSeed(site.Coastline, steps, options, 42)
@@ -313,6 +317,19 @@ func runCalibrationWithSpectrum(
 		ValidationMetrics: metrics,
 		ComparisonPoints:  comparisons,
 	}
+}
+
+// waveHeightForBin передаёт высоту из набора наблюдений в историческую
+// спектральную калибровку. Высота одного направленного бина масштабируется по
+// корню его энергетического веса, чтобы сумма энергий соответствовала Hs².
+func waveHeightForBin(meanHeight float64, bin geometry.WaveSpectrumBin) float64 {
+	if meanHeight <= 0 || bin.Weight <= 0 {
+		return meanHeight
+	}
+	if bin.SignificantWaveHeightM > 0 {
+		return bin.SignificantWaveHeightM
+	}
+	return meanHeight * math.Sqrt(bin.Weight)
 }
 
 // computeComparisonsFromRetreats строит точки сравнения из предварительно вычисленных отступлений
