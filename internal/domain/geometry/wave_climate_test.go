@@ -1,6 +1,9 @@
 package geometry
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
 
 // TestWaveClimateValidateRequiresProvenance проверяет запрет расчёта без
 // происхождения волновых данных.
@@ -21,5 +24,15 @@ func TestLoadOpenMeteoMarineClimate(t *testing.T) {
 	}
 	if len(climate.Conditions) != 1 || climate.Conditions[0].SignificantWaveHeightM != 1.2 || climate.Conditions[0].PeakPeriodSeconds != 5.5 {
 		t.Fatalf("неверное преобразование Open-Meteo: %+v", climate.Conditions)
+	}
+}
+
+func TestWaveClimateRejectsOverlappingTimeIntervals(t *testing.T) {
+	climate := WaveClimate{Source: "проверка времени", Conditions: []WaveCondition{
+		{Time: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), DurationHours: 3, SignificantWaveHeightM: 1, PeakPeriodSeconds: 5, DirectionFromDeg: 0},
+		{Time: time.Date(2026, 1, 1, 2, 0, 0, 0, time.UTC), DurationHours: 1, SignificantWaveHeightM: 1, PeakPeriodSeconds: 5, DirectionFromDeg: 0},
+	}}
+	if err := climate.Validate(); err == nil {
+		t.Fatal("перекрывающиеся интервалы должны отклоняться")
 	}
 }

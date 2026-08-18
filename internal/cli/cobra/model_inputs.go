@@ -26,7 +26,7 @@ func temporalParametersRequested(targetYears int, yearsPerStep, stormProbability
 
 // loadModelInputs загружает дополнительные входные данные модели и возвращает
 // их в форме, пригодной для WaveErosionOptions.
-func loadModelInputs(bathymetryPath, lithologyPath string, enableLithology bool) (loadedModelInputs, error) {
+func loadModelInputs(bathymetryPath, lithologyPath string, enableLithology bool, bathymetryResolution float64) (loadedModelInputs, error) {
 	inputs := loadedModelInputs{LithologyEnabled: enableLithology}
 
 	if bathymetryPath == "" {
@@ -39,7 +39,7 @@ func loadModelInputs(bathymetryPath, lithologyPath string, enableLithology bool)
 		if err != nil {
 			return loadedModelInputs{}, fmt.Errorf("чтение батиметрии %q: %w", bathymetryPath, err)
 		}
-		grid, err := geometry.LoadBathymetryFromJSON(data, geometry.BathymetryLoadOptions{Resolution: 0.01})
+		grid, err := geometry.LoadBathymetryFromJSON(data, geometry.BathymetryLoadOptions{Resolution: bathymetryResolution})
 		if err != nil {
 			return loadedModelInputs{}, fmt.Errorf("загрузка батиметрии %q: %w", bathymetryPath, err)
 		}

@@ -1,0 +1,9 @@
+[
+    {
+        "left_point_index": 8,
+        "transmission_coefficient": 0.25,
+        "kind": "буна",
+        "description": "железобетонная буна",
+        "data_source": "обследование сооружений"
+    }
+]

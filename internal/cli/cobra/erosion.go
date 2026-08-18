@@ -13,47 +13,52 @@ import (
 )
 
 var (
-	erosionInput             string
-	erosionSourceURL         string
-	erosionRefresh           bool
-	erosionOutput            string
-	erosionSteps             int
-	erosionSeed              int64
-	erosionStrength          float64
-	erosionWaveDirection     float64
-	erosionWindSpeed         float64
-	erosionFetchSpread       float64
-	erosionFetchSamples      int
-	erosionMaxFetchKM        float64
-	erosionDepthScale        float64
-	erosionExposurePower     float64
-	erosionBathymetry        string
-	erosionLithology         string
-	erosionEnableLithology   bool
-	erosionTargetYears       int
-	erosionYearsPerStep      float64
-	erosionStormProbability  float64
-	erosionStormIntensity    float64
-	erosionSeaLevelRise      float64
-	erosionEnableSeasonality bool
-	erosionSeasonalPhase     float64
-	erosionOutputCSV         string
-	erosionCSVFormat         string
-	erosionOutputGIF         string
-	erosionGIFFPS            int
-	erosionGIFSkip           int
-	erosionWaveInput         string
-	erosionWaveSource        string
-	erosionBreakingIndex     float64
-	erosionBermHeight        float64
-	erosionClosureDepth      float64
-	erosionPorosity          float64
-	erosionCERCCoefficient   float64
-	erosionOffshoreDistance  float64
-	erosionMaxChange         float64
-	erosionMaxBathymetryGap  float64
-	erosionBlackSeaSochi     bool
-	erosionWaterbody         string
+	erosionInput                  string
+	erosionSourceURL              string
+	erosionRefresh                bool
+	erosionOutput                 string
+	erosionSteps                  int
+	erosionSeed                   int64
+	erosionStrength               float64
+	erosionWaveDirection          float64
+	erosionWindSpeed              float64
+	erosionFetchSpread            float64
+	erosionFetchSamples           int
+	erosionMaxFetchKM             float64
+	erosionDepthScale             float64
+	erosionExposurePower          float64
+	erosionBathymetry             string
+	erosionBathymetryResolution   float64
+	erosionLeftBoundaryTransport  float64
+	erosionRightBoundaryTransport float64
+	erosionSedimentSources        string
+	erosionStructures             string
+	erosionLithology              string
+	erosionEnableLithology        bool
+	erosionTargetYears            int
+	erosionYearsPerStep           float64
+	erosionStormProbability       float64
+	erosionStormIntensity         float64
+	erosionSeaLevelRise           float64
+	erosionEnableSeasonality      bool
+	erosionSeasonalPhase          float64
+	erosionOutputCSV              string
+	erosionCSVFormat              string
+	erosionOutputGIF              string
+	erosionGIFFPS                 int
+	erosionGIFSkip                int
+	erosionWaveInput              string
+	erosionWaveSource             string
+	erosionBreakingIndex          float64
+	erosionBermHeight             float64
+	erosionClosureDepth           float64
+	erosionPorosity               float64
+	erosionCERCCoefficient        float64
+	erosionOffshoreDistance       float64
+	erosionMaxChange              float64
+	erosionMaxBathymetryGap       float64
+	erosionBlackSeaSochi          bool
+	erosionWaterbody              string
 )
 
 var erosionCmd = &cobra.Command{
@@ -78,6 +83,7 @@ func init() {
 	// Erosion parameters
 	erosionCmd.Flags().IntVar(&erosionSteps, "steps", 0, "ограничить число первых состояний волнового ряда (0 — использовать все)")
 	erosionCmd.Flags().StringVar(&erosionBathymetry, "bathymetry", "", "путь к JSON батиметрии")
+	erosionCmd.Flags().Float64Var(&erosionBathymetryResolution, "bathymetry-resolution", 0, "шаг регулярной батиметрической сетки в градусах (обязателен для выбранного вручную водоёма)")
 	erosionCmd.Flags().StringVar(&erosionWaveInput, "wave-input", "", "путь к фактическому волновому ряду CSV или JSON (обязателен)")
 	erosionCmd.Flags().StringVar(&erosionWaveSource, "wave-source", "", "источник волнового ряда, если он не указан в JSON")
 	erosionCmd.Flags().Float64Var(&erosionBreakingIndex, "breaking-index", 0.78, "индекс разрушения H_b/h_b")
@@ -88,6 +94,10 @@ func init() {
 	erosionCmd.Flags().Float64Var(&erosionOffshoreDistance, "offshore-sample-distance", 300, "расстояние отбора глубины от берега, м")
 	erosionCmd.Flags().Float64Var(&erosionMaxChange, "max-shoreline-change", 25, "максимальное смещение берега за одно состояние волн, м")
 	erosionCmd.Flags().Float64Var(&erosionMaxBathymetryGap, "max-bathymetry-gap", 1500, "максимальная дистанция до реальной точки глубины, м")
+	erosionCmd.Flags().Float64Var(&erosionLeftBoundaryTransport, "left-boundary-transport", 0, "поток наносов через левую границу, м³/с; положительный направлен внутрь сегмента")
+	erosionCmd.Flags().Float64Var(&erosionRightBoundaryTransport, "right-boundary-transport", 0, "поток наносов через правую границу, м³/с; положительный направлен из сегмента")
+	erosionCmd.Flags().StringVar(&erosionSedimentSources, "sediment-sources", "", "JSON внешних источников и стоков наносов по ячейкам")
+	erosionCmd.Flags().StringVar(&erosionStructures, "structures", "", "JSON сооружений, изменяющих пропуск потока между ячейками")
 	erosionCmd.Flags().BoolVar(&erosionBlackSeaSochi, "black-sea-sochi", false, "самостоятельно загрузить открытые данные Сочи и выполнить стартовый расчёт")
 	erosionCmd.Flags().StringVar(&erosionWaterbody, "waterbody", "", "водоём РФ из lito waterbody list")
 
@@ -123,6 +133,9 @@ func runErosion(cmd *cobra.Command, args []string) error {
 		if erosionBathymetry == "" {
 			return fmt.Errorf("для выбранного водоёма укажите локальную --bathymetry")
 		}
+		if erosionBathymetryResolution <= 0 {
+			return fmt.Errorf("для выбранного водоёма укажите фактический --bathymetry-resolution")
+		}
 	}
 	if erosionBlackSeaSochi {
 		if erosionWaterbody == "" {
@@ -136,13 +149,22 @@ func runErosion(cmd *cobra.Command, args []string) error {
 		erosionBathymetry = paths.Bathymetry
 		erosionWaveInput = paths.Waves
 		erosionWaveSource = paths.WaveSource
+		if !cmd.Flags().Changed("structures") {
+			erosionStructures = paths.Structures
+		}
 		if !cmd.Flags().Changed("max-bathymetry-gap") {
 			erosionMaxBathymetryGap = 3000
+		}
+		if !cmd.Flags().Changed("bathymetry-resolution") {
+			erosionBathymetryResolution = 0.005
 		}
 		if erosionSteps == 0 {
 			erosionSteps = 24
 		}
 		fmt.Printf("✓ Загружен стартовый набор Сочи: %s\n", blackSeaSochiDataDir)
+		if paths.StructureWarning != "" {
+			fmt.Printf("Предупреждение: %s\n", paths.StructureWarning)
+		}
 	}
 
 	result, err := coastline.Load(coastline.LoadOptions{
@@ -156,15 +178,23 @@ func runErosion(cmd *cobra.Command, args []string) error {
 
 	fmt.Printf("Загружено: %s (%d точек)\n", result.Source, len(result.Points))
 
-	modelInputs, err := loadModelInputs(erosionBathymetry, erosionLithology, erosionEnableLithology)
+	modelInputs, err := loadModelInputs(erosionBathymetry, erosionLithology, erosionEnableLithology, erosionBathymetryResolution)
 	if err != nil {
 		return err
 	}
 	if modelInputs.BathymetryGrid != nil {
-		fmt.Printf("✓ Батиметрия загружена: %s (%d точек)\n", modelInputs.BathymetryPath, len(modelInputs.BathymetryGrid.Points))
+		fmt.Printf("✓ Батиметрия загружена: %s (%d точек, шаг %.6f°)\n", modelInputs.BathymetryPath, len(modelInputs.BathymetryGrid.Points), modelInputs.BathymetryGrid.Resolution)
 	}
 	if modelInputs.LithologyProfile != nil {
 		fmt.Printf("✓ Литология загружена: %s (%d точек)\n", modelInputs.LithologyPath, len(modelInputs.LithologyProfile.Points))
+	}
+	sedimentSources, err := loadLongshoreSedimentSources(erosionSedimentSources)
+	if err != nil {
+		return err
+	}
+	structures, err := loadLongshoreStructures(erosionStructures)
+	if err != nil {
+		return err
 	}
 
 	if erosionWaveInput == "" {
@@ -178,17 +208,21 @@ func runErosion(cmd *cobra.Command, args []string) error {
 		climate.Conditions = climate.Conditions[:erosionSteps]
 	}
 	model, err := geometry.RunLongshoreCERC(result.Points, climate, geometry.LongshoreModelConfig{
-		Bathymetry:               modelInputs.BathymetryGrid,
-		BathymetrySource:         modelInputs.BathymetryPath,
-		WaterbodyID:              erosionWaterbody,
-		BreakingIndex:            erosionBreakingIndex,
-		BermHeightMeters:         erosionBermHeight,
-		ClosureDepthMeters:       erosionClosureDepth,
-		Porosity:                 erosionPorosity,
-		CERCCoefficient:          erosionCERCCoefficient,
-		OffshoreSampleDistanceM:  erosionOffshoreDistance,
-		MaxShorelineChangeMeters: erosionMaxChange,
-		MaxBathymetryGapMeters:   erosionMaxBathymetryGap,
+		Bathymetry:                modelInputs.BathymetryGrid,
+		BathymetrySource:          modelInputs.BathymetryPath,
+		WaterbodyID:               erosionWaterbody,
+		SedimentSources:           sedimentSources,
+		Structures:                structures,
+		LeftBoundaryTransportM3S:  erosionLeftBoundaryTransport,
+		RightBoundaryTransportM3S: erosionRightBoundaryTransport,
+		BreakingIndex:             erosionBreakingIndex,
+		BermHeightMeters:          erosionBermHeight,
+		ClosureDepthMeters:        erosionClosureDepth,
+		Porosity:                  erosionPorosity,
+		CERCCoefficient:           erosionCERCCoefficient,
+		OffshoreSampleDistanceM:   erosionOffshoreDistance,
+		MaxShorelineChangeMeters:  erosionMaxChange,
+		MaxBathymetryGapMeters:    erosionMaxBathymetryGap,
 	})
 	if err != nil {
 		return fmt.Errorf("расчёт вдольберегового транспорта: %w", err)
@@ -199,12 +233,13 @@ func runErosion(cmd *cobra.Command, args []string) error {
 
 	fmt.Printf("Волновой ряд: %s (%d состояний)\n", climate.Source, len(climate.Conditions))
 	table := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(table, "Шаг\tHs, м\tTp, с\tРазмыв, м³\tАккумуляция, м³\tНевязка, м³")
-	fmt.Fprintln(table, "---\t-----\t-----\t----------\t----------------\t-----------")
+	fmt.Fprintln(table, "Шаг\tHs, м\tTp, с\tРазмыв, м³\tАккумуляция, м³\tГраница, м³\tИсточники, м³\tНевязка, м³")
+	fmt.Fprintln(table, "---\t-----\t-----\t----------\t----------------\t------------\t--------------\t-----------")
 	for i, step := range model.Steps {
-		fmt.Fprintf(table, "%d\t%.2f\t%.2f\t%.3f\t%.3f\t%.9f\n", i+1, step.Condition.SignificantWaveHeightM, step.Condition.PeakPeriodSeconds, step.ErodedVolumeM3, step.DepositedVolumeM3, step.MassBalanceM3)
+		fmt.Fprintf(table, "%d\t%.2f\t%.2f\t%.3f\t%.3f\t%.3f\t%.3f\t%.9f\n", i+1, step.Condition.SignificantWaveHeightM, step.Condition.PeakPeriodSeconds, step.ErodedVolumeM3, step.DepositedVolumeM3, step.BoundaryNetVolumeM3, step.ExternalSedimentVolumeM3, step.BalanceClosureResidualM3)
 	}
 	table.Flush()
+	printLongshoreInputQuality(model.InputQuality)
 
 	fmt.Println("\n✓ Моделирование эрозии завершено")
 

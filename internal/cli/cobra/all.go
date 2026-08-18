@@ -12,52 +12,57 @@ import (
 )
 
 var (
-	allInput             string
-	allSourceURL         string
-	allRefresh           bool
-	allOutput            string
-	allIterations        int
-	allSeed              int64
-	allAngleJitter       float64
-	allHeightJitter      float64
-	allErosionStrength   float64
-	allSteps             int
-	allWaveDirection     float64
-	allWindSpeed         float64
-	allFetchSpread       float64
-	allFetchSamples      int
-	allMaxFetchKM        float64
-	allDepthScale        float64
-	allExposurePower     float64
-	allBathymetry        string
-	allLithology         string
-	allEnableLithology   bool
-	allTargetYears       int
-	allYearsPerStep      float64
-	allStormProbability  float64
-	allStormIntensity    float64
-	allSeaLevelRise      float64
-	allEnableSeasonality bool
-	allSeasonalPhase     float64
-	allOutputCSV         string
-	allCSVFormat         string
-	allOutputGIF         string
-	allGIFFPS            int
-	allGIFSkip           int
-	allModelMaxPoints    int
-	allDisableSimplify   bool
-	allWaveInput         string
-	allWaveSource        string
-	allBreakingIndex     float64
-	allBermHeight        float64
-	allClosureDepth      float64
-	allPorosity          float64
-	allCERCCoefficient   float64
-	allOffshoreDistance  float64
-	allMaxChange         float64
-	allMaxBathymetryGap  float64
-	allBlackSeaSochi     bool
-	allWaterbody         string
+	allInput                  string
+	allSourceURL              string
+	allRefresh                bool
+	allOutput                 string
+	allIterations             int
+	allSeed                   int64
+	allAngleJitter            float64
+	allHeightJitter           float64
+	allErosionStrength        float64
+	allSteps                  int
+	allWaveDirection          float64
+	allWindSpeed              float64
+	allFetchSpread            float64
+	allFetchSamples           int
+	allMaxFetchKM             float64
+	allDepthScale             float64
+	allExposurePower          float64
+	allBathymetry             string
+	allBathymetryResolution   float64
+	allLeftBoundaryTransport  float64
+	allRightBoundaryTransport float64
+	allSedimentSources        string
+	allStructures             string
+	allLithology              string
+	allEnableLithology        bool
+	allTargetYears            int
+	allYearsPerStep           float64
+	allStormProbability       float64
+	allStormIntensity         float64
+	allSeaLevelRise           float64
+	allEnableSeasonality      bool
+	allSeasonalPhase          float64
+	allOutputCSV              string
+	allCSVFormat              string
+	allOutputGIF              string
+	allGIFFPS                 int
+	allGIFSkip                int
+	allModelMaxPoints         int
+	allDisableSimplify        bool
+	allWaveInput              string
+	allWaveSource             string
+	allBreakingIndex          float64
+	allBermHeight             float64
+	allClosureDepth           float64
+	allPorosity               float64
+	allCERCCoefficient        float64
+	allOffshoreDistance       float64
+	allMaxChange              float64
+	allMaxBathymetryGap       float64
+	allBlackSeaSochi          bool
+	allWaterbody              string
 )
 
 var allCmd = &cobra.Command{
@@ -92,6 +97,7 @@ func init() {
 	// Erosion options
 	allCmd.Flags().IntVar(&allSteps, "steps", 0, "ограничить число первых состояний волнового ряда (0 — использовать все)")
 	allCmd.Flags().StringVar(&allBathymetry, "bathymetry", "", "путь к JSON батиметрии")
+	allCmd.Flags().Float64Var(&allBathymetryResolution, "bathymetry-resolution", 0, "шаг регулярной батиметрической сетки в градусах (обязателен для выбранного вручную водоёма)")
 	allCmd.Flags().StringVar(&allWaveInput, "wave-input", "", "путь к фактическому волновому ряду CSV или JSON (обязателен)")
 	allCmd.Flags().StringVar(&allWaveSource, "wave-source", "", "источник волнового ряда, если он не указан в JSON")
 	allCmd.Flags().Float64Var(&allBreakingIndex, "breaking-index", 0.78, "индекс разрушения H_b/h_b")
@@ -102,6 +108,10 @@ func init() {
 	allCmd.Flags().Float64Var(&allOffshoreDistance, "offshore-sample-distance", 300, "расстояние отбора глубины от берега, м")
 	allCmd.Flags().Float64Var(&allMaxChange, "max-shoreline-change", 25, "максимальное смещение берега за одно состояние волн, м")
 	allCmd.Flags().Float64Var(&allMaxBathymetryGap, "max-bathymetry-gap", 1500, "максимальная дистанция до реальной точки глубины, м")
+	allCmd.Flags().Float64Var(&allLeftBoundaryTransport, "left-boundary-transport", 0, "поток наносов через левую границу, м³/с; положительный направлен внутрь сегмента")
+	allCmd.Flags().Float64Var(&allRightBoundaryTransport, "right-boundary-transport", 0, "поток наносов через правую границу, м³/с; положительный направлен из сегмента")
+	allCmd.Flags().StringVar(&allSedimentSources, "sediment-sources", "", "JSON внешних источников и стоков наносов по ячейкам")
+	allCmd.Flags().StringVar(&allStructures, "structures", "", "JSON сооружений, изменяющих пропуск потока между ячейками")
 	allCmd.Flags().BoolVar(&allBlackSeaSochi, "black-sea-sochi", false, "самостоятельно загрузить открытые данные Сочи для полного конвейера")
 	allCmd.Flags().StringVar(&allWaterbody, "waterbody", "", "водоём РФ из lito waterbody list")
 
@@ -141,6 +151,9 @@ func runAll(cmd *cobra.Command, args []string) error {
 		if allBathymetry == "" {
 			return fmt.Errorf("для выбранного водоёма укажите локальную --bathymetry")
 		}
+		if allBathymetryResolution <= 0 {
+			return fmt.Errorf("для выбранного водоёма укажите фактический --bathymetry-resolution")
+		}
 	}
 	if allBlackSeaSochi {
 		if allWaterbody == "" {
@@ -154,13 +167,22 @@ func runAll(cmd *cobra.Command, args []string) error {
 		allBathymetry = paths.Bathymetry
 		allWaveInput = paths.Waves
 		allWaveSource = paths.WaveSource
+		if !cmd.Flags().Changed("structures") {
+			allStructures = paths.Structures
+		}
 		if !cmd.Flags().Changed("max-bathymetry-gap") {
 			allMaxBathymetryGap = 3000
+		}
+		if !cmd.Flags().Changed("bathymetry-resolution") {
+			allBathymetryResolution = 0.005
 		}
 		if allSteps == 0 {
 			allSteps = 24
 		}
 		fmt.Printf("✓ Загружен стартовый набор Сочи: %s\n", blackSeaSochiDataDir)
+		if paths.StructureWarning != "" {
+			fmt.Printf("Предупреждение: %s\n", paths.StructureWarning)
+		}
 	}
 
 	// Load coastline
@@ -175,15 +197,23 @@ func runAll(cmd *cobra.Command, args []string) error {
 
 	fmt.Printf("Загружено: %s (%d точек)\n", result.Source, len(result.Points))
 
-	modelInputs, err := loadModelInputs(allBathymetry, allLithology, allEnableLithology)
+	modelInputs, err := loadModelInputs(allBathymetry, allLithology, allEnableLithology, allBathymetryResolution)
 	if err != nil {
 		return err
 	}
 	if modelInputs.BathymetryGrid != nil {
-		fmt.Printf("✓ Батиметрия загружена: %s (%d точек)\n", modelInputs.BathymetryPath, len(modelInputs.BathymetryGrid.Points))
+		fmt.Printf("✓ Батиметрия загружена: %s (%d точек, шаг %.6f°)\n", modelInputs.BathymetryPath, len(modelInputs.BathymetryGrid.Points), modelInputs.BathymetryGrid.Resolution)
 	}
 	if modelInputs.LithologyProfile != nil {
 		fmt.Printf("✓ Литология загружена: %s (%d точек)\n", modelInputs.LithologyPath, len(modelInputs.LithologyProfile.Points))
+	}
+	sedimentSources, err := loadLongshoreSedimentSources(allSedimentSources)
+	if err != nil {
+		return err
+	}
+	structures, err := loadLongshoreStructures(allStructures)
+	if err != nil {
+		return err
 	}
 
 	// Print validation report
@@ -231,22 +261,27 @@ func runAll(cmd *cobra.Command, args []string) error {
 		climate.Conditions = climate.Conditions[:allSteps]
 	}
 	model, err := geometry.RunLongshoreCERC(modelBase, climate, geometry.LongshoreModelConfig{
-		Bathymetry:               modelInputs.BathymetryGrid,
-		BathymetrySource:         modelInputs.BathymetryPath,
-		WaterbodyID:              allWaterbody,
-		BreakingIndex:            allBreakingIndex,
-		BermHeightMeters:         allBermHeight,
-		ClosureDepthMeters:       allClosureDepth,
-		Porosity:                 allPorosity,
-		CERCCoefficient:          allCERCCoefficient,
-		OffshoreSampleDistanceM:  allOffshoreDistance,
-		MaxShorelineChangeMeters: allMaxChange,
-		MaxBathymetryGapMeters:   allMaxBathymetryGap,
+		Bathymetry:                modelInputs.BathymetryGrid,
+		BathymetrySource:          modelInputs.BathymetryPath,
+		WaterbodyID:               allWaterbody,
+		SedimentSources:           sedimentSources,
+		Structures:                structures,
+		LeftBoundaryTransportM3S:  allLeftBoundaryTransport,
+		RightBoundaryTransportM3S: allRightBoundaryTransport,
+		BreakingIndex:             allBreakingIndex,
+		BermHeightMeters:          allBermHeight,
+		ClosureDepthMeters:        allClosureDepth,
+		Porosity:                  allPorosity,
+		CERCCoefficient:           allCERCCoefficient,
+		OffshoreSampleDistanceM:   allOffshoreDistance,
+		MaxShorelineChangeMeters:  allMaxChange,
+		MaxBathymetryGapMeters:    allMaxBathymetryGap,
 	})
 	if err != nil {
 		return fmt.Errorf("расчёт вдольберегового транспорта: %w", err)
 	}
 	snapshots := model.Snapshots
+	printLongshoreInputQuality(model.InputQuality)
 	waveOptions := geometry.WaveErosionOptions{WindSourceDirectionDeg: climate.Conditions[0].DirectionFromDeg, BathymetryGrid: modelInputs.BathymetryGrid}
 	for i, state := range snapshots {
 		fmt.Printf("  Шаг %d: %d точек, длина %.0f км, площадь %.0f км²\n",

@@ -46,8 +46,13 @@ var (
 
 var benchmarkCmd = &cobra.Command{
 	Use:   "benchmark",
-	Short: "Откалибруйте и сверьте модель с наблюдаемыми данными",
-	Long: `Контрольные подкоманды для калибровки и верификации модели.
+	Short: "Анализ эталонов и историческая эвристическая калибровка",
+	Long: `Контрольные подкоманды для анализа эталонов и исторической эвристической калибровки.
+
+Эти подкоманды сохранены для сравнения со старыми экспериментами. Они не
+являются калибровкой one-line CERC-модели; для физической калибровки используйте
+команду lito calibrate-cerc с фактическим волновым рядом, батиметрией и
+независимыми наблюдениями.
 
 Subcommands:
   list           Перечислите все сайты-эталоны
@@ -83,7 +88,7 @@ var benchShowCmd = &cobra.Command{
 
 var benchCalibrateCmd = &cobra.Command{
 	Use:   "calibrate",
-	Short: "Откалибруйте параметры модели для сайта",
+	Short: "Исторически откалибровать эвристические параметры для сайта",
 	RunE:  runBenchmarkCalibrate,
 }
 
@@ -320,6 +325,7 @@ func runBenchmarkShow(cmd *cobra.Command, args []string) error {
 }
 
 func runBenchmarkCalibrate(cmd *cobra.Command, args []string) error {
+	fmt.Println("Предупреждение: benchmark calibrate использует историческую эвристику; для CERC используйте lito calibrate-cerc.")
 	if benchSiteID == "" {
 		return fmt.Errorf("укажите ID сайта с помощью --site")
 	}

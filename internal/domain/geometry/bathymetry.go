@@ -211,23 +211,18 @@ func bilinearInterpolate1D(v0, v1, t float64) float64 {
 }
 
 func validateBathymetryPoints(points []BathymetryPoint) error {
-	// Константы для Чёрного моря с tolerant margin для учёта погрешности на границах
-	const (
-		minLat   = 40.0
-		maxLat   = 47.0
-		minLon   = 27.0
-		maxLon   = 42.5    // Расширено для GEBCO данных (формально 42.0)
-		margin   = 0.1     // Tolerant margin для boundary issues (градусы)
-		maxDepth = -3000.0 // Максимальная глубина с запасом
-	)
+	// Глобальные физические пределы позволяют использовать реальную
+	// батиметрию водоёмов РФ за пределами Чёрного моря. Подводные значения
+	// хранятся отрицательными, как в исходном контракте пакета.
+	const maxDepth = -12000.0
 
 	for i, p := range points {
 		// Проверка координат с tolerant margin
-		if p.Lat < minLat-margin || p.Lat > maxLat+margin {
-			return fmt.Errorf("точка %d: широта %.4f за пределами границ [%.1f, %.1f]", i, p.Lat, minLat, maxLat)
+		if p.Lat < -90 || p.Lat > 90 {
+			return fmt.Errorf("точка %d: широта %.4f за пределами [-90, 90]", i, p.Lat)
 		}
-		if p.Lon < minLon-margin || p.Lon > maxLon+margin {
-			return fmt.Errorf("точка %d: долгота %.4f за пределами границ [%.1f, %.1f]", i, p.Lon, minLon, maxLon)
+		if p.Lon < -180 || p.Lon > 180 {
+			return fmt.Errorf("точка %d: долгота %.4f за пределами [-180, 180]", i, p.Lon)
 		}
 
 		// Проверка глубины

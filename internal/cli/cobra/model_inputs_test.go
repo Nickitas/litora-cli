@@ -20,7 +20,7 @@ func TestLoadModelInputsLoadsBathymetryAndLithology(t *testing.T) {
   "classes": {"sand":{"resistance":1.5,"color":"#c2b280","description":"sand"}}
 }`)
 
-	inputs, err := loadModelInputs(bathymetryPath, lithologyPath, false)
+	inputs, err := loadModelInputs(bathymetryPath, lithologyPath, false, 0.01)
 	if err != nil {
 		t.Fatalf("loadModelInputs() error = %v", err)
 	}
@@ -38,7 +38,7 @@ func TestLoadModelInputsLoadsBathymetryAndLithology(t *testing.T) {
 func TestLoadModelInputsRejectsMissingExplicitFile(t *testing.T) {
 	t.Parallel()
 
-	_, err := loadModelInputs(filepath.Join(t.TempDir(), "missing.json"), "", false)
+	_, err := loadModelInputs(filepath.Join(t.TempDir(), "missing.json"), "", false, 0.01)
 	if err == nil {
 		t.Fatal("ожидалась ошибка для отсутствующей батиметрии")
 	}

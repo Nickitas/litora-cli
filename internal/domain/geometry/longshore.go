@@ -3,6 +3,7 @@ package geometry
 import (
 	"fmt"
 	"math"
+	"time"
 )
 
 const (
@@ -16,50 +17,98 @@ const (
 // Сетка глубин обязательна: модель не подменяет преобразование волн
 // эвристическим множителем глубины.
 type LongshoreModelConfig struct {
-	Bathymetry               *BathymetryGrid
-	BathymetrySource         string  // источник или путь к использованной батиметрии
-	WaterbodyID              string  // идентификатор выбранного водоёма из каталога Lito
-	BreakingIndex            float64 // γ = H_b / h_b, обычно 0,78
-	BermHeightMeters         float64 // высота активного профиля над уровнем моря
-	ClosureDepthMeters       float64 // глубина замыкания активного профиля
-	Porosity                 float64 // пористость наносов [0; 1)
-	CERCCoefficient          float64 // безразмерный коэффициент CERC
-	OffshoreSampleDistanceM  float64 // расстояние отбора глубины от береговой линии
-	MaxBathymetryGapMeters   float64 // максимальное расстояние до реальной точки глубины
-	MaxShorelineChangeMeters float64 // численная защита для одного состояния волн
+	Bathymetry                *BathymetryGrid
+	BathymetrySource          string                    // источник или путь к использованной батиметрии
+	WaterbodyID               string                    // идентификатор выбранного водоёма из каталога Lito
+	SedimentSources           []LongshoreSedimentSource // внешние источники и стоки наносов по ячейкам
+	Structures                []LongshoreStructure      // сооружения, меняющие пропуск потока между ячейками
+	LeftBoundaryTransportM3S  float64                   // поток через левую границу, положительный внутрь сегмента
+	RightBoundaryTransportM3S float64                   // поток через правую границу, положительный из сегмента
+	BreakingIndex             float64                   // γ = H_b / h_b, обычно 0,78
+	BermHeightMeters          float64                   // высота активного профиля над уровнем моря
+	ClosureDepthMeters        float64                   // глубина замыкания активного профиля
+	Porosity                  float64                   // пористость наносов [0; 1)
+	CERCCoefficient           float64                   // безразмерный коэффициент CERC
+	OffshoreSampleDistanceM   float64                   // расстояние отбора глубины от береговой линии
+	MaxBathymetryGapMeters    float64                   // максимальное расстояние до реальной точки глубины
+	MaxShorelineChangeMeters  float64                   // численная защита для одного состояния волн
 }
 
 // LongshoreCellResult хранит пространственно определённый баланс одной ячейки.
 // Объёмы относятся к сегменту между соседними узлами и измеряются в м³.
 type LongshoreCellResult struct {
-	PointIndex            int     `json:"point_index"`
-	BreakingWaveHeightM   float64 `json:"breaking_wave_height_m"`
-	BreakingDepthM        float64 `json:"breaking_depth_m"`
-	BreakingAngleDeg      float64 `json:"breaking_angle_deg"`
-	BathymetryDistanceM   float64 `json:"bathymetry_distance_m"`
-	LongshoreTransportM3S float64 `json:"longshore_transport_m3_s"`
-	VolumeChangeM3        float64 `json:"volume_change_m3"`
-	ShorelineChangeM      float64 `json:"shoreline_change_m"`
+	PointIndex               int     `json:"point_index"`
+	BathymetrySampled        bool    `json:"bathymetry_sampled"`
+	BreakingWaveHeightM      float64 `json:"breaking_wave_height_m"`
+	BreakingDepthM           float64 `json:"breaking_depth_m"`
+	BreakingAngleDeg         float64 `json:"breaking_angle_deg"`
+	BathymetryDistanceM      float64 `json:"bathymetry_distance_m"`
+	LongshoreTransportM3S    float64 `json:"longshore_transport_m3_s"`
+	LeftFaceTransportM3S     float64 `json:"left_face_transport_m3_s"`
+	RightFaceTransportM3S    float64 `json:"right_face_transport_m3_s"`
+	VolumeChangeM3           float64 `json:"volume_change_m3"`
+	ShorelineChangeM         float64 `json:"shoreline_change_m"`
+	ExternalSedimentVolumeM3 float64 `json:"external_sediment_volume_m3"`
 }
 
 // LongshoreStepResult описывает результат одного реального состояния волн.
 type LongshoreStepResult struct {
-	Condition         WaveCondition         `json:"condition"`
-	Cells             []LongshoreCellResult `json:"cells"`
-	ErodedVolumeM3    float64               `json:"eroded_volume_m3"`
-	DepositedVolumeM3 float64               `json:"deposited_volume_m3"`
-	MassBalanceM3     float64               `json:"mass_balance_m3"`
+	Condition                 WaveCondition         `json:"condition"`
+	Cells                     []LongshoreCellResult `json:"cells"`
+	ErodedVolumeM3            float64               `json:"eroded_volume_m3"`
+	DepositedVolumeM3         float64               `json:"deposited_volume_m3"`
+	MassBalanceM3             float64               `json:"mass_balance_m3"` // суммарное изменение объёма ячеек
+	LeftBoundaryTransportM3S  float64               `json:"left_boundary_transport_m3_s"`
+	RightBoundaryTransportM3S float64               `json:"right_boundary_transport_m3_s"`
+	BoundaryNetVolumeM3       float64               `json:"boundary_net_volume_m3"`
+	ExternalSedimentVolumeM3  float64               `json:"external_sediment_volume_m3"`
+	BalanceClosureResidualM3  float64               `json:"balance_closure_residual_m3"`
+}
+
+// WaveClimateQuality описывает временное покрытие использованного ряда волн.
+// Отсутствие временных меток не делает ряд вымышленным, но не позволяет
+// проверить пропуски или наложения интервалов.
+type WaveClimateQuality struct {
+	ConditionCount      int     `json:"condition_count"`
+	TotalDurationHours  float64 `json:"total_duration_hours"`
+	HasCompleteTimes    bool    `json:"has_complete_times"`
+	FirstTime           string  `json:"first_time,omitempty"`
+	LastTime            string  `json:"last_time,omitempty"`
+	MaxTemporalGapHours float64 `json:"max_temporal_gap_hours,omitempty"`
+}
+
+// BathymetryQuality описывает фактическую пространственную опору расчёта.
+// Ненулевое расстояние означает использование ближайшего измерения вместо
+// билинейной интерполяции и должно учитываться при интерпретации результата.
+type BathymetryQuality struct {
+	PointCount                int     `json:"point_count"`
+	ResolutionDegrees         float64 `json:"resolution_degrees"`
+	SampleCount               int     `json:"sample_count"`
+	InterpolatedSampleCount   int     `json:"interpolated_sample_count"`
+	NearestSampleCount        int     `json:"nearest_sample_count"`
+	MeanNearestDistanceMeters float64 `json:"mean_nearest_distance_meters"`
+	MaxNearestDistanceMeters  float64 `json:"max_nearest_distance_meters"`
+}
+
+// ModelInputQuality объединяет проверяемые характеристики входов, реально
+// использованных в расчёте, а не только параметры командной строки.
+type ModelInputQuality struct {
+	WaveClimate WaveClimateQuality `json:"wave_climate"`
+	Bathymetry  BathymetryQuality  `json:"bathymetry"`
 }
 
 // LongshoreModelResult содержит положения береговой линии и баланс для всего
 // волнового ряда. Первый снимок — исходное положение береговой линии.
 type LongshoreModelResult struct {
-	Model            string                `json:"model"`
-	WaterbodyID      string                `json:"waterbody_id,omitempty"`
-	BathymetrySource string                `json:"bathymetry_source"`
-	Climate          WaveClimate           `json:"climate"`
-	Snapshots        [][]LatLon            `json:"snapshots"`
-	Steps            []LongshoreStepResult `json:"steps"`
+	Model            string                    `json:"model"`
+	WaterbodyID      string                    `json:"waterbody_id,omitempty"`
+	BathymetrySource string                    `json:"bathymetry_source"`
+	Climate          WaveClimate               `json:"climate"`
+	Snapshots        [][]LatLon                `json:"snapshots"`
+	Steps            []LongshoreStepResult     `json:"steps"`
+	InputQuality     ModelInputQuality         `json:"input_quality"`
+	SedimentSources  []LongshoreSedimentSource `json:"sediment_sources,omitempty"`
+	Structures       []LongshoreStructure      `json:"structures,omitempty"`
 }
 
 // RunLongshoreCERC запускает инженерную one-line модель: дисперсия и
@@ -79,12 +128,20 @@ func RunLongshoreCERC(points []LatLon, climate WaveClimate, config LongshoreMode
 	if err := validateLongshoreModelConfig(config); err != nil {
 		return LongshoreModelResult{}, err
 	}
+	if err := validateLongshoreSedimentSources(config.SedimentSources, len(points)); err != nil {
+		return LongshoreModelResult{}, err
+	}
+	if err := validateLongshoreStructures(config.Structures, len(points)); err != nil {
+		return LongshoreModelResult{}, err
+	}
 
 	result := LongshoreModelResult{
 		Model:            "CERC-one-line: dispersion, refraction, shoaling, breaking and sediment continuity",
 		WaterbodyID:      config.WaterbodyID,
 		BathymetrySource: config.BathymetrySource,
 		Climate:          climate,
+		SedimentSources:  append([]LongshoreSedimentSource(nil), config.SedimentSources...),
+		Structures:       append([]LongshoreStructure(nil), config.Structures...),
 		Snapshots:        make([][]LatLon, 1, len(climate.Conditions)+1),
 	}
 	current := clonePoints(points)
@@ -98,6 +155,7 @@ func RunLongshoreCERC(points []LatLon, climate WaveClimate, config LongshoreMode
 		result.Snapshots = append(result.Snapshots, next)
 		current = next
 	}
+	result.InputQuality = summarizeModelInputQuality(climate, config.Bathymetry, result.Steps)
 	return result, nil
 }
 
@@ -159,6 +217,8 @@ func longshoreStep(points []LatLon, condition WaveCondition, config LongshoreMod
 	cells := make([]LongshoreCellResult, len(points))
 	seaward := make([]pointXY, len(points))
 	transport := make([]float64, len(points))
+	sedimentSources := longshoreSedimentSourceRates(config.SedimentSources, len(points))
+	faceTransmission := longshoreFaceTransmission(config.Structures, len(points))
 	fromDirection := directionFromNorthClockwise(condition.DirectionFromDeg)
 
 	for i := range points {
@@ -205,27 +265,44 @@ func longshoreStep(points []LatLon, condition WaveCondition, config LongshoreMod
 		power := energy * group
 		transport[i] = config.CERCCoefficient * power * math.Sin(angle) * math.Cos(angle) /
 			((quartzSedimentDensity - seaWaterDensity) * accelerationGravity * (1 - config.Porosity))
-		cells[i] = LongshoreCellResult{PointIndex: i, BreakingWaveHeightM: height, BreakingDepthM: breakingDepth, BreakingAngleDeg: angle * 180 / math.Pi, BathymetryDistanceM: sampleDistance, LongshoreTransportM3S: transport[i]}
+		cells[i] = LongshoreCellResult{PointIndex: i, BathymetrySampled: true, BreakingWaveHeightM: height, BreakingDepthM: breakingDepth, BreakingAngleDeg: angle * 180 / math.Pi, BathymetryDistanceM: sampleDistance, LongshoreTransportM3S: transport[i]}
 	}
 
 	durationSeconds := condition.DurationHours * secondsPerHour
 	profileHeight := config.BermHeightMeters + config.ClosureDepthMeters
+	faceTransport := make([]float64, len(points)-1)
+	for i := range faceTransport {
+		faceTransport[i] = (transport[i] + transport[i+1]) / 2 * faceTransmission[i]
+	}
 	updated := make([]pointXY, len(projected))
 	copy(updated, projected)
-	step := LongshoreStepResult{Condition: condition, Cells: cells}
+	step := LongshoreStepResult{
+		Condition:                 condition,
+		Cells:                     cells,
+		LeftBoundaryTransportM3S:  config.LeftBoundaryTransportM3S,
+		RightBoundaryTransportM3S: config.RightBoundaryTransportM3S,
+	}
 	for i := range projected {
-		leftFlux, rightFlux := 0.0, 0.0 // Граничные условия: непроницаемые торцы сегмента.
+		leftFlux, rightFlux := 0.0, 0.0
 		if i > 0 {
-			leftFlux = (transport[i-1] + transport[i]) / 2
+			leftFlux = faceTransport[i-1]
+		} else {
+			leftFlux = config.LeftBoundaryTransportM3S
 		}
 		if i < len(projected)-1 {
-			rightFlux = (transport[i] + transport[i+1]) / 2
+			rightFlux = faceTransport[i]
+		} else {
+			rightFlux = config.RightBoundaryTransportM3S
 		}
-		volume := (leftFlux - rightFlux) * durationSeconds
+		externalVolume := sedimentSources[i] * durationSeconds
+		volume := (leftFlux-rightFlux)*durationSeconds + externalVolume
 		length := controlCellLength(projected, i)
 		change := volume / (length * profileHeight)
 		change = clamp(change, -config.MaxShorelineChangeMeters, config.MaxShorelineChangeMeters)
 		cells[i].VolumeChangeM3 = change * length * profileHeight
+		cells[i].ExternalSedimentVolumeM3 = externalVolume
+		cells[i].LeftFaceTransportM3S = leftFlux
+		cells[i].RightFaceTransportM3S = rightFlux
 		cells[i].ShorelineChangeM = change
 		updated[i] = pointXY{X: projected[i].X + seaward[i].X*change, Y: projected[i].Y + seaward[i].Y*change}
 		if cells[i].VolumeChangeM3 < 0 {
@@ -234,13 +311,78 @@ func longshoreStep(points []LatLon, condition WaveCondition, config LongshoreMod
 			step.DepositedVolumeM3 += cells[i].VolumeChangeM3
 		}
 		step.MassBalanceM3 += cells[i].VolumeChangeM3
+		step.ExternalSedimentVolumeM3 += externalVolume
 	}
+	step.BoundaryNetVolumeM3 = (config.LeftBoundaryTransportM3S - config.RightBoundaryTransportM3S) * durationSeconds
+	step.BalanceClosureResidualM3 = step.MassBalanceM3 - step.BoundaryNetVolumeM3 - step.ExternalSedimentVolumeM3
 	step.Cells = cells
 	output := make([]LatLon, len(updated))
 	for i := range updated {
 		output[i] = projectFromMeters(updated[i], reference)
 	}
 	return output, step, nil
+}
+
+func summarizeModelInputQuality(climate WaveClimate, bathymetry *BathymetryGrid, steps []LongshoreStepResult) ModelInputQuality {
+	quality := ModelInputQuality{WaveClimate: summarizeWaveClimateQuality(climate)}
+	if bathymetry == nil {
+		return quality
+	}
+	bathQuality := BathymetryQuality{PointCount: len(bathymetry.Points), ResolutionDegrees: bathymetry.Resolution}
+	nearestDistanceSum := 0.0
+	for _, step := range steps {
+		for _, cell := range step.Cells {
+			if !cell.BathymetrySampled {
+				continue
+			}
+			bathQuality.SampleCount++
+			if cell.BathymetryDistanceM == 0 {
+				bathQuality.InterpolatedSampleCount++
+				continue
+			}
+			bathQuality.NearestSampleCount++
+			nearestDistanceSum += cell.BathymetryDistanceM
+			if cell.BathymetryDistanceM > bathQuality.MaxNearestDistanceMeters {
+				bathQuality.MaxNearestDistanceMeters = cell.BathymetryDistanceM
+			}
+		}
+	}
+	if bathQuality.NearestSampleCount > 0 {
+		bathQuality.MeanNearestDistanceMeters = nearestDistanceSum / float64(bathQuality.NearestSampleCount)
+	}
+	quality.Bathymetry = bathQuality
+	return quality
+}
+
+func summarizeWaveClimateQuality(climate WaveClimate) WaveClimateQuality {
+	quality := WaveClimateQuality{ConditionCount: len(climate.Conditions)}
+	if len(climate.Conditions) == 0 {
+		return quality
+	}
+	quality.HasCompleteTimes = true
+	for i, condition := range climate.Conditions {
+		quality.TotalDurationHours += condition.DurationHours
+		if condition.Time.IsZero() {
+			quality.HasCompleteTimes = false
+			continue
+		}
+		if i == 0 {
+			quality.FirstTime = condition.Time.UTC().Format(time.RFC3339)
+			continue
+		}
+		previous := climate.Conditions[i-1]
+		if !previous.Time.IsZero() {
+			gap := condition.Time.Sub(previous.Time).Hours() - previous.DurationHours
+			if gap > quality.MaxTemporalGapHours {
+				quality.MaxTemporalGapHours = gap
+			}
+		}
+	}
+	if quality.HasCompleteTimes {
+		last := climate.Conditions[len(climate.Conditions)-1]
+		quality.LastTime = last.Time.Add(time.Duration(last.DurationHours * float64(time.Hour))).UTC().Format(time.RFC3339)
+	}
+	return quality
 }
 
 // sampleOffshoreDepth выбирает только измеренную глубину на морской стороне

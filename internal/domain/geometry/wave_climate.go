@@ -163,6 +163,8 @@ func (c WaveClimate) Validate() error {
 	if len(c.Conditions) == 0 {
 		return fmt.Errorf("волновой ряд не содержит состояний")
 	}
+	hasTimestamp := false
+	hasMissingTimestamp := false
 	for i, condition := range c.Conditions {
 		if condition.DurationHours <= 0 || condition.DurationHours > 24*31 {
 			return fmt.Errorf("состояние волн %d: duration_hours должно быть в диапазоне (0; 744]", i)
@@ -176,6 +178,23 @@ func (c WaveClimate) Validate() error {
 		if condition.DirectionFromDeg < 0 || condition.DirectionFromDeg >= 360 {
 			return fmt.Errorf("состояние волн %d: direction_from_deg должно быть в диапазоне [0; 360)", i)
 		}
+		if condition.Time.IsZero() {
+			hasMissingTimestamp = true
+		} else {
+			hasTimestamp = true
+		}
+		if i > 0 && !condition.Time.IsZero() && !c.Conditions[i-1].Time.IsZero() {
+			previous := c.Conditions[i-1]
+			if !condition.Time.After(previous.Time) {
+				return fmt.Errorf("состояние волн %d: временная метка должна быть строго позже предыдущей", i)
+			}
+			if condition.Time.Before(previous.Time.Add(time.Duration(previous.DurationHours * float64(time.Hour)))) {
+				return fmt.Errorf("состояние волн %d: интервал перекрывает предыдущее состояние", i)
+			}
+		}
+	}
+	if hasTimestamp && hasMissingTimestamp {
+		return fmt.Errorf("во временном ряду либо задайте time для всех состояний, либо не задавайте ни для одного")
 	}
 	return nil
 }

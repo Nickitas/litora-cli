@@ -45,6 +45,85 @@ func TestRunLongshoreCERCHigherWavesIncreaseTransport(t *testing.T) {
 	}
 }
 
+func TestRunLongshoreCERCAccountsForBoundaryFlux(t *testing.T) {
+	points := []LatLon{{Lat: 0, Lon: 0}, {Lat: 0, Lon: 0.005}, {Lat: 0.002, Lon: 0.01}, {Lat: 0, Lon: 0.015}}
+	config := testLongshoreConfig(t)
+	config.LeftBoundaryTransportM3S = 0.01
+	config.RightBoundaryTransportM3S = 0.002
+	climate := WaveClimate{Source: "проверочный ряд", Conditions: []WaveCondition{{DurationHours: 1, SignificantWaveHeightM: 1.5, PeakPeriodSeconds: 6, DirectionFromDeg: 0}}}
+	result, err := RunLongshoreCERC(points, climate, config)
+	if err != nil {
+		t.Fatalf("RunLongshoreCERC вернула ошибку: %v", err)
+	}
+	step := result.Steps[0]
+	expected := (config.LeftBoundaryTransportM3S - config.RightBoundaryTransportM3S) * secondsPerHour
+	if math.Abs(step.BoundaryNetVolumeM3-expected) > 1e-9 {
+		t.Fatalf("граничный объём %.9f, ожидалось %.9f", step.BoundaryNetVolumeM3, expected)
+	}
+	if math.Abs(step.BalanceClosureResidualM3) > 1e-6 {
+		t.Fatalf("невязка после учёта границ: %.12f м³", step.BalanceClosureResidualM3)
+	}
+}
+
+func TestRunLongshoreCERCReportsInputQuality(t *testing.T) {
+	points := []LatLon{{Lat: 0, Lon: 0}, {Lat: 0, Lon: 0.005}, {Lat: 0.002, Lon: 0.01}, {Lat: 0, Lon: 0.015}}
+	result, err := RunLongshoreCERC(points, WaveClimate{Source: "проверочный ряд", Conditions: []WaveCondition{{DurationHours: 3, SignificantWaveHeightM: 1.5, PeakPeriodSeconds: 6, DirectionFromDeg: 0}}}, testLongshoreConfig(t))
+	if err != nil {
+		t.Fatalf("RunLongshoreCERC вернула ошибку: %v", err)
+	}
+	if result.InputQuality.WaveClimate.TotalDurationHours != 3 {
+		t.Fatalf("неверная длительность ряда: %.2f", result.InputQuality.WaveClimate.TotalDurationHours)
+	}
+	if result.InputQuality.Bathymetry.SampleCount == 0 {
+		t.Fatal("должны быть учтены использованные батиметрические выборки")
+	}
+}
+
+func TestRunLongshoreCERCAccountsForSedimentSource(t *testing.T) {
+	points := []LatLon{{Lat: 0, Lon: 0}, {Lat: 0, Lon: 0.005}, {Lat: 0.002, Lon: 0.01}, {Lat: 0, Lon: 0.015}}
+	config := testLongshoreConfig(t)
+	config.SedimentSources = []LongshoreSedimentSource{{PointIndex: 1, SourceRateM3S: 0.01, Description: "питание", DataSource: "проверочное измерение"}}
+	climate := WaveClimate{Source: "проверочный ряд", Conditions: []WaveCondition{{DurationHours: 1, SignificantWaveHeightM: 1.5, PeakPeriodSeconds: 6, DirectionFromDeg: 0}}}
+	result, err := RunLongshoreCERC(points, climate, config)
+	if err != nil {
+		t.Fatalf("RunLongshoreCERC вернула ошибку: %v", err)
+	}
+	step := result.Steps[0]
+	if math.Abs(step.ExternalSedimentVolumeM3-36) > 1e-9 {
+		t.Fatalf("внешний объём %.9f, ожидалось 36", step.ExternalSedimentVolumeM3)
+	}
+	if math.Abs(step.BalanceClosureResidualM3) > 1e-6 {
+		t.Fatalf("невязка с источником: %.12f м³", step.BalanceClosureResidualM3)
+	}
+	if step.Cells[1].ExternalSedimentVolumeM3 != 36 {
+		t.Fatalf("ячейка источника получила %.9f м³", step.Cells[1].ExternalSedimentVolumeM3)
+	}
+}
+
+func TestRunLongshoreCERCReducesFluxAtStructure(t *testing.T) {
+	points := []LatLon{{Lat: 0, Lon: 0}, {Lat: 0, Lon: 0.005}, {Lat: 0.002, Lon: 0.01}, {Lat: 0, Lon: 0.015}}
+	climate := WaveClimate{Source: "проверочный ряд", Conditions: []WaveCondition{{DurationHours: 1, SignificantWaveHeightM: 1.5, PeakPeriodSeconds: 6, DirectionFromDeg: 0}}}
+	without, err := RunLongshoreCERC(points, climate, testLongshoreConfig(t))
+	if err != nil {
+		t.Fatalf("расчёт без сооружения: %v", err)
+	}
+	config := testLongshoreConfig(t)
+	config.Structures = []LongshoreStructure{{LeftPointIndex: 1, TransmissionCoefficient: 0, Kind: "буна", Description: "проверочная буна", DataSource: "проверочное обследование"}}
+	with, err := RunLongshoreCERC(points, climate, config)
+	if err != nil {
+		t.Fatalf("расчёт с сооружением: %v", err)
+	}
+	if math.Abs(with.Steps[0].Cells[1].RightFaceTransportM3S) > 1e-12 {
+		t.Fatalf("поток через непроницаемую буна равен %.12f", with.Steps[0].Cells[1].RightFaceTransportM3S)
+	}
+	if math.Abs(without.Steps[0].Cells[1].RightFaceTransportM3S) < 1e-12 {
+		t.Fatal("проверочный поток без сооружения должен быть ненулевым")
+	}
+	if math.Abs(with.Steps[0].BalanceClosureResidualM3) > 1e-6 {
+		t.Fatalf("сооружение не должно нарушать баланс: %.12f", with.Steps[0].BalanceClosureResidualM3)
+	}
+}
+
 func testLongshoreConfig(t *testing.T) LongshoreModelConfig {
 	t.Helper()
 	points := make([]BathymetryPoint, 0, 25)

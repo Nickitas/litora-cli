@@ -3,7 +3,10 @@
   "bathymetry_source": "EMODnet Bathymetry REST /depth_sample; reference GEBCO",
   "coastline": "data/examples/sochi-local-segment.geojson",
   "coastline_source": "OpenStreetMap, way 59530506, выгрузка 2026-08-17, ODbL",
-  "generated_at": "2026-08-17T18:39:24Z",
+  "generated_at": "2026-08-18T18:12:34Z",
+  "structures_inventory": "данные OSM недоступны",
+  "structures_source": "OpenStreetMap / Overpass: только берегопримыкающие man_made=groyne получают полный перехват",
+  "structures_warning": "не удалось обновить инвентарь сооружений: сервер вернул 429 Too Many Requests; расчёт выполнен без сооружений",
   "wave_endpoint": "https://marine-api.open-meteo.com/v1/marine?latitude=43.62\u0026longitude=39.68\u0026hourly=wave_height,wave_period,wave_direction\u0026forecast_days=7\u0026timezone=UTC",
-  "wave_source": "Open-Meteo Marine, точка 43.625N 39.70834E, выгружено 2026-08-17T18:39:24Z"
+  "wave_source": "Open-Meteo Marine, точка 43.625N 39.70834E, выгружено 2026-08-18T18:12:34Z"
 }
