@@ -106,13 +106,16 @@ type CalibrationResult struct {
 
 // ValidationMetrics сравнивает модельные и наблюдаемые значения эрозии
 type ValidationMetrics struct {
-	RMSE        float64 `json:"rmse_m_per_year"` // среднеквадратичная ошибка
-	MAE         float64 `json:"mae_m_per_year"`  // средняя абсолютная ошибка
-	MBE         float64 `json:"mbe_m_per_year"`  // средняя смещённая ошибка
-	RSquared    float64 `json:"r_squared"`       // коэффициент детерминации
-	N           int     `json:"n_observations"`  // количество наблюдений
-	PValue      float64 `json:"p_value"`         // статистическая значимость
-	Significant bool    `json:"significant"`     // корреляция значима?
+	RMSE             float64 `json:"rmse_m_per_year"`              // среднеквадратичная ошибка
+	WeightedRMSE     float64 `json:"weighted_rmse_m_per_year"`     // RMSE с весами 1/σ² наблюдений
+	MAE              float64 `json:"mae_m_per_year"`               // средняя абсолютная ошибка
+	MBE              float64 `json:"mbe_m_per_year"`               // средняя смещённая ошибка
+	RSquared         float64 `json:"r_squared"`                    // коэффициент детерминации
+	N                int     `json:"n_observations"`               // количество наблюдений
+	PValue           float64 `json:"p_value_raw"`                  // сырое p-значение точного t-критерия Пирсона
+	AdjustedPValue   float64 `json:"p_value_bonferroni"`           // p-значение с поправкой Бонферрони на поиск параметров
+	Significant      bool    `json:"significant_after_correction"` // значима ли корреляция после поправки
+	InferenceAllowed bool    `json:"inference_allowed"`            // допустима ли проверка значимости при данном размере выборки
 }
 
 // CalibrationParameters представляет пространство параметров для калибровки

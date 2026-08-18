@@ -1,6 +1,7 @@
 package cobra
 
 import (
+	"coastal-geometry/internal/cli"
 	"coastal-geometry/internal/domain/benchmark"
 	"coastal-geometry/internal/domain/coastline"
 	"coastal-geometry/internal/domain/geometry"
@@ -14,14 +15,16 @@ import (
 )
 
 var (
-	benchDir        string
-	benchSiteID     string
-	benchInput      string
-	benchOutput     string
-	benchBathymetry string
-	spectrumSpread  float64
-	benchStrength   float64
-	benchWaveDir    float64
+	benchDir                string
+	benchSiteID             string
+	benchInput              string
+	benchOutput             string
+	benchBathymetry         string
+	benchMaxDistance        float64
+	benchValidationFraction float64
+	spectrumSpread          float64
+	benchStrength           float64
+	benchWaveDir            float64
 	// Bounds for extract
 	boundsMinLat float64
 	boundsMaxLat float64
@@ -162,6 +165,8 @@ func init() {
 
 	benchShowCmd.Flags().StringVar(&benchBathymetry, "bathymetry", "", "путь к JSON батиметрии")
 	benchCalibrateCmd.Flags().StringVar(&benchBathymetry, "bathymetry", "", "путь к JSON батиметрии")
+	benchCalibrateCmd.Flags().Float64Var(&benchMaxDistance, "max-distance-km", 5, "максимальное расстояние наблюдения до сегмента береговой линии, км")
+	benchCalibrateCmd.Flags().Float64Var(&benchValidationFraction, "validation-fraction", 0.25, "доля пространственно отложенных наблюдений для проверки")
 	benchCalibrateCmd.Flags().StringVar(&benchOutput, "output", "", "путь к выходному файлу")
 	benchAnalyzeCmd.Flags().StringVar(&benchBathymetry, "bathymetry", "", "путь к JSON батиметрии")
 	benchAnalyzeCmd.Flags().StringVar(&benchOutput, "output", "", "путь к выходному файлу")
@@ -175,6 +180,8 @@ func init() {
 	benchScenariosCmd.Flags().StringVar(&benchOutput, "output", "", "путь к выходному файлу")
 
 	benchCalibrateAllCmd.Flags().StringVar(&benchBathymetry, "bathymetry", "", "путь к JSON батиметрии")
+	benchCalibrateAllCmd.Flags().Float64Var(&benchMaxDistance, "max-distance-km", 5, "максимальное расстояние наблюдения до сегмента береговой линии, км")
+	benchCalibrateAllCmd.Flags().Float64Var(&benchValidationFraction, "validation-fraction", 0.25, "доля пространственно отложенных наблюдений для проверки")
 	benchCalibrateAllCmd.Flags().StringVar(&benchOutput, "output", "", "каталог для вывода")
 	benchCalibrateAllCmd.Flags().Float64Var(&spectrumSpread, "spectrum-spread", 0, "направленный разброс волнового спектра в градусах")
 
@@ -367,6 +374,9 @@ func runBenchmarkCalibrate(cmd *cobra.Command, args []string) error {
 	fmt.Println()
 
 	config := benchmark.DefaultCalibrationConfig()
+	config.MaxDistanceKm = benchMaxDistance
+	config.ValidationFraction = benchValidationFraction
+	config.BathymetryGrid = bathymetry
 	fmt.Printf("Пространство параметров: %d сил эрозии × %d направлений волн = %d запусков\n",
 		len(config.ErosionStrengths), len(config.WaveDirections),
 		len(config.ErosionStrengths)*len(config.WaveDirections))
@@ -386,10 +396,11 @@ func runBenchmarkCalibrate(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Println("═══════════════════════════════════════════════════════════════════════")
-	fmt.Println("  ТОП-5 КОМБИНАЦИЙ ПАРАМЕТРОВ (отсортировано по RMSE)")
+	fmt.Println("  ТОП-5 КОМБИНАЦИЙ: выбор только по обучающей выборке")
 	fmt.Println("═══════════════════════════════════════════════════════════════════════")
-	fmt.Println("  Ранг  Сила(м)  НапрВол(°)   RMSE    MAE    MBE     R²     Знач?")
-	fmt.Println("  ----  --------  ----------  ------  -----  -----  -----  ------")
+	table := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+	fmt.Fprintln(table, "Ранг\tСила, м\tНапр. волн, °\tВзвешенный RMSE обучения\tВзвешенный RMSE проверки\tТочек обучение/проверка")
+	fmt.Fprintln(table, "----\t--------\t--------------\t-------------------------\t-------------------------\t------------------------")
 
 	topN := 5
 	if len(results) < topN {
@@ -397,46 +408,114 @@ func runBenchmarkCalibrate(cmd *cobra.Command, args []string) error {
 	}
 	for i := 0; i < topN; i++ {
 		r := results[i]
-		sig := "нет"
-		if r.ValidationMetrics.Significant {
-			sig = "да ✓"
+		validationRMSE := "—"
+		if r.ValidationMetrics.N > 0 {
+			validationRMSE = fmt.Sprintf("%.3f", r.ValidationMetrics.WeightedRMSE)
 		}
-		fmt.Printf("  %4d   %8.1f    %8.1f   %5.2f  %5.2f  %5.2f  %5.3f  %s\n",
+		fmt.Fprintf(table, "%d\t%.1f\t%.1f\t%.3f\t%s\t%d/%d\n",
 			i+1, r.ErosionStrength, r.WaveDirection,
-			r.ValidationMetrics.RMSE, r.ValidationMetrics.MAE,
-			r.ValidationMetrics.MBE, r.ValidationMetrics.RSquared, sig)
+			r.TrainingMetrics.WeightedRMSE, validationRMSE,
+			r.TrainingMetrics.N, r.ValidationMetrics.N)
 	}
+	table.Flush()
 	fmt.Println()
 
 	best := results[0]
 	fmt.Println("═══════════════════════════════════════════════════════════════════════")
-	fmt.Printf("  ЛУЧШАЯ ПОДГОНКА: erosion-strength=%.1f м, wave-direction=%.0f°\n", best.ErosionStrength, best.WaveDirection)
+	fmt.Printf("  ЛУЧШАЯ ПОДГОНКА ПО ОБУЧАЮЩИМ ДАННЫМ: erosion-strength=%.1f м, wave-direction=%.0f°\n", best.ErosionStrength, best.WaveDirection)
 	fmt.Println("═══════════════════════════════════════════════════════════════════════")
-	fmt.Printf("  RMSE:            %.3f м/год\n", best.ValidationMetrics.RMSE)
-	fmt.Printf("  MAE:             %.3f м/год\n", best.ValidationMetrics.MAE)
-	fmt.Printf("  MBE:             %+.3f м/год\n", best.ValidationMetrics.MBE)
-	fmt.Printf("  R²:              %.3f\n", best.ValidationMetrics.RSquared)
-	fmt.Printf("  P-значение:      %.4f\n", best.ValidationMetrics.PValue)
+	fmt.Printf("  Наблюдений принято/исключено: %d/%d (предел %.2f км, максимум %.2f км)\n",
+		best.Matching.Accepted, best.Matching.ExcludedByDistance, best.Matching.MaxDistanceKm, best.Matching.MaximumMatchedKm)
+	fmt.Printf("  Взвешенный RMSE обучения: %.3f м/год (%d точек)\n", best.TrainingMetrics.WeightedRMSE, best.TrainingMetrics.N)
+	if best.ValidationMetrics.N > 0 {
+		fmt.Printf("  Взвешенный RMSE проверки: %.3f м/год (%d точек)\n", best.ValidationMetrics.WeightedRMSE, best.ValidationMetrics.N)
+	} else {
+		fmt.Println("  Проверочная выборка не сформирована: после отсева недостаточно точек.")
+	}
+	if best.ValidationMetrics.InferenceAllowed {
+		fmt.Printf("  Проверочное R²: %.3f; p с поправкой Бонферрони: %.4f\n", best.ValidationMetrics.RSquared, best.ValidationMetrics.AdjustedPValue)
+	} else {
+		fmt.Println("  R² и p-значение для проверки не интерпретируются: отложенная выборка слишком мала.")
+	}
+	fmt.Println("  Это оценка подгонки малой выборки, а не доказательство прогностической способности модели.")
 	fmt.Println()
 
-	if benchOutput != "" {
-		report := struct {
-			SiteID     string                            `json:"site_id"`
-			SiteName   string                            `json:"site_name"`
-			BestFit    benchmark.CalibrationResultItem   `json:"best_fit"`
-			TopResults []benchmark.CalibrationResultItem `json:"top_results"`
-		}{
-			SiteID:     site.ID,
-			SiteName:   site.Name,
-			BestFit:    best,
-			TopResults: results,
-		}
-		data, _ := json.MarshalIndent(report, "", "  ")
-		_ = os.WriteFile(benchOutput, data, 0o644)
-		fmt.Printf("Отчёт о калибровке сохранён в: %s\n", benchOutput)
+	if reportPath, diagnosticsPath, err := writeBenchmarkCalibrationArtifacts(*site, config, best, results, benchOutput); err != nil {
+		return fmt.Errorf("сохранение отчёта калибровки: %w", err)
+	} else {
+		fmt.Printf("Отчёт о калибровке сохранён в: %s\n", reportPath)
+		fmt.Printf("Диагностика сопоставления сохранена в: %s\n", diagnosticsPath)
 	}
 
 	return nil
+}
+
+// writeBenchmarkCalibrationArtifacts сохраняет отчёт и диагностическую таблицу
+// каждой калибровки в стандартной структуре output/.
+func writeBenchmarkCalibrationArtifacts(site benchmark.BenchmarkSite, config benchmark.CalibrationConfig, best benchmark.CalibrationResultItem, results []benchmark.CalibrationResultItem, requestedReportPath string) (string, string, error) {
+	output := cli.NewOutputPathManager("")
+	if err := output.EnsureDirectories(); err != nil {
+		return "", "", err
+	}
+
+	topN := 5
+	if len(results) < topN {
+		topN = len(results)
+	}
+	report := struct {
+		SiteID   string `json:"site_id"`
+		SiteName string `json:"site_name"`
+		Config   struct {
+			YearsPerStep       float64 `json:"years_per_step"`
+			LegacyTotalYears   int     `json:"legacy_total_years"`
+			MaxDistanceKm      float64 `json:"max_distance_km"`
+			ValidationFraction float64 `json:"validation_fraction"`
+			UsesBathymetry     bool    `json:"uses_bathymetry"`
+		} `json:"config"`
+		BestFit             benchmark.CalibrationResultItem   `json:"best_fit"`
+		TopResults          []benchmark.CalibrationResultItem `json:"top_results"`
+		MatchingDiagnostics []benchmark.MatchingDiagnostic    `json:"matching_diagnostics"`
+	}{
+		SiteID: site.ID, SiteName: site.Name, BestFit: best,
+		TopResults: results[:topN], MatchingDiagnostics: best.Matching.Diagnostics,
+	}
+	report.Config.YearsPerStep = config.YearsPerStep
+	report.Config.LegacyTotalYears = config.TotalYears
+	report.Config.MaxDistanceKm = config.MaxDistanceKm
+	report.Config.ValidationFraction = config.ValidationFraction
+	report.Config.UsesBathymetry = config.BathymetryGrid != nil
+	reportPath := output.MetricsPath(fmt.Sprintf("benchmark-calibration-%s.json", site.ID))
+	if requestedReportPath != "" {
+		reportPath = output.ResolveUserPath(requestedReportPath, "metrics")
+	}
+	data, err := json.MarshalIndent(report, "", "  ")
+	if err != nil {
+		return "", "", fmt.Errorf("сериализация JSON: %w", err)
+	}
+	if err := os.WriteFile(reportPath, data, 0o644); err != nil {
+		return "", "", fmt.Errorf("запись JSON: %w", err)
+	}
+
+	diagnosticsPath := output.CSVPath(fmt.Sprintf("benchmark-calibration-%s-diagnostics.tsv", site.ID))
+	file, err := os.Create(diagnosticsPath)
+	if err != nil {
+		return "", "", fmt.Errorf("создание таблицы диагностики: %w", err)
+	}
+	defer file.Close()
+	table := tabwriter.NewWriter(file, 0, 0, 2, ' ', 0)
+	fmt.Fprintln(table, "Индекс\tШирота\tДолгота\tНачало\tКонец\tПериод, лет\tДистанция, км\tСегмент\tПоложение на сегменте\tВыборка\tСтатус\tПричина")
+	fmt.Fprintln(table, "-----\t------\t-------\t------\t-----\t-----------\t-------------\t-------\t---------------------\t--------\t------\t-------")
+	for _, diagnostic := range best.Matching.Diagnostics {
+		fmt.Fprintf(table, "%d\t%.6f\t%.6f\t%s\t%s\t%.3f\t%.3f\t%d\t%.5f\t%s\t%s\t%s\n",
+			diagnostic.ObservationIndex, diagnostic.LatLon.Lat, diagnostic.LatLon.Lon,
+			diagnostic.StartDate, diagnostic.EndDate, diagnostic.ObservationYears,
+			diagnostic.DistanceToCoastKm, diagnostic.CoastSegment, diagnostic.SegmentPosition,
+			diagnostic.Split, diagnostic.Status, diagnostic.Reason)
+	}
+	if err := table.Flush(); err != nil {
+		return "", "", fmt.Errorf("запись таблицы диагностики: %w", err)
+	}
+	return reportPath, diagnosticsPath, nil
 }
 
 func runBenchmarkCalibrateAll(cmd *cobra.Command, args []string) error {
@@ -472,11 +551,13 @@ func runBenchmarkCalibrateAll(cmd *cobra.Command, args []string) error {
 	fmt.Println("═══════════════════════════════════════════════════════════════════════")
 	fmt.Println("  КАЛИБРОВКА ВСЕХ ЭТАЛОННЫХ САЙТОВ")
 	fmt.Println("═══════════════════════════════════════════════════════════════════════")
-	fmt.Printf("%-22s %-10s %-10s %-8s %-8s %-8s %-8s\n",
-		"Сайт", "Сила", "НапрВол", "RMSE", "MAE", "MBE", "R²")
-	fmt.Println("───────────────────────────────────────────────────────────────────────")
+	table := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+	fmt.Fprintln(table, "Сайт\tСила, м\tНапр. волн, °\tRMSE обучения\tMAE обучения\tMBE обучения\tR² обучения")
+	fmt.Fprintln(table, "----\t--------\t--------------\t-------------\t------------\t------------\t------------")
 
 	config := benchmark.DefaultCalibrationConfig()
+	config.MaxDistanceKm = benchMaxDistance
+	config.ValidationFraction = benchValidationFraction
 	config.SpectrumSpreadDeg = spectrumSpread
 
 	for _, site := range sites {
@@ -487,16 +568,17 @@ func runBenchmarkCalibrateAll(cmd *cobra.Command, args []string) error {
 			results, err = benchmark.Calibrate(site, config)
 		}
 		if err != nil || len(results) == 0 {
-			fmt.Printf("%-22s ОШИБКА: %v\n", site.ID, err)
+			fmt.Fprintf(table, "%s\tОШИБКА: %v\n", site.ID, err)
 			continue
 		}
 
 		best := results[0]
-		fmt.Printf("%-22s %-10.1f %-10.0f %-8.3f %-8.3f %+8.3f %-8.3f\n",
+		fmt.Fprintf(table, "%s\t%.1f\t%.0f\t%.3f\t%.3f\t%+.3f\t%.3f\n",
 			site.ID, best.ErosionStrength, best.WaveDirection,
-			best.ValidationMetrics.RMSE, best.ValidationMetrics.MAE,
-			best.ValidationMetrics.MBE, best.ValidationMetrics.RSquared)
+			best.TrainingMetrics.RMSE, best.TrainingMetrics.MAE,
+			best.TrainingMetrics.MBE, best.TrainingMetrics.RSquared)
 	}
+	table.Flush()
 
 	fmt.Println()
 	return nil
@@ -543,13 +625,16 @@ func runBenchmarkAnalyze(cmd *cobra.Command, args []string) error {
 
 	best := analysis.BestFit
 	fmt.Println("═══════════════════════════════════════════════════════════════════════")
-	fmt.Println("  НАИЛУЧШИЕ ПОДХОДЯЩИЕ ПАРАМЕТРЫ")
+	fmt.Println("  ПАРАМЕТРЫ, ВЫБРАННЫЕ НА ОБУЧАЮЩЕЙ ВЫБОРКЕ")
 	fmt.Println("═══════════════════════════════════════════════════════════════════════")
 	fmt.Printf("  Сила эрозии:          %.2f м\n", best.ErosionStrength)
 	fmt.Printf("  Направление волны:    %.1f°\n", best.WaveDirection)
-	fmt.Printf("  RMSE:              %.3f м/год\n", best.ValidationMetrics.RMSE)
-	fmt.Printf("  MAE:               %.3f м/год\n", best.ValidationMetrics.MAE)
-	fmt.Printf("  R²:                %.3f\n", best.ValidationMetrics.RSquared)
+	fmt.Printf("  Взвешенный RMSE обучения: %.3f м/год\n", best.TrainingMetrics.WeightedRMSE)
+	if best.ValidationMetrics.N > 0 {
+		fmt.Printf("  Взвешенный RMSE проверки: %.3f м/год\n", best.ValidationMetrics.WeightedRMSE)
+	} else {
+		fmt.Println("  Проверочная метрика недоступна: после отсева недостаточно точек.")
+	}
 	fmt.Println()
 
 	if benchOutput != "" {

@@ -109,9 +109,9 @@ func sensitivityToStrength(site BenchmarkSite, config CalibrationConfig, bestFit
 
 	for i, v := range values {
 		item := runCalibrationIteration(site, config, v, bestFit.WaveDirection, steps)
-		rmse[i] = item.ValidationMetrics.RMSE
-		mae[i] = item.ValidationMetrics.MAE
-		rSq[i] = item.ValidationMetrics.RSquared
+		rmse[i] = item.TrainingMetrics.RMSE
+		mae[i] = item.TrainingMetrics.MAE
+		rSq[i] = item.TrainingMetrics.RSquared
 	}
 
 	return summarizeSensitivity("erosion_strength_m", values, rmse, mae, rSq)
@@ -135,9 +135,9 @@ func sensitivityToWaveDirection(site BenchmarkSite, config CalibrationConfig, be
 
 	for i, v := range values {
 		item := runCalibrationIteration(site, config, bestFit.ErosionStrength, v, steps)
-		rmse[i] = item.ValidationMetrics.RMSE
-		mae[i] = item.ValidationMetrics.MAE
-		rSq[i] = item.ValidationMetrics.RSquared
+		rmse[i] = item.TrainingMetrics.RMSE
+		mae[i] = item.TrainingMetrics.MAE
+		rSq[i] = item.TrainingMetrics.RSquared
 	}
 
 	return summarizeSensitivity("wave_direction_deg", values, rmse, mae, rSq)
@@ -588,9 +588,9 @@ func sensitivityToStrengthParallel(ctx context.Context, site BenchmarkSite, conf
 
 				results <- sensitivityResultData{
 					index: i,
-					rmse:  item.ValidationMetrics.RMSE,
-					mae:   item.ValidationMetrics.MAE,
-					rSq:   item.ValidationMetrics.RSquared,
+					rmse:  item.TrainingMetrics.RMSE,
+					mae:   item.TrainingMetrics.MAE,
+					rSq:   item.TrainingMetrics.RSquared,
 				}
 			}
 		}(w, startIdx)
@@ -668,9 +668,9 @@ func sensitivityToWaveDirectionParallel(ctx context.Context, site BenchmarkSite,
 
 				results <- sensitivityResultData{
 					index: i,
-					rmse:  item.ValidationMetrics.RMSE,
-					mae:   item.ValidationMetrics.MAE,
-					rSq:   item.ValidationMetrics.RSquared,
+					rmse:  item.TrainingMetrics.RMSE,
+					mae:   item.TrainingMetrics.MAE,
+					rSq:   item.TrainingMetrics.RSquared,
 				}
 			}
 		}(w, startIdx)
