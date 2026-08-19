@@ -9,10 +9,30 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 	"text/tabwriter"
 
 	"github.com/spf13/cobra"
 )
+
+const (
+	parametricScenarioReportSchemaVersion = "2.0"
+	parametricScenarioReportSchemaRef     = "docs/schemas/parametric-scenarios-v2.schema.json"
+	parametricScenarioReportType          = "parametric_impact_amplification"
+	defaultParametricScenarioReportName   = "parametric-scenarios.json"
+)
+
+// parametricScenarioReport задаёт версионированный JSON-контракт отчёта.
+type parametricScenarioReport struct {
+	SchemaVersion string                     `json:"schema_version"`
+	SchemaRef     string                     `json:"schema_ref"`
+	ScenarioType  string                     `json:"scenario_type"`
+	MethodNote    string                     `json:"method_note"`
+	SiteID        string                     `json:"site_id"`
+	Baseline      benchmark.ScenarioResult   `json:"baseline"`
+	Results       []benchmark.ScenarioResult `json:"results"`
+}
 
 var (
 	benchDir                string
@@ -66,7 +86,7 @@ Subcommands:
   cross-validate Проверьте переносимость параметров между эталонными сайтами
   analyze        Полный анализ: калибровка + чувствительность + bootstrap CI
   hotspots       Выявление очагов эрозии вдоль побережья
-  scenarios      Анализ климатических сценариев
+  scenarios      Параметрические сценарии усиления воздействия
   extract        Извлечение сегмента береговой линии по координатам
   create         Создайте новый эталонный сайт`,
 	DisableFlagsInUseLine: true,
@@ -122,8 +142,14 @@ var benchHotspotsCmd = &cobra.Command{
 
 var benchScenariosCmd = &cobra.Command{
 	Use:   "scenarios",
-	Short: "Анализ климатических сценариев",
-	RunE:  runBenchmarkScenarios,
+	Short: "Параметрические сценарии усиления воздействия",
+	Long: `Сравнивает вручную заданные уровни усиления ветрового и штормового воздействия.
+
+Предустановки не являются климатическими траекториями RCP, не используют
+реальные временные ряды волнения и не представляют прогноз для конкретного года.
+JSON-отчёт всегда сохраняется; путь по умолчанию —
+output/benchmark/parametric-scenarios.json.`,
+	RunE: runBenchmarkScenarios,
 }
 
 var benchExtractCmd = &cobra.Command{
@@ -185,7 +211,7 @@ func init() {
 	benchScenariosCmd.Flags().Float64Var(&benchStrength, "erosion-strength", 0, "сила эрозии в метрах")
 	benchScenariosCmd.Flags().Float64Var(&benchWaveDir, "wave-direction", -1, "направление волны в градусах")
 	benchScenariosCmd.Flags().StringVar(&benchBathymetry, "bathymetry", "", "путь к JSON батиметрии")
-	benchScenariosCmd.Flags().StringVar(&benchOutput, "output", "", "путь к выходному файлу")
+	benchScenariosCmd.Flags().StringVar(&benchOutput, "output", "", "имя JSON-отчёта в output/benchmark или абсолютный путь")
 
 	benchCalibrateAllCmd.Flags().StringVar(&benchBathymetry, "bathymetry", "", "путь к JSON батиметрии")
 	benchCalibrateAllCmd.Flags().Float64Var(&benchMaxDistance, "max-distance-km", 5, "максимальное расстояние наблюдения до сегмента береговой линии, км")
@@ -873,8 +899,11 @@ func runBenchmarkScenarios(cmd *cobra.Command, args []string) error {
 		bathymetry = grid
 	}
 
-	fmt.Printf("Анализ сценариев для: %s\n", site.Name)
+	fmt.Printf("Параметрические сценарии усиления воздействия для: %s\n", site.Name)
 	fmt.Printf("Базовые параметры: сила=%.1f м, направление=%.0f°\n\n", benchStrength, benchWaveDir)
+	fmt.Println("Важно: коэффициенты заданы вручную; это не климатические траектории RCP.")
+	fmt.Println("Наборы не содержат реальных временных рядов волнения и распределений штормов.")
+	fmt.Println()
 
 	scenarios := benchmark.DefaultScenarios(benchStrength, benchWaveDir)
 	fmt.Printf("Выполнение %d сценариев...\n\n", len(scenarios))
@@ -884,35 +913,75 @@ func runBenchmarkScenarios(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("выполнение сценариев: %w", err)
 	}
 
-	fmt.Println("═══════════════════════════════════════════════════════════════════════")
-	fmt.Println("  РЕЗУЛЬТАТЫ СЦЕНАРИЕВ")
-	fmt.Println("═══════════════════════════════════════════════════════════════════════")
-	fmt.Printf("%-15s %-8s %-8s %-8s %-8s %-10s %-8s\n",
-		"Сценарий", "Средн", "Макс", "Эрод%", "ГорТч", "ЭродКм", "ΔДлинКм")
-	fmt.Println("───────────────────────────────────────────────────────────────────────")
+	fmt.Println("РЕЗУЛЬТАТЫ ПАРАМЕТРИЧЕСКИХ СЦЕНАРИЕВ")
+	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+	fmt.Fprintln(w, "Сценарий\tСредн\tМакс\tЭрод%\tГорТч\tЭродКм\tΔДлинКм")
+	fmt.Fprintln(w, "----------\t----------\t----------\t----------\t----------\t----------\t----------")
 	for _, r := range results {
-		fmt.Printf("%-15s %6.2f   %6.2f   %5.1f%%  %5d   %8.2f   %+6.2f\n",
+		fmt.Fprintf(w, "%s\t%.2f\t%.2f\t%.1f%%\t%d\t%.2f\t%+.2f\n",
 			r.Config.Name, r.MeanRetreatRate, r.MaxRetreatRate,
 			r.ErodingFraction*100, r.HotspotCount, r.TotalErodedKm, r.CoastChangeKm)
 	}
+	w.Flush()
 	fmt.Println()
 
-	if benchOutput != "" {
-		report := struct {
-			SiteID   string                     `json:"site_id"`
-			Baseline benchmark.ScenarioResult   `json:"baseline"`
-			Results  []benchmark.ScenarioResult `json:"results"`
-		}{
-			SiteID:   site.ID,
-			Baseline: results[0],
-			Results:  results,
-		}
-		data, _ := json.MarshalIndent(report, "", "  ")
-		_ = os.WriteFile(benchOutput, data, 0o644)
-		fmt.Printf("Отчёт о сценариях сохранён в: %s\n", benchOutput)
+	reportPath, err := writeParametricScenarioReport(cli.NewOutputPathManager(""), benchOutput, site.ID, results)
+	if err != nil {
+		return err
 	}
+	fmt.Printf("Отчёт о сценариях сохранён в: %s\n", reportPath)
 
 	return nil
+}
+
+// newParametricScenarioReport формирует отчёт и проверяет наличие базового
+// результата, который всегда должен быть первым в предопределённом наборе.
+func newParametricScenarioReport(siteID string, results []benchmark.ScenarioResult) (parametricScenarioReport, error) {
+	if strings.TrimSpace(siteID) == "" {
+		return parametricScenarioReport{}, fmt.Errorf("сформировать параметрический отчёт: site_id не задан")
+	}
+	if len(results) == 0 {
+		return parametricScenarioReport{}, fmt.Errorf("сформировать параметрический отчёт: отсутствуют результаты сценариев")
+	}
+	if results[0].Config.Name != "baseline" {
+		return parametricScenarioReport{}, fmt.Errorf("сформировать параметрический отчёт: первый результат должен быть baseline")
+	}
+	for _, result := range results {
+		if err := result.Config.Validate(); err != nil {
+			return parametricScenarioReport{}, fmt.Errorf("сформировать параметрический отчёт: сценарий %q: %w", result.Config.Name, err)
+		}
+	}
+	return parametricScenarioReport{
+		SchemaVersion: parametricScenarioReportSchemaVersion,
+		SchemaRef:     parametricScenarioReportSchemaRef,
+		ScenarioType:  parametricScenarioReportType,
+		MethodNote:    "Коэффициенты заданы вручную; результаты не являются климатической траекторией или прогнозом.",
+		SiteID:        siteID,
+		Baseline:      results[0],
+		Results:       results,
+	}, nil
+}
+
+// writeParametricScenarioReport сохраняет отчёт в output/benchmark либо по
+// абсолютному пути, явно заданному пользователем.
+func writeParametricScenarioReport(output *cli.OutputPathManager, requestedPath, siteID string, results []benchmark.ScenarioResult) (string, error) {
+	report, err := newParametricScenarioReport(siteID, results)
+	if err != nil {
+		return "", err
+	}
+	data, err := json.MarshalIndent(report, "", "  ")
+	if err != nil {
+		return "", fmt.Errorf("кодировать параметрический отчёт: %w", err)
+	}
+
+	path := output.ResolveBenchmarkPath(requestedPath, defaultParametricScenarioReportName)
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return "", fmt.Errorf("создать каталог параметрического отчёта %q: %w", filepath.Dir(path), err)
+	}
+	if err := os.WriteFile(path, append(data, '\n'), 0o644); err != nil {
+		return "", fmt.Errorf("сохранить параметрический отчёт %q: %w", path, err)
+	}
+	return path, nil
 }
 
 func runBenchmarkExtract(cmd *cobra.Command, args []string) error {

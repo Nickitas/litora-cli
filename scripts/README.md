@@ -112,32 +112,36 @@ python scripts/analysis/storm_analysis.py output/csv/storm_analysis.csv \
 
 ### Сравнение сценариев
 
-**Задача:** Сравнить влияние разных уровней подъема моря.
+**Задача:** Сравнить влияние вручную заданных уровней усиления воздействия.
+
+Эти примеры являются параметрическими экспериментами. Они не реализуют
+траектории RCP/SSP и не содержат реальных временных рядов волнения или
+откалиброванных распределений штормов.
 
 ```bash
-# Низкий подъем (RCP4.5)
+# Умеренный параметрический подъём
 ./lito model erosion --steps 15 --target-years 50 --years-per-step 3.33 \
-  --sea-level-rise 0.007 --output-csv rcp45_scenario.csv
+  --sea-level-rise 0.007 --output-csv parametric_moderate.csv
 
-# Высокий подъем (RCP8.5)
+# Высокий параметрический подъём
 ./lito model erosion --steps 15 --target-years 50 --years-per-step 3.33 \
-  --sea-level-rise 0.015 --output-csv rcp85_scenario.csv
+  --sea-level-rise 0.015 --output-csv parametric_high.csv
 
 # Сравнение нескольких CSV файлов
-python scripts/analysis/compare_scenarios.py output/csv/rcp45_scenario.csv output/csv/rcp85_scenario.csv
+python scripts/analysis/compare_scenarios.py output/csv/parametric_moderate.csv output/csv/parametric_high.csv
 
 # С heatmap визуализацией
-python scripts/analysis/compare_scenarios.py "output/csv/scenario_*.csv" \
-  --heatmap --output climate_comparison
+python scripts/analysis/compare_scenarios.py "output/csv/parametric_*.csv" \
+  --heatmap --output parametric_comparison
 
 # С текстовым отчетом сравнения
-python scripts/analysis/compare_scenarios.py output/csv/rcp*.csv \
+python scripts/analysis/compare_scenarios.py output/csv/parametric_*.csv \
   --report --output comparison_report.txt
 ```
 
 **Результат:**
-- `climate_comparison.png` — графики сравнения
-- `climate_comparison_heatmap.png` — heatmap визуализация
+- `parametric_comparison.png` — графики сравнения
+- `parametric_comparison_heatmap.png` — heatmap визуализация
 - `comparison_report.txt` — текстовый отчет со статистикой
 - Понимание различий между сценариями
 

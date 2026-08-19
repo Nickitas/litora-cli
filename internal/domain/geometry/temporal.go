@@ -393,13 +393,13 @@ func ValidateTemporalParameters(params TemporalParameters) []string {
 
 	if params.StormProbability > 0.5 {
 		warnings = append(warnings,
-			fmt.Sprintf("Высокая вероятность шторма %.2f (нереалистично для большинства климатов)",
+			fmt.Sprintf("Высокая вручную заданная вероятность шторма %.2f (выше параметрического порога 0.50)",
 				params.StormProbability))
 	}
 
 	if params.SeaLevelRise > 0.01 {
 		warnings = append(warnings,
-			fmt.Sprintf("Высокий подъём уровня моря %.4f м/год (превышает IPCC RCP8.5)",
+			fmt.Sprintf("Высокий вручную заданный подъём уровня моря %.4f м/год (выше параметрического порога 0.0100 м/год)",
 				params.SeaLevelRise))
 	}
 

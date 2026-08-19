@@ -22,7 +22,7 @@
 - [Sensitivity analysis](#sensitivity-analysis)
 - [Bootstrap confidence intervals](#bootstrap-confidence-intervals)
 - [Hotspot analysis](#hotspot-analysis)
-- [Climate scenarios](#climate-scenarios)
+- [Параметрические сценарии усиления воздействия](#параметрические-сценарии-усиления-воздействия)
 - [Метрики качества](#метрики-качества)
 - [Рекомендуемый workflow](#рекомендуемый-workflow)
 
@@ -38,7 +38,8 @@ Litora-CLI реализует исследовательский пайплай�
 4. **Sensitivity analysis** — оценка влияния каждого параметра
 5. **Bootstrap CI** — доверительные интервалы для параметров
 6. **Hotspot analysis** — топ участков максимальной эрозии
-7. **Climate scenarios** — RCP4.5/8.5 для 2050/2100, штормовые события
+7. **Параметрические сценарии усиления воздействия** — вручную заданные
+   множители ветра, подъёма уровня моря и штормового воздействия
 
 ## Быстрый старт
 
@@ -55,7 +56,7 @@ Litora-CLI реализует исследовательский пайплай�
 # 4. Анализ hotspots
 ./lito benchmark hotspots --site=kobuleti-ge --erosion-strength=15 --wave-direction=22
 
-# 5. Climate scenarios
+# 5. Параметрические сценарии усиления воздействия
 ./lito benchmark scenarios --site=kobuleti-ge --erosion-strength=15 --wave-direction=22
 ```
 
@@ -262,7 +263,7 @@ Wave direction (°):
 - Top 5 hotspots с координатами, mean retreat, max retreat, length
 - Общая статистика (% eroding, mean/max retreat)
 
-## Climate scenarios
+## Параметрические сценарии усиления воздействия
 
 ```bash
 ./lito benchmark scenarios \
@@ -272,12 +273,29 @@ Wave direction (°):
   --output=scenarios.json
 ```
 
-5 предопределённых сценариев:
-- **baseline**: текущие условия
-- **rcp45_2050**: RCP4.5 для 2050 (+8% wind, +5mm/yr SLR)
-- **rcp85_2050**: RCP8.5 для 2050 (+17% wind, +8mm/yr SLR)
-- **rcp85_2100**: RCP8.5 для 2100 (+33% wind, +12mm/yr SLR)
-- **storm_surge**: шторм 1-in-100 лет (25 m/s wind)
+Отчёт будет сохранён в `output/benchmark/scenarios.json`. Без `--output`
+используется `output/benchmark/parametric-scenarios.json`.
+Формат имеет версию `2.0` и поле `schema_ref`, указывающее на
+[`schemas/parametric-scenarios-v2.schema.json`](schemas/parametric-scenarios-v2.schema.json).
+Неконечные числа и параметры вне допустимых диапазонов отклоняются до запуска
+модели.
+
+Пять предопределённых наборов:
+
+- **baseline**: базовые условия;
+- **parametric_moderate**: умеренное усиление (+8% к базовой скорости ветра,
+  вручную заданный прокси подъёма уровня моря 5 мм/год);
+- **parametric_high**: сильное усиление (+17% к базовой скорости ветра,
+  вручную заданный прокси 8 мм/год);
+- **parametric_extreme**: экстремальное усиление (+33% к базовой скорости
+  ветра, вручную заданный прокси 12 мм/год);
+- **parametric_storm**: эксперимент сильного штормового воздействия (25 м/с).
+
+Это сценарии чувствительности исторической эвристики, а не климатические
+траектории или прогнозы для конкретных лет. Они не используют реальные
+временные ряды волнения и откалиброванные распределения штормов. Методика,
+ограничения и требования к полноценному климатическому моделированию описаны
+в [`parametric-impact-scenarios.md`](parametric-impact-scenarios.md).
 
 Выводит delta от baseline и hotspot shifts.
 
@@ -320,10 +338,10 @@ Wave direction (°):
   --erosion-strength=15 --wave-direction=22 \
   --output=results/kobuleti_hotspots.json
 
-# 4. Climate projections
+# 4. Параметрические сценарии усиления воздействия
 ./lito benchmark scenarios --site=kobuleti-ge \
   --erosion-strength=15 --wave-direction=22 \
-  --output=results/kobuleti_scenarios.json
+  --output=kobuleti_scenarios.json
 ```
 
 ### Для практического применения
@@ -333,12 +351,12 @@ Wave direction (°):
 ./lito benchmark hotspots --site=YOUR_SITE \
   --erosion-strength=10 --wave-direction=90
 
-# Estimate climate risk
+# Сравнить чувствительность к усилению воздействия
 ./lito benchmark scenarios --site=YOUR_SITE \
   --erosion-strength=10 --wave-direction=90
 
 # Plan mitigation
-# Use hotspot locations + climate projections for coastal protection prioritization
+# Параметрический результат не заменяет климатический или инженерный прогноз
 ```
 
 ## Источники данных

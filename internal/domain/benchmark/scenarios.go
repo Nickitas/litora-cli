@@ -2,23 +2,100 @@ package benchmark
 
 import (
 	"fmt"
+	"math"
 	"sort"
+	"strings"
 
 	"coastal-geometry/internal/domain/geometry"
 )
 
+const (
+	// ScenarioParameterBasisManual обозначает параметры, заданные вручную без
+	// автоматической загрузки внешней климатической траектории.
+	ScenarioParameterBasisManual = "manual"
+)
+
 // ScenarioConfig определяет параметры одного сценария симуляции
 type ScenarioConfig struct {
-	Name             string  `json:"name"`
-	Description      string  `json:"description"`
-	ErosionStrength  float64 `json:"erosion_strength_m"`
-	WaveDirection    float64 `json:"wave_direction_deg"`
-	WindSpeed        float64 `json:"wind_speed_m_per_sec"`
-	SeaLevelRise     float64 `json:"sea_level_rise_m_per_year"`
-	StormProbability float64 `json:"storm_probability_per_step"`
-	StormIntensity   float64 `json:"storm_intensity_multiplier"`
-	YearsPerStep     float64 `json:"years_per_step"`
-	TotalYears       int     `json:"total_years"`
+	Name            string  `json:"name"`
+	Description     string  `json:"description"`
+	ErosionStrength float64 `json:"erosion_strength_m"`
+	WaveDirection   float64 `json:"wave_direction_deg"`
+	WindSpeed       float64 `json:"wind_speed_m_per_sec"`
+	// SeaLevelRiseProxy задаёт вручную выбранный прокси подъёма уровня моря,
+	// который преобразуется в множитель ветрового воздействия.
+	SeaLevelRiseProxy float64 `json:"sea_level_rise_proxy_m_per_year"`
+	// StormWeight задаёт безразмерный вес штормового воздействия в
+	// детерминированной эвристике и не является вероятностью события.
+	StormWeight float64 `json:"storm_weight"`
+	// StormIntensity задаёт вручную выбранный множитель силы воздействия.
+	StormIntensity float64 `json:"storm_intensity_multiplier"`
+	// ParameterBasis указывает способ получения сценарных параметров.
+	ParameterBasis string `json:"parameter_basis"`
+	// Source содержит документированный источник параметров; nil означает,
+	// что внешний источник сценарию не назначен.
+	Source       *string `json:"source"`
+	YearsPerStep float64 `json:"years_per_step"`
+	TotalYears   int     `json:"total_years"`
+}
+
+// Validate проверяет числовые диапазоны и происхождение параметрического
+// сценария до запуска моделирования.
+func (s ScenarioConfig) Validate() error {
+	if strings.TrimSpace(s.Name) == "" {
+		return fmt.Errorf("имя сценария не задано")
+	}
+	if strings.TrimSpace(s.Description) == "" {
+		return fmt.Errorf("описание сценария не задано")
+	}
+	finiteValues := []struct {
+		name  string
+		value float64
+	}{
+		{name: "erosion_strength_m", value: s.ErosionStrength},
+		{name: "wave_direction_deg", value: s.WaveDirection},
+		{name: "wind_speed_m_per_sec", value: s.WindSpeed},
+		{name: "sea_level_rise_proxy_m_per_year", value: s.SeaLevelRiseProxy},
+		{name: "storm_weight", value: s.StormWeight},
+		{name: "storm_intensity_multiplier", value: s.StormIntensity},
+		{name: "years_per_step", value: s.YearsPerStep},
+	}
+	for _, parameter := range finiteValues {
+		if math.IsNaN(parameter.value) || math.IsInf(parameter.value, 0) {
+			return fmt.Errorf("параметр %s должен быть конечным числом", parameter.name)
+		}
+	}
+	if s.ErosionStrength <= 0 {
+		return fmt.Errorf("erosion_strength_m должен быть больше нуля")
+	}
+	if s.WaveDirection < 0 || s.WaveDirection >= 360 {
+		return fmt.Errorf("wave_direction_deg должен находиться в диапазоне [0, 360)")
+	}
+	if s.WindSpeed <= 0 {
+		return fmt.Errorf("wind_speed_m_per_sec должен быть больше нуля")
+	}
+	if s.SeaLevelRiseProxy < 0 {
+		return fmt.Errorf("sea_level_rise_proxy_m_per_year не может быть отрицательным")
+	}
+	if s.StormWeight < 0 || s.StormWeight > 1 {
+		return fmt.Errorf("storm_weight должен находиться в диапазоне [0, 1]")
+	}
+	if s.StormIntensity < 1 {
+		return fmt.Errorf("storm_intensity_multiplier должен быть не меньше 1")
+	}
+	if s.ParameterBasis != ScenarioParameterBasisManual {
+		return fmt.Errorf("parameter_basis должен иметь значение %q", ScenarioParameterBasisManual)
+	}
+	if s.Source != nil && strings.TrimSpace(*s.Source) == "" {
+		return fmt.Errorf("source не может быть пустой строкой")
+	}
+	if s.YearsPerStep <= 0 {
+		return fmt.Errorf("years_per_step должен быть больше нуля")
+	}
+	if s.TotalYears <= 0 {
+		return fmt.Errorf("total_years должен быть больше нуля")
+	}
+	return nil
 }
 
 // ScenarioResult представляет результат выполнения одного сценария
@@ -46,75 +123,84 @@ type ScenarioDiff struct {
 	LostHotspotCount     int            `json:"lost_hotspot_count"`
 }
 
-// DefaultScenarios возвращает предопределённые климатические сценарии для Чёрного моря
-// Это типичные условия плюс прогнозы климатических изменений
+// DefaultScenarios возвращает предопределённые параметрические сценарии
+// усиления воздействия. Их коэффициенты заданы вручную и не представляют
+// климатические траектории RCP или прогнозы для конкретных лет.
 func DefaultScenarios(strength, waveDir float64) []ScenarioConfig {
 	return []ScenarioConfig{
 		{
-			Name:             "baseline",
-			Description:      "Текущие условия (без изменения климата)",
-			ErosionStrength:  strength,
-			WaveDirection:    waveDir,
-			WindSpeed:        12,
-			SeaLevelRise:     0,
-			StormProbability: 0,
-			StormIntensity:   1.0,
-			YearsPerStep:     1.0,
-			TotalYears:       10,
+			Name:              "baseline",
+			Description:       "Базовые вручную заданные условия",
+			ErosionStrength:   strength,
+			WaveDirection:     waveDir,
+			WindSpeed:         12,
+			SeaLevelRiseProxy: 0,
+			StormWeight:       0,
+			StormIntensity:    1.0,
+			ParameterBasis:    ScenarioParameterBasisManual,
+			YearsPerStep:      1.0,
+			TotalYears:        10,
 		},
 		{
-			Name:             "rcp45_2050",
-			Description:      "Сценарий RCP4.5 на 2050 год: умеренное изменение климата",
-			ErosionStrength:  strength,
-			WaveDirection:    waveDir,
-			WindSpeed:        13,    // +8% ветра к 2050 году
-			SeaLevelRise:     0.005, // 5мм/год
-			StormProbability: 0.1,
-			StormIntensity:   1.2,
-			YearsPerStep:     1.0,
-			TotalYears:       10,
+			Name:              "parametric_moderate",
+			Description:       "Умеренное параметрическое усиление воздействия",
+			ErosionStrength:   strength,
+			WaveDirection:     waveDir,
+			WindSpeed:         13,    // вручную заданное усиление ветра примерно на 8%
+			SeaLevelRiseProxy: 0.005, // вручную заданные 5 мм/год
+			StormWeight:       0.1,
+			StormIntensity:    1.2,
+			ParameterBasis:    ScenarioParameterBasisManual,
+			YearsPerStep:      1.0,
+			TotalYears:        10,
 		},
 		{
-			Name:             "rcp85_2050",
-			Description:      "Сценарий RCP8.5 на 2050 год: высокий уровень выбросов",
-			ErosionStrength:  strength,
-			WaveDirection:    waveDir,
-			WindSpeed:        14,    // +17% ветра
-			SeaLevelRise:     0.008, // 8мм/год
-			StormProbability: 0.15,
-			StormIntensity:   1.5,
-			YearsPerStep:     1.0,
-			TotalYears:       10,
+			Name:              "parametric_high",
+			Description:       "Сильное параметрическое усиление воздействия",
+			ErosionStrength:   strength,
+			WaveDirection:     waveDir,
+			WindSpeed:         14,    // вручную заданное усиление ветра примерно на 17%
+			SeaLevelRiseProxy: 0.008, // вручную заданные 8 мм/год
+			StormWeight:       0.15,
+			StormIntensity:    1.5,
+			ParameterBasis:    ScenarioParameterBasisManual,
+			YearsPerStep:      1.0,
+			TotalYears:        10,
 		},
 		{
-			Name:             "rcp85_2100",
-			Description:      "Сценарий RCP8.5 на 2100 год: экстремальное потепление",
-			ErosionStrength:  strength,
-			WaveDirection:    waveDir,
-			WindSpeed:        16,    // +33% ветра
-			SeaLevelRise:     0.012, // 12мм/год
-			StormProbability: 0.2,
-			StormIntensity:   2.0,
-			YearsPerStep:     1.0,
-			TotalYears:       10,
+			Name:              "parametric_extreme",
+			Description:       "Экстремальное параметрическое усиление воздействия",
+			ErosionStrength:   strength,
+			WaveDirection:     waveDir,
+			WindSpeed:         16,    // вручную заданное усиление ветра примерно на 33%
+			SeaLevelRiseProxy: 0.012, // вручную заданные 12 мм/год
+			StormWeight:       0.2,
+			StormIntensity:    2.0,
+			ParameterBasis:    ScenarioParameterBasisManual,
+			YearsPerStep:      1.0,
+			TotalYears:        10,
 		},
 		{
-			Name:             "storm_surge",
-			Description:      "Крупное событие штормового нагона (1 раз в 100 лет)",
-			ErosionStrength:  strength,
-			WaveDirection:    waveDir,
-			WindSpeed:        25, // экстремальный ветер
-			SeaLevelRise:     0.0,
-			StormProbability: 0.5,
-			StormIntensity:   3.0,
-			YearsPerStep:     1.0,
-			TotalYears:       10,
+			Name:              "parametric_storm",
+			Description:       "Параметрический эксперимент сильного штормового воздействия",
+			ErosionStrength:   strength,
+			WaveDirection:     waveDir,
+			WindSpeed:         25, // вручную заданное сильное ветровое воздействие
+			SeaLevelRiseProxy: 0.0,
+			StormWeight:       0.5,
+			StormIntensity:    3.0,
+			ParameterBasis:    ScenarioParameterBasisManual,
+			YearsPerStep:      1.0,
+			TotalYears:        10,
 		},
 	}
 }
 
 // RunScenario выполняет один сценарий и возвращает его результаты
 func RunScenario(site BenchmarkSite, scenario ScenarioConfig, bathymetry *geometry.BathymetryGrid) (ScenarioResult, error) {
+	if err := scenario.Validate(); err != nil {
+		return ScenarioResult{}, fmt.Errorf("некорректный сценарий %q: %w", scenario.Name, err)
+	}
 	if len(site.Coastline) < 3 {
 		return ScenarioResult{}, fmt.Errorf("на участке %q слишком мало точек береговой линии", site.ID)
 	}
@@ -137,12 +223,11 @@ func RunScenario(site BenchmarkSite, scenario ScenarioConfig, bathymetry *geomet
 		BathymetryGrid:           bathymetry,
 	}
 
-	// Примечание: параметры SLR и штормов влияют на базовую линию; основная модель использует их как
-	// модификаторы при расчёте отступления. В настоящее время мы кодируем их как множители скорости ветра,
-	// т.к. базовая модель ещё не имеет прямой поддержки SLR.
-	// TODO: Когда модель будет иметь поля SLR/штормов, передавать их напрямую
-	stormEffect := 1.0 + scenario.StormProbability*(scenario.StormIntensity-1.0)
-	slrEffect := 1.0 + scenario.SeaLevelRise*float64(scenario.TotalYears)*0.5
+	// Прокси уровня моря и вес штормового воздействия не создают временные ряды
+	// или случайные события: историческая эвристика преобразует их в
+	// детерминированные множители скорости ветра.
+	stormEffect := 1.0 + scenario.StormWeight*(scenario.StormIntensity-1.0)
+	slrEffect := 1.0 + scenario.SeaLevelRiseProxy*float64(scenario.TotalYears)*0.5
 	options.WindSpeedMetersPerSecond *= stormEffect * slrEffect
 	if options.WindSpeedMetersPerSecond < 1 {
 		options.WindSpeedMetersPerSecond = 1
