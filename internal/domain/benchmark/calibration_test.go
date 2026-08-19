@@ -100,10 +100,20 @@ func TestPrepareComparisonLocationsHonorsMaximumDistance(t *testing.T) {
 func TestPrepareComparisonLocationsRejectsInvalidObservationPeriod(t *testing.T) {
 	coastline := []geometry.LatLon{{Lat: 0, Lon: 0}, {Lat: 0, Lon: 0.1}, {Lat: 0, Lon: 0.2}}
 	_, summary := prepareComparisonLocations(coastline, []ErosionObservation{{
-		LatLon: geometry.LatLon{Lat: 0, Lon: 0.05}, StartDate: "2022-01-01", EndDate: "2021-01-01",
+		LatLon: geometry.LatLon{Lat: 0, Lon: 0.05}, StartDate: "2022-01-01", EndDate: "2021-01-01", Uncertainty: 0.2,
 	}}, CalibrationConfig{MaxDistanceKm: 1})
 	if summary.ExcludedInvalidPeriod != 1 || len(summary.Diagnostics) != 1 || summary.Diagnostics[0].Reason == "" {
 		t.Errorf("неверная диагностика периода: %+v", summary)
+	}
+}
+
+func TestPrepareComparisonLocationsRejectsMissingUncertainty(t *testing.T) {
+	coastline := []geometry.LatLon{{Lat: 0, Lon: 0}, {Lat: 0, Lon: 0.1}, {Lat: 0, Lon: 0.2}}
+	_, summary := prepareComparisonLocations(coastline, []ErosionObservation{{
+		LatLon: geometry.LatLon{Lat: 0, Lon: 0.05}, StartDate: "2020-01-01", EndDate: "2021-01-01", Uncertainty: 0,
+	}}, CalibrationConfig{MaxDistanceKm: 1})
+	if summary.ExcludedInvalidUncertainty != 1 || len(summary.Diagnostics) != 1 {
+		t.Errorf("неверная диагностика неопределённости: %+v", summary)
 	}
 }
 
@@ -132,8 +142,8 @@ func TestWeightedRMSEUsesObservationUncertainty(t *testing.T) {
 	if metrics.WeightedRMSE < 0.99 || metrics.WeightedRMSE > 1.01 {
 		t.Errorf("взвешенный RMSE = %.3f, требуется около 1", metrics.WeightedRMSE)
 	}
-	if !metrics.InferenceAllowed {
-		t.Error("для трёх и более точек статистический вывод должен быть доступен")
+	if metrics.InferenceAllowed {
+		t.Error("для трёх точек статистический вывод не должен быть доступен")
 	}
 }
 

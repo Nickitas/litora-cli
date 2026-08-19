@@ -89,16 +89,18 @@ type ComparisonPoint struct {
 // MatchingSummary фиксирует, какие наблюдения были допущены к сравнению.
 // Наблюдения дальше MaxDistanceKm исключаются до подбора параметров.
 type MatchingSummary struct {
-	Candidates             int                  `json:"candidates"`
-	Accepted               int                  `json:"accepted"`
-	ExcludedByDistance     int                  `json:"excluded_by_distance"`
-	ExcludedInvalidPeriod  int                  `json:"excluded_invalid_period"`
-	MaxDistanceKm          float64              `json:"max_distance_km"`
-	MaximumMatchedKm       float64              `json:"maximum_matched_distance_km"`
-	UniqueCoastSegments    int                  `json:"unique_coast_segments"`
-	TrainingObservations   int                  `json:"training_observations"`
-	ValidationObservations int                  `json:"validation_observations"`
-	Diagnostics            []MatchingDiagnostic `json:"diagnostics"`
+	Candidates                 int                  `json:"candidates"`
+	Accepted                   int                  `json:"accepted"`
+	ExcludedByDistance         int                  `json:"excluded_by_distance"`
+	ExcludedInvalidPeriod      int                  `json:"excluded_invalid_period"`
+	ExcludedInvalidUncertainty int                  `json:"excluded_invalid_uncertainty"`
+	MaxDistanceKm              float64              `json:"max_distance_km"`
+	MaximumMatchedKm           float64              `json:"maximum_matched_distance_km"`
+	UniqueCoastSegments        int                  `json:"unique_coast_segments"`
+	TrainingObservations       int                  `json:"training_observations"`
+	ValidationObservations     int                  `json:"validation_observations"`
+	Warnings                   []string             `json:"warnings,omitempty"`
+	Diagnostics                []MatchingDiagnostic `json:"diagnostics"`
 }
 
 // MatchingDiagnostic описывает результат проверки одного исходного наблюдения.
@@ -109,6 +111,7 @@ type MatchingDiagnostic struct {
 	StartDate         string          `json:"start_date"`
 	EndDate           string          `json:"end_date"`
 	ObservationYears  float64         `json:"observation_years"`
+	Uncertainty       float64         `json:"uncertainty_m_per_year"`
 	DistanceToCoastKm float64         `json:"distance_to_coast_km"`
 	CoastSegment      int             `json:"coast_segment"`
 	SegmentPosition   float64         `json:"segment_position"`
@@ -570,6 +573,14 @@ func prepareComparisonLocations(coastline []geometry.LatLon, observations []Eros
 			ObservationIndex: i, LatLon: observation.LatLon,
 			StartDate: observation.StartDate, EndDate: observation.EndDate,
 		}
+		diagnostic.Uncertainty = observation.Uncertainty
+		if observation.Uncertainty <= 0 {
+			summary.ExcludedInvalidUncertainty++
+			diagnostic.Status = "исключено"
+			diagnostic.Reason = "неопределённость скорости должна быть больше нуля"
+			summary.Diagnostics = append(summary.Diagnostics, diagnostic)
+			continue
+		}
 		years, err := observationPeriodYears(observation)
 		if err != nil {
 			summary.ExcludedInvalidPeriod++
@@ -639,7 +650,25 @@ func prepareComparisonLocations(coastline []geometry.LatLon, observations []Eros
 		}
 	}
 	summary.Accepted, summary.UniqueCoastSegments = len(comparisons), len(segments)
+	summary.Warnings = matchingWarnings(summary, config.ValidationFraction)
 	return comparisons, summary
+}
+
+func matchingWarnings(summary MatchingSummary, validationFraction float64) []string {
+	var warnings []string
+	if summary.Accepted < 4 {
+		warnings = append(warnings, "после контроля качества осталось меньше четырёх наблюдений: пространственная проверка не сформируется")
+	}
+	if summary.Accepted > 0 && summary.UniqueCoastSegments < summary.Accepted {
+		warnings = append(warnings, "несколько наблюдений проецируются на один сегмент: они пространственно зависимы")
+	}
+	if summary.MaximumMatchedKm > 1 {
+		warnings = append(warnings, "есть принятые наблюдения дальше 1 км от береговой линии; проверьте геопривязку и обоснованность --max-distance-km")
+	}
+	if validationFraction > 0 && summary.ValidationObservations == 0 {
+		warnings = append(warnings, "отложенная проверка не сформирована из-за недостаточного числа принятых наблюдений")
+	}
+	return warnings
 }
 
 // observationPeriodYears возвращает длительность наблюдения по датам ISO 8601.
@@ -829,7 +858,9 @@ func computeValidationMetricsWithTests(comparisons []ComparisonPoint, tests int)
 		tests = 1
 	}
 	adjustedPValue := math.Min(1, pValue*float64(tests))
-	inferenceAllowed := n >= 3
+	// Точный t-критерий вычисляется и для меньшего n, но при менее чем десяти
+	// наблюдениях его нельзя выдавать за надёжный статистический вывод.
+	inferenceAllowed := n >= 10
 	significant := inferenceAllowed && adjustedPValue < 0.05
 
 	return ValidationMetrics{

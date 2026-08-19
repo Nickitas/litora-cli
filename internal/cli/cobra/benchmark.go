@@ -63,6 +63,7 @@ Subcommands:
   show           Показывать подробную информацию о сайте
   calibrate      Откалибруйте параметры модели для сайта
   calibrate-all  Выполните калибровку всех узлов и подготовьте сводный отчет
+  cross-validate Проверьте переносимость параметров между эталонными сайтами
   analyze        Полный анализ: калибровка + чувствительность + bootstrap CI
   hotspots       Выявление очагов эрозии вдоль побережья
   scenarios      Анализ климатических сценариев
@@ -99,6 +100,12 @@ var benchCalibrateAllCmd = &cobra.Command{
 	Use:   "calibrate-all",
 	Short: "Выполните калибровку всех узлов и подготовьте сводный отчет",
 	RunE:  runBenchmarkCalibrateAll,
+}
+
+var benchCrossValidateCmd = &cobra.Command{
+	Use:   "cross-validate",
+	Short: "Проверить параметры на полностью исключённом эталонном сайте",
+	RunE:  runBenchmarkCrossValidate,
 }
 
 var benchAnalyzeCmd = &cobra.Command{
@@ -143,6 +150,7 @@ func init() {
 	benchmarkCmd.AddCommand(benchShowCmd)
 	benchmarkCmd.AddCommand(benchCalibrateCmd)
 	benchmarkCmd.AddCommand(benchCalibrateAllCmd)
+	benchmarkCmd.AddCommand(benchCrossValidateCmd)
 
 	// Analysis commands
 	benchmarkCmd.AddCommand(benchAnalyzeCmd)
@@ -184,6 +192,12 @@ func init() {
 	benchCalibrateAllCmd.Flags().Float64Var(&benchValidationFraction, "validation-fraction", 0.25, "доля пространственно отложенных наблюдений для проверки")
 	benchCalibrateAllCmd.Flags().StringVar(&benchOutput, "output", "", "каталог для вывода")
 	benchCalibrateAllCmd.Flags().Float64Var(&spectrumSpread, "spectrum-spread", 0, "направленный разброс волнового спектра в градусах")
+
+	benchCrossValidateCmd.Flags().StringVar(&benchBathymetry, "bathymetry", "", "путь к JSON батиметрии")
+	benchCrossValidateCmd.Flags().Float64Var(&benchMaxDistance, "max-distance-km", 5, "максимальное расстояние наблюдения до сегмента береговой линии, км")
+	benchCrossValidateCmd.Flags().Float64Var(&benchValidationFraction, "validation-fraction", 0.25, "доля пространственно отложенных наблюдений в локальной диагностике")
+	benchCrossValidateCmd.Flags().Float64Var(&spectrumSpread, "spectrum-spread", 0, "направленный разброс волнового спектра в градусах")
+	benchCrossValidateCmd.Flags().StringVar(&benchOutput, "output", "", "путь к JSON-отчёту")
 
 	// Extract flags
 	benchExtractCmd.Flags().StringVar(&benchInput, "input", coastline.DefaultCoastlineJSONPath, "путь к JSON береговой линии")
@@ -425,7 +439,13 @@ func runBenchmarkCalibrate(cmd *cobra.Command, args []string) error {
 	fmt.Printf("  ЛУЧШАЯ ПОДГОНКА ПО ОБУЧАЮЩИМ ДАННЫМ: erosion-strength=%.1f м, wave-direction=%.0f°\n", best.ErosionStrength, best.WaveDirection)
 	fmt.Println("═══════════════════════════════════════════════════════════════════════")
 	fmt.Printf("  Наблюдений принято/исключено: %d/%d (предел %.2f км, максимум %.2f км)\n",
-		best.Matching.Accepted, best.Matching.ExcludedByDistance, best.Matching.MaxDistanceKm, best.Matching.MaximumMatchedKm)
+		best.Matching.Accepted, best.Matching.ExcludedByDistance+best.Matching.ExcludedInvalidPeriod+best.Matching.ExcludedInvalidUncertainty, best.Matching.MaxDistanceKm, best.Matching.MaximumMatchedKm)
+	if len(best.Matching.Warnings) > 0 {
+		fmt.Println("  Предупреждения контроля качества:")
+		for _, warning := range best.Matching.Warnings {
+			fmt.Printf("  • %s\n", warning)
+		}
+	}
 	fmt.Printf("  Взвешенный RMSE обучения: %.3f м/год (%d точек)\n", best.TrainingMetrics.WeightedRMSE, best.TrainingMetrics.N)
 	if best.ValidationMetrics.N > 0 {
 		fmt.Printf("  Взвешенный RMSE проверки: %.3f м/год (%d точек)\n", best.ValidationMetrics.WeightedRMSE, best.ValidationMetrics.N)
@@ -503,12 +523,12 @@ func writeBenchmarkCalibrationArtifacts(site benchmark.BenchmarkSite, config ben
 	}
 	defer file.Close()
 	table := tabwriter.NewWriter(file, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(table, "Индекс\tШирота\tДолгота\tНачало\tКонец\tПериод, лет\tДистанция, км\tСегмент\tПоложение на сегменте\tВыборка\tСтатус\tПричина")
-	fmt.Fprintln(table, "-----\t------\t-------\t------\t-----\t-----------\t-------------\t-------\t---------------------\t--------\t------\t-------")
+	fmt.Fprintln(table, "Индекс\tШирота\tДолгота\tНачало\tКонец\tПериод, лет\tНеопределённость, м/год\tДистанция, км\tСегмент\tПоложение на сегменте\tВыборка\tСтатус\tПричина")
+	fmt.Fprintln(table, "-----\t------\t-------\t------\t-----\t-----------\t------------------------\t-------------\t-------\t---------------------\t--------\t------\t-------")
 	for _, diagnostic := range best.Matching.Diagnostics {
-		fmt.Fprintf(table, "%d\t%.6f\t%.6f\t%s\t%s\t%.3f\t%.3f\t%d\t%.5f\t%s\t%s\t%s\n",
+		fmt.Fprintf(table, "%d\t%.6f\t%.6f\t%s\t%s\t%.3f\t%.3f\t%.3f\t%d\t%.5f\t%s\t%s\t%s\n",
 			diagnostic.ObservationIndex, diagnostic.LatLon.Lat, diagnostic.LatLon.Lon,
-			diagnostic.StartDate, diagnostic.EndDate, diagnostic.ObservationYears,
+			diagnostic.StartDate, diagnostic.EndDate, diagnostic.ObservationYears, diagnostic.Uncertainty,
 			diagnostic.DistanceToCoastKm, diagnostic.CoastSegment, diagnostic.SegmentPosition,
 			diagnostic.Split, diagnostic.Status, diagnostic.Reason)
 	}
@@ -582,6 +602,109 @@ func runBenchmarkCalibrateAll(cmd *cobra.Command, args []string) error {
 
 	fmt.Println()
 	return nil
+}
+
+// runBenchmarkCrossValidate выполняет leave-one-site-out проверку: один сайт
+// полностью исключается из выбора параметров и применяется только для оценки.
+func runBenchmarkCrossValidate(cmd *cobra.Command, args []string) error {
+	repo := benchmark.NewRepository(benchDir)
+	sites, err := repo.LoadAll()
+	if err != nil {
+		return fmt.Errorf("загрузка эталонных сайтов: %w", err)
+	}
+	if len(sites) < 2 {
+		return fmt.Errorf("для межсайтовой проверки нужны как минимум два эталонных сайта")
+	}
+
+	if benchBathymetry == "" {
+		if _, err := os.Stat("data/black-sea-bathymetry.json"); err == nil {
+			benchBathymetry = "data/black-sea-bathymetry.json"
+		}
+	}
+	var bathymetry *geometry.BathymetryGrid
+	if benchBathymetry != "" {
+		data, err := os.ReadFile(benchBathymetry)
+		if err != nil {
+			return fmt.Errorf("чтение файла батиметрии: %w", err)
+		}
+		bathymetry, err = geometry.LoadBathymetryFromJSON(data, geometry.BathymetryLoadOptions{})
+		if err != nil {
+			return fmt.Errorf("загрузка батиметрии: %w", err)
+		}
+	}
+
+	config := benchmark.DefaultCalibrationConfig()
+	config.MaxDistanceKm = benchMaxDistance
+	config.ValidationFraction = benchValidationFraction
+	config.SpectrumSpreadDeg = spectrumSpread
+	config.BathymetryGrid = bathymetry
+
+	fmt.Printf("Межсайтовая проверка: %d эталонов, %d комбинаций параметров\n", len(sites), len(config.ErosionStrengths)*len(config.WaveDirections))
+	result, err := benchmark.CrossValidateSites(sites, config)
+	if err != nil {
+		return fmt.Errorf("межсайтовая проверка не удалась: %w", err)
+	}
+
+	fmt.Println("═══════════════════════════════════════════════════════════════════════")
+	fmt.Println("  МЕЖСАЙТОВАЯ ПРОВЕРКА: ИСКЛЮЧЁННЫЙ САЙТ НЕ УЧАСТВУЕТ В ПОДБОРЕ")
+	fmt.Println("═══════════════════════════════════════════════════════════════════════")
+	table := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+	fmt.Fprintln(table, "Исключённый сайт\tСила, м\tНапр. волн, °\tВзвешенный RMSE обучения\tВзвешенный RMSE внешней проверки\tТочек внешней проверки")
+	fmt.Fprintln(table, "----------------\t--------\t--------------\t-------------------------\t---------------------------------\t------------------------")
+	for _, fold := range result.Folds {
+		fmt.Fprintf(table, "%s\t%.1f\t%.1f\t%.3f\t%.3f\t%d\n",
+			fold.HeldOutSiteID, fold.ErosionStrength, fold.WaveDirection,
+			fold.TrainingMetrics.WeightedRMSE, fold.ExternalMetrics.WeightedRMSE, fold.ExternalMetrics.N)
+	}
+	table.Flush()
+	fmt.Printf("Общий взвешенный RMSE внешней проверки: %.3f м/год (%d точек)\n",
+		result.PooledExternalMetrics.WeightedRMSE, result.PooledExternalMetrics.N)
+	for _, warning := range result.Warnings {
+		fmt.Printf("Предупреждение: %s\n", warning)
+	}
+	for _, skipped := range result.SkippedSites {
+		fmt.Printf("Пропущен сайт %s: %s\n", skipped.SiteID, skipped.Reason)
+	}
+
+	path, err := writeCrossSiteValidationReport(result, config, benchOutput)
+	if err != nil {
+		return fmt.Errorf("сохранение отчёта межсайтовой проверки: %w", err)
+	}
+	fmt.Printf("Отчёт межсайтовой проверки сохранён в: %s\n", path)
+	return nil
+}
+
+// writeCrossSiteValidationReport сохраняет воспроизводимый JSON-отчёт в output/metrics/.
+func writeCrossSiteValidationReport(result benchmark.CrossSiteValidationResult, config benchmark.CalibrationConfig, requestedPath string) (string, error) {
+	output := cli.NewOutputPathManager("")
+	if err := output.EnsureDirectories(); err != nil {
+		return "", err
+	}
+	report := struct {
+		Config struct {
+			MaxDistanceKm      float64 `json:"max_distance_km"`
+			ValidationFraction float64 `json:"validation_fraction"`
+			SpectrumSpreadDeg  float64 `json:"spectrum_spread_deg"`
+			UsesBathymetry     bool    `json:"uses_bathymetry"`
+		} `json:"config"`
+		Result benchmark.CrossSiteValidationResult `json:"result"`
+	}{Result: result}
+	report.Config.MaxDistanceKm = config.MaxDistanceKm
+	report.Config.ValidationFraction = config.ValidationFraction
+	report.Config.SpectrumSpreadDeg = config.SpectrumSpreadDeg
+	report.Config.UsesBathymetry = config.BathymetryGrid != nil
+	path := output.MetricsPath("benchmark-cross-validation.json")
+	if requestedPath != "" {
+		path = output.ResolveUserPath(requestedPath, "metrics")
+	}
+	data, err := json.MarshalIndent(report, "", "  ")
+	if err != nil {
+		return "", fmt.Errorf("сериализация JSON: %w", err)
+	}
+	if err := os.WriteFile(path, data, 0o644); err != nil {
+		return "", fmt.Errorf("запись JSON: %w", err)
+	}
+	return path, nil
 }
 
 func runBenchmarkAnalyze(cmd *cobra.Command, args []string) error {
