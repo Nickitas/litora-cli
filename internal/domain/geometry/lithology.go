@@ -7,6 +7,7 @@ import (
 	"math"
 	"os"
 	"runtime"
+	"strings"
 	"sync"
 	"time"
 )
@@ -25,14 +26,19 @@ type LithologyProfile struct {
 
 // LithologyMetadata содержит метаданные профиля
 type LithologyMetadata struct {
-	Name       string   `json:"name"`
-	Version    string   `json:"version"`
-	Created    string   `json:"created"`
-	Sources    []string `json:"sources"`
-	Resolution float64  `json:"resolution"`
-	Bounds     Bounds   `json:"bounds"`
-	Regions    []string `json:"regions"`
-	Note       string   `json:"note,omitempty"`
+	Name                   string   `json:"name"`
+	Version                string   `json:"version"`
+	Status                 string   `json:"status,omitempty"` // уровень подтверждения профиля
+	Created                string   `json:"created"`
+	RepositoryFirstCommit  string   `json:"repository_first_commit,omitempty"` // первое появление файла в Git
+	Sources                []string `json:"sources"`
+	Resolution             float64  `json:"resolution"`
+	Bounds                 Bounds   `json:"bounds"`
+	Regions                []string `json:"regions"`
+	EmpiricalValidation    string   `json:"empirical_validation,omitempty"`     // статус независимой проверки
+	ContainsInferredValues bool     `json:"contains_inferred_values,omitempty"` // наличие гипотетических точек
+	UsageLimitations       []string `json:"usage_limitations,omitempty"`        // ограничения научного применения
+	Note                   string   `json:"note,omitempty"`
 }
 
 // Bounds представляет географические границы
@@ -239,6 +245,36 @@ func LoadLithologyProfileFromFile(path string) (*LithologyProfile, error) {
 		return nil, fmt.Errorf("чтение литологического файла %q: %w", path, err)
 	}
 	return LoadLithologyProfile(data)
+}
+
+// QualityWarnings возвращает ограничения качества литологического профиля,
+// которые необходимо показывать перед использованием в расчёте.
+func (p *LithologyProfile) QualityWarnings() []string {
+	if p == nil {
+		return nil
+	}
+
+	warnings := make([]string, 0, 3)
+	version := strings.ToLower(p.Metadata.Version)
+	status := strings.ToLower(p.Metadata.Status)
+	validation := strings.ToLower(p.Metadata.EmpiricalValidation)
+	if strings.Contains(version, "alpha") || status != "validated_empirical" {
+		warnings = append(warnings, fmt.Sprintf("литологический профиль %q имеет статус %q и не является подтверждённой эмпирической картой", p.Metadata.Name, p.Metadata.Status))
+	}
+	if validation != "validated" {
+		warnings = append(warnings, "литологические классы и коэффициенты сопротивления не прошли независимую эмпирическую валидацию")
+	}
+
+	inferredCount := 0
+	for _, point := range p.Points {
+		if strings.EqualFold(strings.TrimSpace(point.Source), "inferred") {
+			inferredCount++
+		}
+	}
+	if inferredCount > 0 || p.Metadata.ContainsInferredValues {
+		warnings = append(warnings, fmt.Sprintf("профиль содержит inferred-значения: %d из %d точек", inferredCount, len(p.Points)))
+	}
+	return warnings
 }
 
 // validateLithologyProfile валидирует литологический профиль

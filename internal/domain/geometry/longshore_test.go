@@ -67,7 +67,11 @@ func TestRunLongshoreCERCAccountsForBoundaryFlux(t *testing.T) {
 
 func TestRunLongshoreCERCReportsInputQuality(t *testing.T) {
 	points := []LatLon{{Lat: 0, Lon: 0}, {Lat: 0, Lon: 0.005}, {Lat: 0.002, Lon: 0.01}, {Lat: 0, Lon: 0.015}}
-	result, err := RunLongshoreCERC(points, WaveClimate{Source: "проверочный ряд", Conditions: []WaveCondition{{DurationHours: 3, SignificantWaveHeightM: 1.5, PeakPeriodSeconds: 6, DirectionFromDeg: 0}}}, testLongshoreConfig(t))
+	config := testLongshoreConfig(t)
+	config.BathymetrySHA256 = "abc123"
+	config.BathymetryPassport = "bathymetry.metadata.json"
+	config.BathymetryStatus = BathymetryStatusVerifiedDerived
+	result, err := RunLongshoreCERC(points, WaveClimate{Source: "проверочный ряд", Conditions: []WaveCondition{{DurationHours: 3, SignificantWaveHeightM: 1.5, PeakPeriodSeconds: 6, DirectionFromDeg: 0}}}, config)
 	if err != nil {
 		t.Fatalf("RunLongshoreCERC вернула ошибку: %v", err)
 	}
@@ -76,6 +80,9 @@ func TestRunLongshoreCERCReportsInputQuality(t *testing.T) {
 	}
 	if result.InputQuality.Bathymetry.SampleCount == 0 {
 		t.Fatal("должны быть учтены использованные батиметрические выборки")
+	}
+	if result.BathymetrySHA256 != config.BathymetrySHA256 || result.BathymetryPassport != config.BathymetryPassport || result.BathymetryStatus != config.BathymetryStatus {
+		t.Fatalf("происхождение батиметрии не перенесено в результат: %+v", result)
 	}
 }
 

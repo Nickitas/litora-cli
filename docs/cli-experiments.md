@@ -9,9 +9,11 @@
 
 Если указан `--lithology`, профиль включается автоматически. Флаг
 `--enable-lithology` включает профиль по умолчанию
-`data/black-sea-lithology.json`, если путь не задан. Батиметрия без явного
-пути автоматически берётся из `data/black-sea-bathymetry.json`, если файл
-существует.
+`data/black-sea-lithology.json`, если путь не задан. Этот профиль имеет статус
+`alpha_inferred`, не является подтверждённой эмпирической картой и вызывает
+явное предупреждение. Батиметрия без явного пути больше не подставляется.
+Рядом с переданным JSON ожидается паспорт `.metadata.json`; его SHA-256 и
+число точек проверяются до расчёта.
 
 ## Временная динамика в `all`
 
@@ -31,7 +33,7 @@
 
 ```bash
 ./lito erosion \
-  --bathymetry data/black-sea-bathymetry.json \
+  --bathymetry output/source/black-sea-bathymetry-gebco2026-0.01deg-derived.json \
   --lithology data/black-sea-lithology.json \
   --output-csv erosion.csv \
   --output-gif erosion.gif

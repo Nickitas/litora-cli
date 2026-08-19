@@ -212,7 +212,7 @@ RMSE. Она не использует историческую эвристик
 ```bash
 ./lito erosion \
   --input /путь/к/локальному-сегменту.geojson \
-  --bathymetry data/black-sea-bathymetry.json \
+  --bathymetry output/source/black-sea-bathymetry-gebco2026-0.01deg-derived.json \
   --wave-input /путь/к/black-sea-wave-climate.json \
   --breaking-index 0.78 \
   --berm-height 2 \
@@ -231,6 +231,11 @@ RMSE. Она не использует историческую эвристик
 Сочи, сохраняет файлы и манифест в `data/black-sea/sochi/`. Режим намеренно
 ограничен технической демонстрацией и не заменяет детальную батиметрическую
 съёмку.
+
+Для исследовательского набора рядом с батиметрическим JSON обязателен паспорт
+`.metadata.json`. Формат, проверка SHA-256 и отличие целевого шага 0,01° от
+официальной сетки GEBCO 15 угловых секунд описаны в
+[`docs/data-provenance.md`](data-provenance.md).
 
 Для выбора другого моря или озера РФ сначала выполните `./lito waterbody list`.
 Если водоём имеет статус «требуются данные пользователя», передайте его

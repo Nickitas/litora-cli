@@ -191,6 +191,7 @@ func runAll(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
+	printModelInputWarnings(modelInputs)
 	if modelInputs.BathymetryGrid != nil {
 		fmt.Printf("✓ Батиметрия загружена: %s (%d точек, шаг %.6f°)\n", modelInputs.BathymetryPath, len(modelInputs.BathymetryGrid.Points), modelInputs.BathymetryGrid.Resolution)
 	}
@@ -244,6 +245,9 @@ func runAll(cmd *cobra.Command, args []string) error {
 	model, err := geometry.RunLongshoreCERC(modelBase, climate, geometry.LongshoreModelConfig{
 		Bathymetry:                modelInputs.BathymetryGrid,
 		BathymetrySource:          modelInputs.BathymetryPath,
+		BathymetrySHA256:          modelInputs.BathymetrySHA256,
+		BathymetryPassport:        modelInputs.BathymetryPassportPath,
+		BathymetryStatus:          modelInputs.BathymetryStatus,
 		WaterbodyID:               allWaterbody,
 		SedimentSources:           sedimentSources,
 		Structures:                structures,

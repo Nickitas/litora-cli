@@ -112,6 +112,7 @@ func runCERCCalibration(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
+	printModelInputWarnings(inputs)
 	climate, err := geometry.LoadWaveClimate(cercCalibrationWaveInput, cercCalibrationWaveSource)
 	if err != nil {
 		return err
@@ -131,6 +132,9 @@ func runCERCCalibration(cmd *cobra.Command, args []string) error {
 	modelConfig := geometry.LongshoreModelConfig{
 		Bathymetry:                inputs.BathymetryGrid,
 		BathymetrySource:          inputs.BathymetryPath,
+		BathymetrySHA256:          inputs.BathymetrySHA256,
+		BathymetryPassport:        inputs.BathymetryPassportPath,
+		BathymetryStatus:          inputs.BathymetryStatus,
 		WaterbodyID:               cercCalibrationWaterbody,
 		SedimentSources:           sedimentSources,
 		Structures:                structures,
@@ -189,6 +193,9 @@ func writeCERCCalibrationReport(output *cli.OutputPathManager, coastlineSource, 
 		ObservationsSource     string                             `json:"observations_source"`
 		WaterbodyID            string                             `json:"waterbody_id,omitempty"`
 		BathymetrySource       string                             `json:"bathymetry_source"`
+		BathymetrySHA256       string                             `json:"bathymetry_sha256"`
+		BathymetryPassport     string                             `json:"bathymetry_passport,omitempty"`
+		BathymetryStatus       string                             `json:"bathymetry_status"`
 		BathymetryResolution   float64                            `json:"bathymetry_resolution_degrees"`
 		BreakingIndex          float64                            `json:"breaking_index"`
 		BermHeightMeters       float64                            `json:"berm_height_meters"`
@@ -201,7 +208,9 @@ func writeCERCCalibrationReport(output *cli.OutputPathManager, coastlineSource, 
 		Results                []geometry.CERCCalibrationResult   `json:"results"`
 	}{
 		CoastlineSource: coastlineSource, WaveSource: waveSource, ObservationsSource: observationsSource,
-		WaterbodyID: model.WaterbodyID, BathymetrySource: model.BathymetrySource, BathymetryResolution: bathymetryResolution,
+		WaterbodyID: model.WaterbodyID, BathymetrySource: model.BathymetrySource,
+		BathymetrySHA256: model.BathymetrySHA256, BathymetryPassport: model.BathymetryPassport,
+		BathymetryStatus: model.BathymetryStatus, BathymetryResolution: bathymetryResolution,
 		BreakingIndex: model.BreakingIndex, BermHeightMeters: model.BermHeightMeters, ClosureDepthMeters: model.ClosureDepthMeters,
 		Porosity: model.Porosity, LeftBoundaryTransport: model.LeftBoundaryTransportM3S, RightBoundaryTransport: model.RightBoundaryTransportM3S,
 		SedimentSources: model.SedimentSources,

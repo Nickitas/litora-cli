@@ -3,7 +3,7 @@
 # # Переменные
 # BINARY_NAME=lito
 # GO=go
-# BATHYMETRY_FILE=data/black-sea-bathymetry.json
+# BATHYMETRY_FILE=output/source/black-sea-bathymetry-gebco2026-0.01deg-derived.json
 # VERSION=v1.2
 # BUILD_DIR=build
 # DIST_DIR=dist

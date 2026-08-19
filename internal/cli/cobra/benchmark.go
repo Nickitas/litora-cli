@@ -390,26 +390,9 @@ func runBenchmarkCalibrate(cmd *cobra.Command, args []string) error {
 	fmt.Printf("Калибровка модели для сайта: %s\n", site.Name)
 	fmt.Printf("Точек береговой линии: %d, наблюдений: %d\n", len(site.Coastline), len(site.ObservedErosion))
 
-	if benchBathymetry == "" {
-		if _, err := os.Stat("data/black-sea-bathymetry.json"); err == nil {
-			benchBathymetry = "data/black-sea-bathymetry.json"
-		}
-	}
-
-	var bathymetry *geometry.BathymetryGrid
-	if benchBathymetry != "" {
-		data, err := os.ReadFile(benchBathymetry)
-		if err != nil {
-			return fmt.Errorf("чтение файла батиметрии: %w", err)
-		}
-		grid, err := geometry.LoadBathymetryFromJSON(data, geometry.BathymetryLoadOptions{})
-		if err != nil {
-			return fmt.Errorf("загрузка батиметрии: %w", err)
-		}
-		bathymetry = grid
-		fmt.Printf("Батиметрия: %s (%d точек сетки)\n", benchBathymetry, len(grid.Points))
-	} else {
-		fmt.Println("Батиметрия: НЕ загружена (выполните 'make bathymetry' для загрузки)")
+	bathymetry, err := loadBenchmarkBathymetry(benchBathymetry)
+	if err != nil {
+		return err
 	}
 	fmt.Println()
 
@@ -564,6 +547,23 @@ func writeBenchmarkCalibrationArtifacts(site benchmark.BenchmarkSite, config ben
 	return reportPath, diagnosticsPath, nil
 }
 
+// loadBenchmarkBathymetry загружает только явно указанную батиметрию и
+// применяет общую проверку паспорта и контрольной суммы.
+func loadBenchmarkBathymetry(path string) (*geometry.BathymetryGrid, error) {
+	if path == "" {
+		fmt.Println("Батиметрия: НЕ загружена; для воспроизводимого расчёта укажите --bathymetry с паспортом")
+		return nil, nil
+	}
+
+	inputs, err := loadModelInputs(path, "", false, 0)
+	if err != nil {
+		return nil, err
+	}
+	printModelInputWarnings(inputs)
+	fmt.Printf("Батиметрия: %s (%d точек, шаг %.6f°)\n", path, len(inputs.BathymetryGrid.Points), inputs.BathymetryGrid.Resolution)
+	return inputs.BathymetryGrid, nil
+}
+
 func runBenchmarkCalibrateAll(cmd *cobra.Command, args []string) error {
 	repo := benchmark.NewRepository(benchDir)
 	sites, err := repo.LoadAll()
@@ -574,20 +574,9 @@ func runBenchmarkCalibrateAll(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("эталонные сайты не найдены, сначала выполните 'lito benchmark init'")
 	}
 
-	if benchBathymetry == "" {
-		if _, err := os.Stat("data/black-sea-bathymetry.json"); err == nil {
-			benchBathymetry = "data/black-sea-bathymetry.json"
-		}
-	}
-
-	var bathymetry *geometry.BathymetryGrid
-	if benchBathymetry != "" {
-		data, _ := os.ReadFile(benchBathymetry)
-		grid, err := geometry.LoadBathymetryFromJSON(data, geometry.BathymetryLoadOptions{})
-		if err == nil {
-			bathymetry = grid
-			fmt.Printf("Батиметрия: %s (%d точек)\n", benchBathymetry, len(grid.Points))
-		}
+	bathymetry, err := loadBenchmarkBathymetry(benchBathymetry)
+	if err != nil {
+		return err
 	}
 	if spectrumSpread > 0 {
 		fmt.Printf("Разброс волнового спектра: %.1f°\n", spectrumSpread)
@@ -642,21 +631,9 @@ func runBenchmarkCrossValidate(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("для межсайтовой проверки нужны как минимум два эталонных сайта")
 	}
 
-	if benchBathymetry == "" {
-		if _, err := os.Stat("data/black-sea-bathymetry.json"); err == nil {
-			benchBathymetry = "data/black-sea-bathymetry.json"
-		}
-	}
-	var bathymetry *geometry.BathymetryGrid
-	if benchBathymetry != "" {
-		data, err := os.ReadFile(benchBathymetry)
-		if err != nil {
-			return fmt.Errorf("чтение файла батиметрии: %w", err)
-		}
-		bathymetry, err = geometry.LoadBathymetryFromJSON(data, geometry.BathymetryLoadOptions{})
-		if err != nil {
-			return fmt.Errorf("загрузка батиметрии: %w", err)
-		}
+	bathymetry, err := loadBenchmarkBathymetry(benchBathymetry)
+	if err != nil {
+		return err
 	}
 
 	config := benchmark.DefaultCalibrationConfig()
@@ -746,17 +723,9 @@ func runBenchmarkAnalyze(cmd *cobra.Command, args []string) error {
 
 	fmt.Printf("Полный статистический анализ для: %s\n", site.Name)
 
-	if benchBathymetry == "" {
-		if _, err := os.Stat("data/black-sea-bathymetry.json"); err == nil {
-			benchBathymetry = "data/black-sea-bathymetry.json"
-		}
-	}
-
-	var bathymetry *geometry.BathymetryGrid
-	if benchBathymetry != "" {
-		data, _ := os.ReadFile(benchBathymetry)
-		grid, _ := geometry.LoadBathymetryFromJSON(data, geometry.BathymetryLoadOptions{})
-		bathymetry = grid
+	bathymetry, err := loadBenchmarkBathymetry(benchBathymetry)
+	if err != nil {
+		return err
 	}
 
 	config := benchmark.DefaultCalibrationConfig()
@@ -813,17 +782,9 @@ func runBenchmarkHotspots(cmd *cobra.Command, args []string) error {
 		benchWaveDir = site.MeanWaveDirection
 	}
 
-	if benchBathymetry == "" {
-		if _, err := os.Stat("data/black-sea-bathymetry.json"); err == nil {
-			benchBathymetry = "data/black-sea-bathymetry.json"
-		}
-	}
-
-	var bathymetry *geometry.BathymetryGrid
-	if benchBathymetry != "" {
-		data, _ := os.ReadFile(benchBathymetry)
-		grid, _ := geometry.LoadBathymetryFromJSON(data, geometry.BathymetryLoadOptions{})
-		bathymetry = grid
+	bathymetry, err := loadBenchmarkBathymetry(benchBathymetry)
+	if err != nil {
+		return err
 	}
 
 	config := benchmark.DefaultCalibrationConfig()
@@ -886,17 +847,9 @@ func runBenchmarkScenarios(cmd *cobra.Command, args []string) error {
 		benchWaveDir = site.MeanWaveDirection
 	}
 
-	if benchBathymetry == "" {
-		if _, err := os.Stat("data/black-sea-bathymetry.json"); err == nil {
-			benchBathymetry = "data/black-sea-bathymetry.json"
-		}
-	}
-
-	var bathymetry *geometry.BathymetryGrid
-	if benchBathymetry != "" {
-		data, _ := os.ReadFile(benchBathymetry)
-		grid, _ := geometry.LoadBathymetryFromJSON(data, geometry.BathymetryLoadOptions{})
-		bathymetry = grid
+	bathymetry, err := loadBenchmarkBathymetry(benchBathymetry)
+	if err != nil {
+		return err
 	}
 
 	fmt.Printf("Параметрические сценарии усиления воздействия для: %s\n", site.Name)

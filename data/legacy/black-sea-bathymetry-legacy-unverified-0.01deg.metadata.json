@@ -1,0 +1,42 @@
+{
+  "schema_version": "1.0",
+  "title": "Неверифицированный смешанный батиметрический и синтетический набор Чёрного моря (legacy, сетка 0,01°)",
+  "status": "legacy_unverified_mixed",
+  "dataset_file": "black-sea-bathymetry-legacy-unverified-0.01deg.json",
+  "dataset_sha256": "7b50174d1c66dc73da9fef7b57622c077a86e23bae975aa2b8e2b9092c0da17e",
+  "created_at": "неизвестно; впервые добавлен в репозиторий 2026-04-22T00:33:51+03:00",
+  "point_count": 546599,
+  "bounds": {
+    "min_lat": 40.5,
+    "max_lat": 46.5,
+    "min_lon": 27.5,
+    "max_lon": 42.5
+  },
+  "target_resolution_degrees": 0.01,
+  "target_resolution_arc_seconds": 36,
+  "source_product": "GEBCO_2024 заявлен историческим генератором, но происхождение отдельных значений не подтверждено",
+  "source_product_doi": "10.5285/1c44ce99-0a0d-5f4f-e063-7086abc0ea0f",
+  "source_url": "неархивированные поточечные HTTP-запросы исторического генератора",
+  "source_downloaded_at": null,
+  "source_netcdf": null,
+  "source_netcdf_sha256": null,
+  "source_grid_interval_arc_seconds": null,
+  "horizontal_reference": "не подтверждена для смешанного файла; исторический генератор использовал географические координаты",
+  "vertical_reference": "не подтверждена для смешанного файла",
+  "vertical_reference_caveat": "Ответы удалённого сервиса не архивировались, а при ошибках подставлялась синтетическая глубина.",
+  "resampling_method": "Это не подтверждённый ресэмплинг NetCDF: поточечные запросы на сетке 0,01° с неотмеченным синтетическим параболическим fallback.",
+  "land_filter": "Исторический генератор отбрасывал неотрицательные значения до округления после смешения ответов и fallback; три малых отрицательных значения округлились до 0.",
+  "processing_script": "Удалённый cmd/download-bathymetry/main.go из коммита 49b2edfcdbe2d808ca4eef5dace7967198a41653",
+  "processing_software": {
+    "generator": "Go; точная версия не зафиксирована"
+  },
+  "license": "Происхождение смешано. Для возможной части GEBCO действуют условия GEBCO; код генератора распространяется по MIT. Набор нельзя представлять как официальный продукт GEBCO.",
+  "license_url": "https://www.gebco.net/data-products-gridded-bathymetry-data/gebco2024-grid",
+  "attribution": "Для значений, действительно происходящих из GEBCO: GEBCO Compilation Group (2024) GEBCO 2024 Grid, doi:10.5285/1c44ce99-0a0d-5f4f-e063-7086abc0ea0f.",
+  "limitations": [
+    "Нельзя определить, какие точки получены удалённо, а какие синтезированы.",
+    "Дата получения и исходные ответы не сохранены.",
+    "Исходный NetCDF отсутствует и его checksum неизвестен.",
+    "Набор не пригоден как подтверждённая эмпирическая батиметрия, для калибровки или навигации."
+  ]
+}

@@ -148,11 +148,12 @@ Litora-CLI реализует исследовательский пайплай�
 ```bash
 # Явное указание
 ./lito benchmark calibrate --site=kobuleti-ge \
-  --bathymetry=data/black-sea-bathymetry.json
-
-# Или автоматически (если файл существует)
-./lito benchmark calibrate --site=kobuleti-ge
+  --bathymetry=output/source/black-sea-bathymetry-gebco2026-0.01deg-derived.json
 ```
+
+Автоматическая подстановка батиметрии отключена. Указанный файл должен иметь
+соседний паспорт `.metadata.json`; legacy-набор из `data/legacy/` не является
+подтверждённым эмпирическим источником.
 
 ### С wave spectrum
 

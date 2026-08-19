@@ -893,6 +893,11 @@ type LithologyState struct {
 
 ### Загрузка профиля
 
+> `data/black-sea-lithology.json` имеет статус `alpha_inferred`, содержит
+> inferred-значения и не является подтверждённой эмпирической картой. Перед
+> научным использованием необходима независимая валидация; ограничения можно
+> получить методом `QualityWarnings()`.
+
 ```go
 // Из JSON файла
 profile, err := LoadLithologyProfileFromFile("data/black-sea-lithology.json")

@@ -7,8 +7,32 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
+
+func TestLithologyQualityWarningsForAlphaAndInferredValues(t *testing.T) {
+	profile := &LithologyProfile{
+		Metadata: LithologyMetadata{
+			Name:                   "Экспериментальный профиль",
+			Version:                "1.0-alpha",
+			Status:                 "alpha_inferred",
+			EmpiricalValidation:    "not_validated",
+			ContainsInferredValues: true,
+		},
+		Points: []LithologyPoint{
+			{Source: "inferred"},
+			{Source: "literature"},
+		},
+	}
+
+	warnings := strings.Join(profile.QualityWarnings(), "\n")
+	for _, expected := range []string{"не является подтверждённой эмпирической картой", "не прошли независимую", "1 из 2"} {
+		if !strings.Contains(warnings, expected) {
+			t.Fatalf("ожидалось %q в предупреждениях: %s", expected, warnings)
+		}
+	}
+}
 
 // TestLoadLithologyProfile тест загрузки профиля
 func TestLoadLithologyProfile(t *testing.T) {

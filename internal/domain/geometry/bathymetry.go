@@ -44,7 +44,8 @@ type BathymetryLoadResult struct {
 }
 
 // LoadBathymetryFromJSON загружает данные батиметрии из JSON-массива байтов.
-// JSON должен быть массивом объектов с полями lat, lon и depth.
+// JSON должен быть массивом объектов с полями lat, lon и depth, а паспорт
+// происхождения должен храниться рядом в отдельном файле .metadata.json.
 func LoadBathymetryFromJSON(data []byte, options BathymetryLoadOptions) (*BathymetryGrid, error) {
 	if options.Resolution <= 0 {
 		options.Resolution = 0.01

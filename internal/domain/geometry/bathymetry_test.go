@@ -1,9 +1,76 @@
 package geometry
 
 import (
+	"crypto/sha256"
+	"fmt"
 	"math"
+	"os"
+	"path/filepath"
 	"testing"
 )
+
+func TestBathymetryPassportVerifiedDerivedHasNoWarnings(t *testing.T) {
+	downloadedAt := "2026-08-19T12:00:00Z"
+	netcdf := "gebco_2026_black_sea.nc"
+	netcdfChecksum := fmt.Sprintf("%x", sha256.Sum256([]byte("netcdf")))
+	sourceResolution := 15.0
+	data := []byte(`[{"lat":44,"lon":34,"depth":-100}]`)
+	passport := BathymetryPassport{
+		SchemaVersion:                "1.0",
+		Title:                        "Проверяемый производный набор",
+		Status:                       BathymetryStatusVerifiedDerived,
+		DatasetFile:                  "bathymetry.json",
+		DatasetSHA256:                fmt.Sprintf("%x", sha256.Sum256(data)),
+		PointCount:                   1,
+		TargetResolutionDegrees:      0.01,
+		SourceProduct:                "GEBCO_2026",
+		SourceDownloadedAt:           &downloadedAt,
+		SourceNetCDF:                 &netcdf,
+		SourceNetCDFSHA256:           &netcdfChecksum,
+		SourceGridIntervalArcSeconds: &sourceResolution,
+		VerticalReference:            "Средний уровень моря по допущению GEBCO",
+		ResamplingMethod:             "ближайший сосед",
+		License:                      "Общественное достояние с обязательной атрибуцией",
+	}
+
+	if warnings := passport.ReproducibilityWarnings(); len(warnings) != 0 {
+		t.Fatalf("не ожидались предупреждения, получено: %v", warnings)
+	}
+	if err := passport.VerifyDataset(data); err != nil {
+		t.Fatalf("контрольная сумма должна совпадать: %v", err)
+	}
+	if err := passport.VerifyDataset([]byte("изменено")); err == nil {
+		t.Fatal("ожидалась ошибка для изменённого файла")
+	}
+}
+
+func TestLoadBathymetryPassportFromFile(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "bathymetry.metadata.json")
+	contents := `{
+  "schema_version":"1.0",
+  "title":"Legacy",
+  "status":"legacy_unverified_mixed",
+  "dataset_file":"bathymetry.json",
+  "dataset_sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "point_count":1,
+  "target_resolution_degrees":0.01,
+  "source_downloaded_at":null,
+  "source_netcdf":null,
+  "source_netcdf_sha256":null,
+  "source_grid_interval_arc_seconds":null
+}`
+	if err := os.WriteFile(path, []byte(contents), 0o600); err != nil {
+		t.Fatalf("запись паспорта: %v", err)
+	}
+
+	passport, err := LoadBathymetryPassportFromFile(path)
+	if err != nil {
+		t.Fatalf("загрузка паспорта: %v", err)
+	}
+	if len(passport.ReproducibilityWarnings()) == 0 {
+		t.Fatal("для legacy-паспорта ожидались предупреждения")
+	}
+}
 
 func TestLoadBathymetryFromJSON_ValidInput_Success(t *testing.T) {
 	data := []byte(`[
