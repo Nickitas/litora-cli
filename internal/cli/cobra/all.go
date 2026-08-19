@@ -68,11 +68,13 @@ var allCmd = &cobra.Command{
 
 1. Проверка береговой линии и метрики
 2. Анализ фрактальной размерности
-3. Одномерное моделирование CERC по фактическому волновому ряду
+3. Одномерное моделирование CERC по загруженному волновому ряду
 4. Пространственный баланс наносов и экспорт результатов
 
-Без файлов и без --waterbody команда запускает готовый открытый сценарий
-Сочи. Для другого водоёма нужны его фактические входные данные.`,
+Без файлов и без --waterbody команда запускает демонстрационный открытый
+сценарий Сочи со статусом demo. Он не является оценкой годового размыва,
+калибровкой или научным отчётом. Для другого водоёма нужны его фактические
+входные данные.`,
 	RunE: runAll,
 }
 
@@ -89,7 +91,7 @@ func init() {
 	allCmd.Flags().IntVar(&allSteps, "steps", 0, "ограничить число первых состояний волнового ряда (0 — использовать все)")
 	allCmd.Flags().StringVar(&allBathymetry, "bathymetry", "", "путь к JSON батиметрии")
 	allCmd.Flags().Float64Var(&allBathymetryResolution, "bathymetry-resolution", 0, "шаг регулярной батиметрической сетки в градусах (обязателен для выбранного вручную водоёма)")
-	allCmd.Flags().StringVar(&allWaveInput, "wave-input", "", "путь к фактическому волновому ряду CSV или JSON (обязателен)")
+	allCmd.Flags().StringVar(&allWaveInput, "wave-input", "", "путь к волновому ряду наблюдений, реанализа или прогноза в CSV/JSON (обязателен)")
 	allCmd.Flags().StringVar(&allWaveSource, "wave-source", "", "источник волнового ряда, если он не указан в JSON")
 	allCmd.Flags().Float64Var(&allBreakingIndex, "breaking-index", 0.78, "индекс разрушения H_b/h_b")
 	allCmd.Flags().Float64Var(&allBermHeight, "berm-height", 2, "высота бермы активного профиля, м")
@@ -103,7 +105,7 @@ func init() {
 	allCmd.Flags().Float64Var(&allRightBoundaryTransport, "right-boundary-transport", 0, "поток наносов через правую границу, м³/с; положительный направлен из сегмента")
 	allCmd.Flags().StringVar(&allSedimentSources, "sediment-sources", "", "JSON внешних источников и стоков наносов по ячейкам")
 	allCmd.Flags().StringVar(&allStructures, "structures", "", "JSON сооружений, изменяющих пропуск потока между ячейками")
-	allCmd.Flags().BoolVar(&allBlackSeaSochi, "black-sea-sochi", false, "самостоятельно загрузить открытые данные Сочи для полного конвейера")
+	allCmd.Flags().BoolVar(&allBlackSeaSochi, "black-sea-sochi", false, "загрузить открытые данные Сочи для демонстрационного конвейера demo")
 	allCmd.Flags().StringVar(&allWaterbody, "waterbody", "", "водоём РФ из lito waterbody list")
 
 	// Export options
@@ -121,10 +123,10 @@ func init() {
 func runAll(cmd *cobra.Command, args []string) error {
 	// Пустой запуск должен быть воспроизводимым и не использовать обзорную
 	// линию всего Чёрного моря как локальный инженерный участок. Поэтому
-	// выбирается единственный готовый набор с реальными входами — Сочи.
+	// выбирается единственный готовый набор с открытыми входами — Сочи.
 	if allWaterbody == "" && allInput == "" && allBathymetry == "" && allWaveInput == "" && !allBlackSeaSochi {
 		allBlackSeaSochi = true
-		fmt.Println("✓ Входные файлы не заданы: выбран стартовый набор Чёрного моря — Сочи")
+		fmt.Println("✓ Входные файлы не заданы: выбран демонстрационный набор Чёрного моря — Сочи (demo)")
 	}
 	if allWaterbody != "" {
 		body, err := selectedWaterbody(allWaterbody)
@@ -250,7 +252,9 @@ func runAll(cmd *cobra.Command, args []string) error {
 	if allSteps > 0 && allSteps < len(climate.Conditions) {
 		climate.Conditions = climate.Conditions[:allSteps]
 	}
+	scenario := classifyLongshoreScenario(allBlackSeaSochi, climate, modelInputs)
 	model, err := geometry.RunLongshoreCERC(modelBase, climate, geometry.LongshoreModelConfig{
+		Scenario:                  scenario,
 		Bathymetry:                modelInputs.BathymetryGrid,
 		BathymetrySource:          modelInputs.BathymetryPath,
 		BathymetrySHA256:          modelInputs.BathymetrySHA256,
@@ -275,6 +279,7 @@ func runAll(cmd *cobra.Command, args []string) error {
 	}
 	snapshots := model.Snapshots
 	printLongshoreInputQuality(model.InputQuality)
+	printScenarioClassification(model.ScenarioClassification)
 	waveOptions := geometry.WaveErosionOptions{WindSourceDirectionDeg: climate.Conditions[0].DirectionFromDeg, BathymetryGrid: modelInputs.BathymetryGrid}
 	for i, state := range snapshots {
 		fmt.Printf("  Шаг %d: %d точек, длина %.0f км, площадь %.0f км²\n",
@@ -289,9 +294,9 @@ func runAll(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("подготовка каталогов вывода: %w", err)
 	}
 
-	// Научный отчёт dimension использует исходную наблюдаемую линию, а не
-	// упрощённую базу эрозионной модели.
-	if err := cli.WriteDimensionSVG(result.Points, outputMgr, result.DatasetName, result.Source, result.Validation); err != nil {
+	// Отчёт dimension использует исходную наблюдаемую линию, а не упрощённую
+	// базу эрозионной модели, и наследует статус внешнего сценария.
+	if err := cli.WriteDimensionSVG(result.Points, outputMgr, result.DatasetName, result.Source, result.Validation, model.ScenarioClassification); err != nil {
 		fmt.Printf("Предупреждение: не удалось создать SVG для размерности: %v\n", err)
 	}
 
@@ -301,7 +306,7 @@ func runAll(cmd *cobra.Command, args []string) error {
 		simulationSteps = 0
 	}
 	if err := cli.WriteErosionSVGSeries(result.Points, snapshots, simulationSteps, 0, 0,
-		waveOptions, outputMgr, result.DatasetName, result.Source, result.Validation); err != nil {
+		waveOptions, outputMgr, result.DatasetName, result.Source, result.Validation, model.ScenarioClassification); err != nil {
 		fmt.Printf("Предупреждение: не удалось создать SVG для эрозии: %v\n", err)
 	}
 	if err := cli.WriteLongshoreModelJSON(model, outputMgr); err != nil {

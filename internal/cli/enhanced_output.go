@@ -160,8 +160,14 @@ func buildEnhancedOptions(cfg config, points []geometry.LatLon, waveDir float64)
 // Добавляет визуализацию транспорта наносов, если доступны данные
 func wrapDocumentForEnhanced(doc svgrender.Document, cfg config, points []geometry.LatLon, waveDir float64, sedimentResult *geometry.SedimentTransportResult, renderPoints []geometry.LatLon) svgrender.EnhancedDocument {
 	modeName := "Научный SVG-режим"
-	if cfg.Command == cmdKochDemo {
+	if cfg.ScenarioStatus == geometry.ScenarioStatusDemo {
+		modeName = "Демонстрационный SVG-режим"
+	} else if cfg.ScenarioStatus == geometry.ScenarioStatusUnclassified {
+		modeName = "SVG-режим без подтверждённого исследовательского статуса"
+	} else if cfg.Command == cmdKochDemo {
 		modeName = "Учебный SVG-режим"
+	} else if cfg.Command == cmdErosion {
+		modeName = "Расчётный SVG-режим"
 	}
 	fmt.Printf("🔧 %s: включён=%v, точек=%d\n", modeName, cfg.EnableEnhanced, len(points))
 

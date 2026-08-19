@@ -64,10 +64,12 @@ var (
 var erosionCmd = &cobra.Command{
 	Use:   "erosion",
 	Short: "Одномерная вдольбереговая модель транспорта наносов CERC",
-	Long: `Выполняет инженерную one-line модель CERC по фактическому волновому ряду.
+	Long: `Выполняет инженерную one-line модель CERC по загруженному волновому ряду.
 Расчёт включает дисперсию, рефракцию, shoaling, разрушение волн и
 уравнение неразрывности вдольберегового транспорта. Батиметрия и волновой ряд
-обязательны; без аргументов используется готовый открытый набор Сочи.`,
+обязательны; без аргументов используется демонстрационный открытый набор Сочи.
+Автоматический сценарий получает статус demo и не является оценкой годового
+размыва, калибровкой или научным отчётом.`,
 	RunE: runErosion,
 }
 
@@ -84,7 +86,7 @@ func init() {
 	erosionCmd.Flags().IntVar(&erosionSteps, "steps", 0, "ограничить число первых состояний волнового ряда (0 — использовать все)")
 	erosionCmd.Flags().StringVar(&erosionBathymetry, "bathymetry", "", "путь к JSON батиметрии")
 	erosionCmd.Flags().Float64Var(&erosionBathymetryResolution, "bathymetry-resolution", 0, "шаг регулярной батиметрической сетки в градусах (обязателен для выбранного вручную водоёма)")
-	erosionCmd.Flags().StringVar(&erosionWaveInput, "wave-input", "", "путь к фактическому волновому ряду CSV или JSON (обязателен)")
+	erosionCmd.Flags().StringVar(&erosionWaveInput, "wave-input", "", "путь к волновому ряду наблюдений, реанализа или прогноза в CSV/JSON (обязателен)")
 	erosionCmd.Flags().StringVar(&erosionWaveSource, "wave-source", "", "источник волнового ряда, если он не указан в JSON")
 	erosionCmd.Flags().Float64Var(&erosionBreakingIndex, "breaking-index", 0.78, "индекс разрушения H_b/h_b")
 	erosionCmd.Flags().Float64Var(&erosionBermHeight, "berm-height", 2, "высота бермы активного профиля, м")
@@ -98,7 +100,7 @@ func init() {
 	erosionCmd.Flags().Float64Var(&erosionRightBoundaryTransport, "right-boundary-transport", 0, "поток наносов через правую границу, м³/с; положительный направлен из сегмента")
 	erosionCmd.Flags().StringVar(&erosionSedimentSources, "sediment-sources", "", "JSON внешних источников и стоков наносов по ячейкам")
 	erosionCmd.Flags().StringVar(&erosionStructures, "structures", "", "JSON сооружений, изменяющих пропуск потока между ячейками")
-	erosionCmd.Flags().BoolVar(&erosionBlackSeaSochi, "black-sea-sochi", false, "самостоятельно загрузить открытые данные Сочи и выполнить стартовый расчёт")
+	erosionCmd.Flags().BoolVar(&erosionBlackSeaSochi, "black-sea-sochi", false, "загрузить открытые данные Сочи и выполнить демонстрационный расчёт demo")
 	erosionCmd.Flags().StringVar(&erosionWaterbody, "waterbody", "", "водоём РФ из lito waterbody list")
 
 	// Export options
@@ -114,7 +116,7 @@ func runErosion(cmd *cobra.Command, args []string) error {
 	// условия и не обзорную береговую линию другого масштаба.
 	if erosionWaterbody == "" && erosionInput == "" && erosionBathymetry == "" && erosionWaveInput == "" && !erosionBlackSeaSochi {
 		erosionBlackSeaSochi = true
-		fmt.Println("✓ Входные файлы не заданы: выбран стартовый набор Чёрного моря — Сочи")
+		fmt.Println("✓ Входные файлы не заданы: выбран демонстрационный набор Чёрного моря — Сочи (demo)")
 	}
 	if erosionWaterbody != "" {
 		body, err := selectedWaterbody(erosionWaterbody)
@@ -214,7 +216,9 @@ func runErosion(cmd *cobra.Command, args []string) error {
 	if erosionSteps > 0 && erosionSteps < len(climate.Conditions) {
 		climate.Conditions = climate.Conditions[:erosionSteps]
 	}
+	scenario := classifyLongshoreScenario(erosionBlackSeaSochi, climate, modelInputs)
 	model, err := geometry.RunLongshoreCERC(result.Points, climate, geometry.LongshoreModelConfig{
+		Scenario:                  scenario,
 		Bathymetry:                modelInputs.BathymetryGrid,
 		BathymetrySource:          modelInputs.BathymetryPath,
 		BathymetrySHA256:          modelInputs.BathymetrySHA256,
@@ -250,6 +254,7 @@ func runErosion(cmd *cobra.Command, args []string) error {
 	}
 	table.Flush()
 	printLongshoreInputQuality(model.InputQuality)
+	printScenarioClassification(model.ScenarioClassification)
 
 	fmt.Println("\n✓ Моделирование эрозии завершено")
 
@@ -263,7 +268,7 @@ func runErosion(cmd *cobra.Command, args []string) error {
 		simulationSteps = 0
 	}
 	if err := cli.WriteErosionSVGSeries(result.Points, snapshots, simulationSteps, 0, 0,
-		waveOptions, outputMgr, result.DatasetName, result.Source, result.Validation); err != nil {
+		waveOptions, outputMgr, result.DatasetName, result.Source, result.Validation, model.ScenarioClassification); err != nil {
 		fmt.Printf("Предупреждение: не удалось создать SVG: %v\n", err)
 	}
 	if err := cli.WriteLongshoreModelJSON(model, outputMgr); err != nil {

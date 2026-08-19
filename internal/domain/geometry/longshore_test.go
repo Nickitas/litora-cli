@@ -1,7 +1,9 @@
 package geometry
 
 import (
+	"encoding/json"
 	"math"
+	"strings"
 	"testing"
 )
 
@@ -83,6 +85,42 @@ func TestRunLongshoreCERCReportsInputQuality(t *testing.T) {
 	}
 	if result.BathymetrySHA256 != config.BathymetrySHA256 || result.BathymetryPassport != config.BathymetryPassport || result.BathymetryStatus != config.BathymetryStatus {
 		t.Fatalf("происхождение батиметрии не перенесено в результат: %+v", result)
+	}
+}
+
+// TestRunLongshoreCERCCarriesScenarioClassification проверяет, что статус
+// интерпретации не теряется при успешном численном расчёте и сериализации.
+func TestRunLongshoreCERCCarriesScenarioClassification(t *testing.T) {
+	points := []LatLon{{Lat: 0, Lon: 0}, {Lat: 0, Lon: 0.005}, {Lat: 0.002, Lon: 0.01}, {Lat: 0, Lon: 0.015}}
+	config := testLongshoreConfig(t)
+	config.Scenario = ScenarioClassification{
+		ScenarioStatus:   ScenarioStatusDemo,
+		UsageLimitations: []string{"не для публикации"},
+	}
+	climate := WaveClimate{Source: "проверочный ряд", Conditions: []WaveCondition{{DurationHours: 1, SignificantWaveHeightM: 1.5, PeakPeriodSeconds: 6, DirectionFromDeg: 0}}}
+
+	result, err := RunLongshoreCERC(points, climate, config)
+	if err != nil {
+		t.Fatalf("RunLongshoreCERC вернула ошибку: %v", err)
+	}
+	if result.ScenarioStatus != ScenarioStatusDemo || len(result.UsageLimitations) != 1 {
+		t.Fatalf("классификация сценария не перенесена: %+v", result.ScenarioClassification)
+	}
+	data, err := json.Marshal(result)
+	if err != nil {
+		t.Fatalf("сериализация результата: %v", err)
+	}
+	if !strings.Contains(string(data), `"scenario_status":"demo"`) {
+		t.Fatalf("JSON не содержит статус demo: %s", data)
+	}
+
+	config.Scenario = ScenarioClassification{}
+	result, err = RunLongshoreCERC(points, climate, config)
+	if err != nil {
+		t.Fatalf("RunLongshoreCERC без классификации вернула ошибку: %v", err)
+	}
+	if result.ScenarioStatus != ScenarioStatusUnclassified {
+		t.Fatalf("статус по умолчанию = %q, требуется %q", result.ScenarioStatus, ScenarioStatusUnclassified)
 	}
 }
 

@@ -129,7 +129,11 @@ func writeOrganicKochSVGSeries(originalBase, modelBase []geometry.LatLon, iterat
 
 func writeErosionSVGSeries(originalBase, modelBase []geometry.LatLon, snapshots [][]geometry.LatLon, steps int, strength float64, seed int64, waveOptions geometry.WaveErosionOptions, output string, ctx exportContext, outputPathManager *OutputPathManager, sedimentResult *geometry.SedimentTransportResult) error {
 	ctx.Report = buildReportMetadata(ctx, originalBase, fmt.Sprintf("strength=%.6f|seed=%d|steps=%d|years=%.6f", strength, seed, steps, waveOptions.YearsPerStep))
-	fmt.Printf("🧾 Научный отчёт: эксперимент %s, источник %s, версия данных %s\n", ctx.Report.ExperimentID, ctx.Report.GeometrySource, ctx.Report.InputDataVersion[:12])
+	reportKind := "Расчётный отчёт"
+	if ctx.Scenario.ScenarioStatus == geometry.ScenarioStatusDemo {
+		reportKind = "Демонстрационный отчёт (demo)"
+	}
+	fmt.Printf("🧾 %s: эксперимент %s, источник %s, версия данных %s\n", reportKind, ctx.Report.ExperimentID, ctx.Report.GeometrySource, ctx.Report.InputDataVersion[:12])
 	outputDir := outputPathManager.SVGDir()
 
 	if len(originalBase) == 0 {
@@ -195,6 +199,14 @@ func writeErosionSVGSeries(originalBase, modelBase []geometry.LatLon, snapshots 
 		meta = append(meta, fmt.Sprintf("Эрозия: базовый отступ %.0f м, seed=%d", strength, seed))
 		meta = append(meta, fmt.Sprintf("Волны: %.0f° от севера, ветер %.1f м/с, сектор ±%.0f°, fetch <= %.0f км", waveOptions.WindSourceDirectionDeg, waveOptions.WindSpeedMetersPerSecond, waveOptions.FetchSpreadDeg, waveOptions.MaxFetchMeters/1000))
 		metadataSubtitle := reportMetadataLines(ctx.Report)
+		if ctx.Scenario.ScenarioStatus == geometry.ScenarioStatusDemo {
+			metadataSubtitle += "\nDEMO: не использовать для оценки годового размыва, калибровки или публикации"
+		}
+
+		alerts := makeCoastlineAlerts(ctx.Validation, visualHints)
+		if ctx.Scenario.ScenarioStatus == geometry.ScenarioStatusDemo {
+			alerts = append([]string{"DEMO: не использовать для оценки годового размыва, калибровки или публикации"}, alerts...)
+		}
 
 		// Build document and apply enhanced options if enabled
 		doc := svgrender.Document{
@@ -204,6 +216,7 @@ func writeErosionSVGSeries(originalBase, modelBase []geometry.LatLon, snapshots 
 				strength, seed, waveOptions.DepthScaleMeters, waveOptions.ExposurePower, waveOptions.FetchSamples, metadataSubtitle),
 			Layers:    layers,
 			StatCards: makeValidationStatCards(ctx.Validation, validationSummary),
+			Alerts:    alerts,
 			Meta:      meta,
 		}
 
@@ -438,7 +451,11 @@ func writeFractalSeries(opts fractalSeriesOptions, output string, ctx exportCont
 	}
 	ctx.Report = buildReportMetadata(ctx, metadataPoints, reportParameters)
 	reportKind := "Научный отчёт по наблюдениям"
-	if opts.Synthetic {
+	if ctx.Scenario.ScenarioStatus == geometry.ScenarioStatusDemo {
+		reportKind = "Демонстрационный отчёт (demo)"
+	} else if ctx.Scenario.ScenarioStatus == geometry.ScenarioStatusUnclassified {
+		reportKind = "Расчётный отчёт без подтверждённого исследовательского статуса"
+	} else if opts.Synthetic {
 		reportKind = "Учебный отчёт по синтетической геометрии"
 	}
 	fmt.Printf("🧾 %s: эксперимент %s, источник %s, версия данных %s\n", reportKind, ctx.Report.ExperimentID, ctx.Report.GeometrySource, ctx.Report.InputDataVersion[:12])
@@ -550,6 +567,9 @@ func writeFractalSeries(opts fractalSeriesOptions, output string, ctx exportCont
 			}
 		}
 		subtitle += "\n" + reportMetadataLines(ctx.Report)
+		if ctx.Scenario.ScenarioStatus == geometry.ScenarioStatusDemo {
+			subtitle += "\nDEMO: стартовый сценарий не является исследовательским отчётом"
+		}
 
 		// Build document and apply enhanced options if enabled
 		doc := svgrender.Document{
@@ -563,7 +583,11 @@ func writeFractalSeries(opts fractalSeriesOptions, output string, ctx exportCont
 
 		if ctx.Config.EnableEnhanced {
 			modeName := "научный режим наблюдений"
-			if opts.Synthetic {
+			if ctx.Scenario.ScenarioStatus == geometry.ScenarioStatusDemo {
+				modeName = "демонстрационный режим (demo)"
+			} else if ctx.Scenario.ScenarioStatus == geometry.ScenarioStatusUnclassified {
+				modeName = "расчётный режим без подтверждённого исследовательского статуса"
+			} else if opts.Synthetic {
 				modeName = "учебный режим синтетической серии"
 			}
 			fmt.Printf("🔧 Включён %s, шаг %d\n", modeName, iter)
@@ -995,9 +1019,10 @@ func WriteCoastlineSVG(points []geometry.LatLon, validation coastline.Validation
 	return writeCoastlineSVG(points, renderPoints.Points, "", "coastline.svg", ctx, outputPathManager)
 }
 
-// WriteDimensionSVG создаёт научные SVG-артефакты оценки box-counting для
-// неизменённой наблюдаемой береговой линии.
-func WriteDimensionSVG(points []geometry.LatLon, outputPathManager *OutputPathManager, dataset, source string, validation coastline.ValidationReport) error {
+// WriteDimensionSVG создаёт SVG-артефакты оценки box-counting для неизменённой
+// наблюдаемой береговой линии. Необязательная классификация маркирует весь
+// внешний сценарий как демонстрационный, не меняя геометрический расчёт.
+func WriteDimensionSVG(points []geometry.LatLon, outputPathManager *OutputPathManager, dataset, source string, validation coastline.ValidationReport, classifications ...geometry.ScenarioClassification) error {
 	if len(points) == 0 {
 		return fmt.Errorf("нет наблюдаемых точек")
 	}
@@ -1009,6 +1034,9 @@ func WriteDimensionSVG(points []geometry.LatLon, outputPathManager *OutputPathMa
 	}
 
 	ctx := newExportContext("dimension", dataset, source, validation)
+	if len(classifications) > 0 {
+		ctx = withScenarioClassification(ctx, classifications[0])
+	}
 	return writeFractalSeries(fractalSeriesOptions{
 		Title:             "Фрактальная размерность наблюдаемой береговой линии",
 		Prefix:            "dimension",
@@ -1048,8 +1076,9 @@ func WriteKochDemoSVGSeries(originalPoints, modelBase []geometry.LatLon, iterati
 	return writeOrganicKochSVGSeries(originalPoints, modelBase, iterations, "", opts, "koch_demo", "koch-demo", true, ctx, outputPathManager)
 }
 
-// WriteErosionSVGSeries создаёт SVG-файлы для каждого шага эрозии
-func WriteErosionSVGSeries(originalBase []geometry.LatLon, snapshots [][]geometry.LatLon, steps int, strength float64, seed int64, waveOptions geometry.WaveErosionOptions, outputPathManager *OutputPathManager, dataset, source string, validation coastline.ValidationReport) error {
+// WriteErosionSVGSeries создаёт SVG-файлы для каждого шага эрозии и переносит
+// необязательный статус сценария в подписи и JSON-метрики.
+func WriteErosionSVGSeries(originalBase []geometry.LatLon, snapshots [][]geometry.LatLon, steps int, strength float64, seed int64, waveOptions geometry.WaveErosionOptions, outputPathManager *OutputPathManager, dataset, source string, validation coastline.ValidationReport, classifications ...geometry.ScenarioClassification) error {
 	if len(originalBase) == 0 && len(snapshots) == 0 {
 		return fmt.Errorf("нет данных для рендеринга")
 	}
@@ -1061,6 +1090,9 @@ func WriteErosionSVGSeries(originalBase []geometry.LatLon, snapshots [][]geometr
 	}
 
 	ctx := newExportContext("erosion", dataset, source, validation)
+	if len(classifications) > 0 {
+		ctx = withScenarioClassification(ctx, classifications[0])
+	}
 
 	return writeErosionSVGSeries(originalBase, nil, snapshots, steps, strength, seed, waveOptions, "", ctx, outputPathManager, nil)
 }

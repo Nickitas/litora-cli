@@ -30,7 +30,8 @@ type config struct {
 	ModelMaxPoints  int
 
 	// Общие поля
-	Command string
+	Command        string
+	ScenarioStatus string
 	// BoxCountingBoxSize — фактический размер представительной ячейки анализа.
 	BoxCountingBoxSize float64
 	// Параметры регрессионного окна box-counting для научной SVG-легенды.

@@ -11,12 +11,27 @@ const (
 	seaWaterDensity       = 1025.0
 	quartzSedimentDensity = 2650.0
 	secondsPerHour        = 3600.0
+
+	// ScenarioStatusDemo обозначает технический демонстрационный расчёт,
+	// который нельзя интерпретировать как исследовательский результат.
+	ScenarioStatusDemo = "demo"
+	// ScenarioStatusUnclassified обозначает расчёт, исследовательская
+	// пригодность которого не подтверждена автоматическими проверками Lito.
+	ScenarioStatusUnclassified = "unclassified"
 )
+
+// ScenarioClassification явно отделяет успешность вычисления от пригодности
+// результата для исследования, калибровки или публикации.
+type ScenarioClassification struct {
+	ScenarioStatus   string   `json:"scenario_status"`
+	UsageLimitations []string `json:"usage_limitations,omitempty"`
+}
 
 // LongshoreModelConfig задаёт параметры инженерной одномерной модели CERC.
 // Сетка глубин обязательна: модель не подменяет преобразование волн
 // эвристическим множителем глубины.
 type LongshoreModelConfig struct {
+	Scenario                  ScenarioClassification
 	Bathymetry                *BathymetryGrid
 	BathymetrySource          string                    // источник или путь к использованной батиметрии
 	BathymetrySHA256          string                    // SHA-256 фактически загруженного JSON
@@ -103,6 +118,7 @@ type ModelInputQuality struct {
 // LongshoreModelResult содержит положения береговой линии и баланс для всего
 // волнового ряда. Первый снимок — исходное положение береговой линии.
 type LongshoreModelResult struct {
+	ScenarioClassification
 	Model              string                    `json:"model"`
 	WaterbodyID        string                    `json:"waterbody_id,omitempty"`
 	BathymetrySource   string                    `json:"bathymetry_source"`
@@ -142,16 +158,17 @@ func RunLongshoreCERC(points []LatLon, climate WaveClimate, config LongshoreMode
 	}
 
 	result := LongshoreModelResult{
-		Model:              "Одномерная CERC: дисперсия, рефракция, shoaling, разрушение волн и баланс наносов",
-		WaterbodyID:        config.WaterbodyID,
-		BathymetrySource:   config.BathymetrySource,
-		BathymetrySHA256:   config.BathymetrySHA256,
-		BathymetryPassport: config.BathymetryPassport,
-		BathymetryStatus:   config.BathymetryStatus,
-		Climate:            climate,
-		SedimentSources:    append([]LongshoreSedimentSource(nil), config.SedimentSources...),
-		Structures:         append([]LongshoreStructure(nil), config.Structures...),
-		Snapshots:          make([][]LatLon, 1, len(climate.Conditions)+1),
+		ScenarioClassification: config.Scenario,
+		Model:                  "Одномерная CERC: дисперсия, рефракция, shoaling, разрушение волн и баланс наносов",
+		WaterbodyID:            config.WaterbodyID,
+		BathymetrySource:       config.BathymetrySource,
+		BathymetrySHA256:       config.BathymetrySHA256,
+		BathymetryPassport:     config.BathymetryPassport,
+		BathymetryStatus:       config.BathymetryStatus,
+		Climate:                climate,
+		SedimentSources:        append([]LongshoreSedimentSource(nil), config.SedimentSources...),
+		Structures:             append([]LongshoreStructure(nil), config.Structures...),
+		Snapshots:              make([][]LatLon, 1, len(climate.Conditions)+1),
 	}
 	current := clonePoints(points)
 	result.Snapshots[0] = current
@@ -169,6 +186,10 @@ func RunLongshoreCERC(points []LatLon, climate WaveClimate, config LongshoreMode
 }
 
 func normalizeLongshoreModelConfig(config LongshoreModelConfig) LongshoreModelConfig {
+	if config.Scenario.ScenarioStatus == "" {
+		config.Scenario.ScenarioStatus = ScenarioStatusUnclassified
+	}
+	config.Scenario.UsageLimitations = append([]string(nil), config.Scenario.UsageLimitations...)
 	if config.BreakingIndex == 0 {
 		config.BreakingIndex = 0.78
 	}

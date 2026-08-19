@@ -21,17 +21,20 @@ type exportContext struct {
 	Validation coastline.ValidationReport
 	Config     config
 	Report     reportMetadata
+	Scenario   geometry.ScenarioClassification
 }
 
-// reportMetadata содержит идентификационные данные научного отчёта.
+// reportMetadata содержит идентификационные данные и статус отчёта.
 type reportMetadata struct {
-	GeneratedAt        string  `json:"generated_at"`
-	InputDataVersion   string  `json:"input_data_version"`
-	GeometrySource     string  `json:"geometry_source"`
-	ExperimentID       string  `json:"experiment_id"`
-	Projection         string  `json:"projection"`
-	ReferenceLatitude  float64 `json:"reference_latitude"`
-	ReferenceLongitude float64 `json:"reference_longitude"`
+	GeneratedAt        string   `json:"generated_at"`
+	InputDataVersion   string   `json:"input_data_version"`
+	GeometrySource     string   `json:"geometry_source"`
+	ExperimentID       string   `json:"experiment_id"`
+	Projection         string   `json:"projection"`
+	ReferenceLatitude  float64  `json:"reference_latitude"`
+	ReferenceLongitude float64  `json:"reference_longitude"`
+	ScenarioStatus     string   `json:"scenario_status,omitempty"`
+	UsageLimitations   []string `json:"usage_limitations,omitempty"`
 }
 
 type polylineMetrics struct {
@@ -272,7 +275,7 @@ func reproducibilityForGeometry(points []geometry.LatLon) reproducibilityMetrics
 // buildReportMetadata формирует воспроизводимые метаданные для SVG и JSON.
 func buildReportMetadata(ctx exportContext, points []geometry.LatLon, parameters string) reportMetadata {
 	reproducibility := reproducibilityForGeometry(points)
-	identity := sha256.Sum256([]byte(ctx.Command + "|" + reproducibility.InputGeometrySHA256 + "|" + parameters))
+	identity := sha256.Sum256([]byte(ctx.Command + "|" + reproducibility.InputGeometrySHA256 + "|" + parameters + "|scenario=" + ctx.Scenario.ScenarioStatus))
 	return reportMetadata{
 		GeneratedAt:        nowTimestamp(),
 		InputDataVersion:   reproducibility.InputGeometrySHA256,
@@ -281,10 +284,12 @@ func buildReportMetadata(ctx exportContext, points []geometry.LatLon, parameters
 		Projection:         reproducibility.CalculationCoordinateSystem,
 		ReferenceLatitude:  reproducibility.ProjectionReferenceLat,
 		ReferenceLongitude: reproducibility.ProjectionReferenceLon,
+		ScenarioStatus:     ctx.Scenario.ScenarioStatus,
+		UsageLimitations:   append([]string(nil), ctx.Scenario.UsageLimitations...),
 	}
 }
 
-// reportMetadataLines подготавливает компактное описание для научной карты.
+// reportMetadataLines подготавливает компактное описание для карты отчёта.
 func reportMetadataLines(metadata reportMetadata) string {
 	source := metadata.GeometrySource
 	if cacheIndex := strings.Index(source, " (кешированная копия"); cacheIndex > 0 {
@@ -293,10 +298,23 @@ func reportMetadataLines(metadata reportMetadata) string {
 	if len(source) > 96 {
 		source = source[:93] + "..."
 	}
-	return fmt.Sprintf("Эксперимент: %s · дата: %s\nИсточник: %s · версия данных: %s\nПроекция: %s · референс: %.4f° с.ш., %.4f° в.д.",
+	lines := fmt.Sprintf("Эксперимент: %s · дата: %s\nИсточник: %s · версия данных: %s\nПроекция: %s · референс: %.4f° с.ш., %.4f° в.д.",
 		metadata.ExperimentID, metadata.GeneratedAt, source,
 		metadata.InputDataVersion[:12], metadata.Projection,
 		metadata.ReferenceLatitude, metadata.ReferenceLongitude)
+	if metadata.ScenarioStatus != "" {
+		lines += "\nСтатус сценария: " + metadata.ScenarioStatus
+	}
+	return lines
+}
+
+// withScenarioClassification добавляет к контексту экспорта статус сценария
+// и передаёт его в подписи расширенной SVG-карты.
+func withScenarioClassification(ctx exportContext, scenario geometry.ScenarioClassification) exportContext {
+	ctx.Scenario = scenario
+	ctx.Scenario.UsageLimitations = append([]string(nil), scenario.UsageLimitations...)
+	ctx.Config.ScenarioStatus = scenario.ScenarioStatus
+	return ctx
 }
 
 func newExportContext(command, dataset, source string, validation coastline.ValidationReport) exportContext {
