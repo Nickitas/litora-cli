@@ -30,15 +30,21 @@ type blackSeaSochiDataPaths struct {
 	StructureWarning string
 }
 
-// prepareBlackSeaSochiData загружает открытые данные для стартового сценария
-// Сочи и сохраняет их вместе с метаданными происхождения. Береговая линия
-// поставляется с программой, а прогноз волн и глубины обновляются при запуске.
-func prepareBlackSeaSochiData() (blackSeaSochiDataPaths, error) {
+// prepareBlackSeaSochiData подготавливает открытые данные для стартового
+// сценария Сочи. Сначала используются проверенные локальные файлы, чтобы
+// обычный запуск не зависел от сети. Параметр refresh запрашивает свежие
+// волны, глубины и инвентарь сооружений и заменяет кэш только после проверки.
+func prepareBlackSeaSochiData(refresh bool) (blackSeaSochiDataPaths, error) {
 	if _, err := os.Stat(blackSeaSochiCoastlinePath); err != nil {
 		return blackSeaSochiDataPaths{}, fmt.Errorf("демонстрационный сегмент Сочи отсутствует: %w", err)
 	}
 	if err := os.MkdirAll(blackSeaSochiDataDir, 0o755); err != nil {
 		return blackSeaSochiDataPaths{}, fmt.Errorf("создание каталога данных Сочи: %w", err)
+	}
+	if !refresh {
+		if cached, ok := loadCachedBlackSeaSochiData(); ok {
+			return cached, nil
+		}
 	}
 
 	client := &http.Client{Timeout: 45 * time.Second}
@@ -113,6 +119,56 @@ func prepareBlackSeaSochiData() (blackSeaSochiDataPaths, error) {
 		return blackSeaSochiDataPaths{}, fmt.Errorf("сохранение манифеста: %w", err)
 	}
 	return blackSeaSochiDataPaths{Coastline: blackSeaSochiCoastlinePath, Bathymetry: bathymetryPath, Waves: wavePath, Structures: structuresPath, WaveSource: waveSource, StructureWarning: structureWarning}, nil
+}
+
+// loadCachedBlackSeaSochiData возвращает только полный и валидный локальный
+// набор. Благодаря проверке файлов ошибочный или неполный кэш не может
+// незаметно попасть в инженерный расчёт.
+func loadCachedBlackSeaSochiData() (blackSeaSochiDataPaths, bool) {
+	wavesPath := filepath.Join(blackSeaSochiDataDir, "waves-open-meteo.json")
+	bathymetryPath := filepath.Join(blackSeaSochiDataDir, "bathymetry-emodnet.json")
+	structuresPath := filepath.Join(blackSeaSochiDataDir, "structures-osm.json")
+	manifestPath := filepath.Join(blackSeaSochiDataDir, "manifest.json")
+	manifestData, err := os.ReadFile(manifestPath)
+	if err != nil {
+		return blackSeaSochiDataPaths{}, false
+	}
+	manifest := make(map[string]string)
+	if err := json.Unmarshal(manifestData, &manifest); err != nil {
+		return blackSeaSochiDataPaths{}, false
+	}
+	waveSource := strings.TrimSpace(manifest["wave_source"])
+	if waveSource == "" {
+		return blackSeaSochiDataPaths{}, false
+	}
+	if _, err := geometry.LoadWaveClimate(wavesPath, waveSource); err != nil {
+		return blackSeaSochiDataPaths{}, false
+	}
+	bathymetryData, err := os.ReadFile(bathymetryPath)
+	if err != nil {
+		return blackSeaSochiDataPaths{}, false
+	}
+	if _, err := geometry.LoadBathymetryFromJSON(bathymetryData, geometry.BathymetryLoadOptions{Resolution: 0.005}); err != nil {
+		return blackSeaSochiDataPaths{}, false
+	}
+	structures, err := geometry.LoadLongshoreStructures(structuresPath)
+	structureWarning := ""
+	if err != nil {
+		structuresPath = ""
+		structureWarning = "локальный инвентарь сооружений отсутствует; расчёт выполнен без сооружений"
+	} else if len(structures) == 0 {
+		// Историческая ошибка обновления не означает ошибку текущего запуска:
+		// сохранённый пустой инвентарь является валидным консервативным входом.
+		structureWarning = "локальный инвентарь не содержит применимых сооружений; для новой выгрузки используйте --refresh"
+	}
+	return blackSeaSochiDataPaths{
+		Coastline:        blackSeaSochiCoastlinePath,
+		Bathymetry:       bathymetryPath,
+		Waves:            wavesPath,
+		Structures:       structuresPath,
+		WaveSource:       waveSource,
+		StructureWarning: structureWarning,
+	}, true
 }
 
 // downloadBlackSeaData получает данные открытого сервиса и проверяет код ответа.

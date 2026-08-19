@@ -7,8 +7,13 @@
 
 ```bash
 ./lito waterbody list
+./lito all
 ./lito erosion --waterbody black-sea-sochi --output output/sochi-auto
 ```
+
+Без аргументов `lito all` и `lito erosion` сами выбирают Сочи — единственный
+сейчас водоём с готовым открытым стартовым набором. Он используется из
+проверенного кэша; `--refresh` обновляет открытые входы.
 
 ## Статусы
 

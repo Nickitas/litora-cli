@@ -67,7 +67,7 @@ var erosionCmd = &cobra.Command{
 	Long: `Выполняет инженерную one-line модель CERC по фактическому волновому ряду.
 Расчёт включает дисперсию, рефракцию, shoaling, разрушение волн и
 уравнение неразрывности вдольберегового транспорта. Батиметрия и волновой ряд
-обязательны; без них расчёт не запускается.`,
+обязательны; без аргументов используется готовый открытый набор Сочи.`,
 	RunE: runErosion,
 }
 
@@ -110,6 +110,12 @@ func init() {
 }
 
 func runErosion(cmd *cobra.Command, args []string) error {
+	// Пустой запуск выбирает проверяемый сценарий Сочи, а не синтетические
+	// условия и не обзорную береговую линию другого масштаба.
+	if erosionWaterbody == "" && erosionInput == "" && erosionBathymetry == "" && erosionWaveInput == "" && !erosionBlackSeaSochi {
+		erosionBlackSeaSochi = true
+		fmt.Println("✓ Входные файлы не заданы: выбран стартовый набор Чёрного моря — Сочи")
+	}
 	if erosionWaterbody != "" {
 		body, err := selectedWaterbody(erosionWaterbody)
 		if err != nil {
@@ -141,7 +147,7 @@ func runErosion(cmd *cobra.Command, args []string) error {
 		if erosionWaterbody == "" {
 			erosionWaterbody = "black-sea-sochi"
 		}
-		paths, err := prepareBlackSeaSochiData()
+		paths, err := prepareBlackSeaSochiData(erosionRefresh)
 		if err != nil {
 			return fmt.Errorf("подготовка набора Сочи: %w", err)
 		}

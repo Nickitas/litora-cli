@@ -71,7 +71,8 @@ var allCmd = &cobra.Command{
 3. Одномерное моделирование CERC по фактическому волновому ряду
 4. Пространственный баланс наносов и экспорт результатов
 
-Для эрозионной части обязательны --wave-input и батиметрия.`,
+Без файлов и без --waterbody команда запускает готовый открытый сценарий
+Сочи. Для другого водоёма нужны его фактические входные данные.`,
 	RunE: runAll,
 }
 
@@ -118,6 +119,13 @@ func init() {
 }
 
 func runAll(cmd *cobra.Command, args []string) error {
+	// Пустой запуск должен быть воспроизводимым и не использовать обзорную
+	// линию всего Чёрного моря как локальный инженерный участок. Поэтому
+	// выбирается единственный готовый набор с реальными входами — Сочи.
+	if allWaterbody == "" && allInput == "" && allBathymetry == "" && allWaveInput == "" && !allBlackSeaSochi {
+		allBlackSeaSochi = true
+		fmt.Println("✓ Входные файлы не заданы: выбран стартовый набор Чёрного моря — Сочи")
+	}
 	if allWaterbody != "" {
 		body, err := selectedWaterbody(allWaterbody)
 		if err != nil {
@@ -149,7 +157,7 @@ func runAll(cmd *cobra.Command, args []string) error {
 		if allWaterbody == "" {
 			allWaterbody = "black-sea-sochi"
 		}
-		paths, err := prepareBlackSeaSochiData()
+		paths, err := prepareBlackSeaSochiData(allRefresh)
 		if err != nil {
 			return fmt.Errorf("подготовка набора Сочи: %w", err)
 		}
