@@ -125,6 +125,8 @@ type fractalSeriesArtifactMetrics struct {
 	Dataset             string                     `json:"dataset,omitempty"`
 	Source              string                     `json:"source,omitempty"`
 	Title               string                     `json:"title"`
+	GeometryKind        string                     `json:"geometry_kind"`
+	Interpretation      string                     `json:"interpretation"`
 	OutputDir           string                     `json:"output_dir"`
 	ReferenceCoastline  polylineMetrics            `json:"reference_coastline"`
 	ReferenceRender     polylineMetrics            `json:"reference_render"`
@@ -302,7 +304,7 @@ func newExportContext(command, dataset, source string, validation coastline.Vali
 
 	// По умолчанию включите расширенный режим для команд измерения и размывания
 	// Здесь показаны таблицы подсчета ячеек и размывания для лучшего понимания
-	if command == cmdDimension || command == cmdErosion {
+	if command == cmdDimension || command == cmdKochDemo || command == cmdErosion {
 		cfg.EnableEnhanced = true
 		cfg.ShowGrid = true
 		cfg.ShowCompass = true

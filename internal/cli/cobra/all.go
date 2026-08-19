@@ -5,7 +5,7 @@ import (
 
 	"coastal-geometry/internal/cli"
 	"coastal-geometry/internal/domain/coastline"
-	"coastal-geometry/internal/domain/generators/koch"
+	"coastal-geometry/internal/domain/fractal"
 	"coastal-geometry/internal/domain/geometry"
 
 	"github.com/spf13/cobra"
@@ -16,10 +16,6 @@ var (
 	allSourceURL              string
 	allRefresh                bool
 	allOutput                 string
-	allIterations             int
-	allSeed                   int64
-	allAngleJitter            float64
-	allHeightJitter           float64
 	allErosionStrength        float64
 	allSteps                  int
 	allWaveDirection          float64
@@ -87,12 +83,6 @@ func init() {
 	allCmd.Flags().StringVar(&allSourceURL, "source-url", "", "явно включить удалённый GeoJSON-источник")
 	allCmd.Flags().BoolVar(&allRefresh, "refresh", false, "принудительное обновление удалённого кэша")
 	allCmd.Flags().StringVar(&allOutput, "output", "", "каталог для вывода (по умолчанию: ./output)")
-
-	// Koch fractal options
-	allCmd.Flags().IntVar(&allIterations, "iterations", 5, "максимальное количество органических итераций Коха")
-	allCmd.Flags().Int64Var(&allSeed, "seed", 42, "зерно генератора случайных чисел для органической генерации")
-	allCmd.Flags().Float64Var(&allAngleJitter, "angle-jitter", 18, "максимальное случайное отклонение угла в градусах")
-	allCmd.Flags().Float64Var(&allHeightJitter, "height-jitter", 0.25, "максимальное случайное отклонение высоты как отношение")
 
 	// Erosion options
 	allCmd.Flags().IntVar(&allSteps, "steps", 0, "ограничить число первых состояний волнового ряда (0 — использовать все)")
@@ -224,13 +214,10 @@ func runAll(cmd *cobra.Command, args []string) error {
 		fmt.Printf("warning: %s\n", warning)
 	}
 
-	// Run dimension analysis
-	fmt.Println("\nВыполнение анализа фрактальной размерности...")
-	opts := koch.OrganicOptions{
-		Seed:            allSeed,
-		AngleJitterDeg:  allAngleJitter,
-		HeightJitterPct: allHeightJitter,
-	}
+	// Анализ размерности выполняется только по неизменённым наблюдаемым данным.
+	fmt.Println("\nВыполнение анализа фрактальной размерности наблюдаемой линии...")
+	dimensionAnalysis := fractal.AnalyzeBoxCounting(result.Points)
+	printObservedDimension(result.Points, dimensionAnalysis)
 
 	// Simplify base for model if needed
 	modelBase := result.Points
@@ -240,12 +227,6 @@ func runAll(cmd *cobra.Command, args []string) error {
 	} else if !allDisableSimplify {
 		simplified := geometry.SimplifyPolyline(modelBase, geometry.SimplifyOptions{MaxPoints: 2000})
 		modelBase = simplified.Points
-	}
-
-	// Run Koch iterations
-	for iter := 0; iter <= allIterations; iter++ {
-		curve := koch.OrganicKochCurve(modelBase, iter, opts)
-		fmt.Printf("  Итерация %d: %d точек, длина %.0f км\n", iter, len(curve), geometry.PolylineLength(curve))
 	}
 
 	// Run erosion simulation
@@ -296,12 +277,9 @@ func runAll(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("подготовка каталогов вывода: %w", err)
 	}
 
-	// Dimension series SVG
-	if err := cli.WriteDimensionSVGSeries(modelBase, allIterations, koch.OrganicOptions{
-		Seed:            allSeed,
-		AngleJitterDeg:  allAngleJitter,
-		HeightJitterPct: allHeightJitter,
-	}, outputMgr, result.DatasetName, result.Source, result.Validation); err != nil {
+	// Научный отчёт dimension использует исходную наблюдаемую линию, а не
+	// упрощённую базу эрозионной модели.
+	if err := cli.WriteDimensionSVG(result.Points, outputMgr, result.DatasetName, result.Source, result.Validation); err != nil {
 		fmt.Printf("Предупреждение: не удалось создать SVG для размерности: %v\n", err)
 	}
 

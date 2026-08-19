@@ -84,17 +84,17 @@ func buildEnhancedOptions(cfg config, points []geometry.LatLon, waveDir float64)
 			Show:          true,
 			Size:          float64(cfg.CompassSize),
 			WindDirection: waveDir,
-			ShowWindArrow: cfg.Command != cmdDimension,
+			ShowWindArrow: cfg.Command != cmdDimension && cfg.Command != cmdKochDemo,
 			Label:         "",
 			Style:         cfg.CompassStyle,
 		}
-		if cfg.Command == cmdDimension {
+		if cfg.Command == cmdDimension || cfg.Command == cmdKochDemo {
 			compassOpts.WindDirection = -1
 		}
 	}
 
 	var markerOpts *svgrender.MarkerOptions
-	if cfg.ShowMarkers && len(points) > 1 && cfg.Command != cmdDimension && cfg.Command != cmdErosion {
+	if cfg.ShowMarkers && len(points) > 1 && cfg.Command != cmdDimension && cfg.Command != cmdKochDemo && cfg.Command != cmdErosion {
 		markers := []svgrender.Marker{
 			{
 				Lat:     points[0].Lat,
@@ -159,7 +159,11 @@ func buildEnhancedOptions(cfg config, points []geometry.LatLon, waveDir float64)
 // wrapDocumentForEnhanced преобразует Document в EnhancedDocument с настройками конфигурации
 // Добавляет визуализацию транспорта наносов, если доступны данные
 func wrapDocumentForEnhanced(doc svgrender.Document, cfg config, points []geometry.LatLon, waveDir float64, sedimentResult *geometry.SedimentTransportResult, renderPoints []geometry.LatLon) svgrender.EnhancedDocument {
-	fmt.Printf("🔧 Научный SVG-режим: включён=%v, точек=%d\n", cfg.EnableEnhanced, len(points))
+	modeName := "Научный SVG-режим"
+	if cfg.Command == cmdKochDemo {
+		modeName = "Учебный SVG-режим"
+	}
+	fmt.Printf("🔧 %s: включён=%v, точек=%d\n", modeName, cfg.EnableEnhanced, len(points))
 
 	var enhanced *svgrender.EnhancedDocument
 
@@ -176,7 +180,7 @@ func wrapDocumentForEnhanced(doc svgrender.Document, cfg config, points []geomet
 		enhancedDoc.MarkerOptions = enhanced.MarkerOptions
 		enhancedDoc.IsolineOptions = enhanced.IsolineOptions
 	}
-	enhancedDoc.MinimalMap = cfg.Command == cmdDimension || cfg.Command == cmdErosion
+	enhancedDoc.MinimalMap = cfg.Command == cmdDimension || cfg.Command == cmdKochDemo || cfg.Command == cmdErosion
 	if enhancedDoc.MinimalMap {
 		// На box-counting-карте аналитическая сетка заменяет координатную.
 		enhancedDoc.GridOptions = nil
@@ -291,7 +295,7 @@ func wrapDocumentForEnhanced(doc svgrender.Document, cfg config, points []geomet
 			VectorScale:          1000,
 			MarkerSize:           8,
 		}
-	} else {
+	} else if cfg.Command == cmdErosion {
 		fmt.Printf("⚠️  Визуализация транспорта наносов пропущена: результат=%v, состояний=%d, улучшено=%v\n",
 			sedimentResult != nil,
 			func() int {
@@ -318,7 +322,7 @@ func wrapErosionDocumentForEnhanced(doc svgrender.Document, cfg config, points [
 	}
 
 	enhanced.Document = doc
-	enhanced.MinimalMap = cfg.Command == cmdDimension || cfg.Command == cmdErosion
+	enhanced.MinimalMap = cfg.Command == cmdDimension || cfg.Command == cmdKochDemo || cfg.Command == cmdErosion
 	if enhanced.MinimalMap {
 		// Аналитическая сетка заменяет координатную на научной карте.
 		enhanced.GridOptions = nil

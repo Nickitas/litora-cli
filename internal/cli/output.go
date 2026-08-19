@@ -12,21 +12,20 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 )
 
 type fractalSeriesOptions struct {
-	Title            string
-	Prefix           string
-	MetricsBaseName  string
-	Iterations       int
-	OriginalBase     []geometry.LatLon
-	ModelBase        []geometry.LatLon
-	OrganicOptions   *koch.OrganicOptions
-	ErosionStrength  float64
-	ErosionSeed      int64
-	IncludeDimension bool
-	Builder          func([]geometry.LatLon, int) []geometry.LatLon
+	Title             string
+	Prefix            string
+	MetricsBaseName   string
+	Iterations        int
+	OriginalBase      []geometry.LatLon
+	ModelBase         []geometry.LatLon
+	OrganicOptions    *koch.OrganicOptions
+	IncludeDimension  bool
+	Synthetic         bool
+	IncludeKochTheory bool
+	Builder           func([]geometry.LatLon, int) []geometry.LatLon
 }
 
 func writeCoastlineSVG(points, renderPoints []geometry.LatLon, output, defaultName string, ctx exportContext, outputPathManager *OutputPathManager) error {
@@ -109,22 +108,19 @@ func writeCoastlineSVG(points, renderPoints []geometry.LatLon, output, defaultNa
 	return nil
 }
 
-func writeOrganicKochSVGSeries(originalBase, modelBase []geometry.LatLon, iterations int, output string, opts koch.OrganicOptions, erosionStrength float64, prefix, metricsBaseName string, includeDimension bool, ctx exportContext, outputPathManager *OutputPathManager) error {
-	title := "Органическая кривая Коха"
-	if includeDimension {
-		title = "Фрактальная размерность"
-	}
+func writeOrganicKochSVGSeries(originalBase, modelBase []geometry.LatLon, iterations int, output string, opts koch.OrganicOptions, prefix, metricsBaseName string, includeDimension bool, ctx exportContext, outputPathManager *OutputPathManager) error {
+	title := "Учебная Кох-подобная кривая"
 	return writeFractalSeries(fractalSeriesOptions{
-		Title:            title,
-		Prefix:           prefix,
-		MetricsBaseName:  metricsBaseName,
-		Iterations:       iterations,
-		OriginalBase:     originalBase,
-		ModelBase:        modelBase,
-		OrganicOptions:   &opts,
-		ErosionStrength:  erosionStrength,
-		ErosionSeed:      opts.Seed,
-		IncludeDimension: includeDimension,
+		Title:             title,
+		Prefix:            prefix,
+		MetricsBaseName:   metricsBaseName,
+		Iterations:        iterations,
+		OriginalBase:      originalBase,
+		ModelBase:         modelBase,
+		OrganicOptions:    &opts,
+		IncludeDimension:  includeDimension,
+		Synthetic:         true,
+		IncludeKochTheory: includeDimension,
 		Builder: func(points []geometry.LatLon, iter int) []geometry.LatLon {
 			return koch.OrganicKochCurve(points, iter, opts)
 		},
@@ -436,8 +432,16 @@ func writeFractalSeries(opts fractalSeriesOptions, output string, ctx exportCont
 	if len(metadataPoints) == 0 {
 		metadataPoints = opts.ModelBase
 	}
-	ctx.Report = buildReportMetadata(ctx, metadataPoints, fmt.Sprintf("seed=%d|iterations=%d|angle=%.6f|height=%.6f", opts.ErosionSeed, opts.Iterations, angleJitter, heightJitter))
-	fmt.Printf("🧾 Научный отчёт: эксперимент %s, источник %s, версия данных %s\n", ctx.Report.ExperimentID, ctx.Report.GeometrySource, ctx.Report.InputDataVersion[:12])
+	reportParameters := "method=box-counting|geometry=observed"
+	if opts.Synthetic {
+		reportParameters = fmt.Sprintf("method=organic-koch-demo|seed=%d|iterations=%d|angle=%.6f|height=%.6f", opts.OrganicOptions.Seed, opts.Iterations, angleJitter, heightJitter)
+	}
+	ctx.Report = buildReportMetadata(ctx, metadataPoints, reportParameters)
+	reportKind := "Научный отчёт по наблюдениям"
+	if opts.Synthetic {
+		reportKind = "Учебный отчёт по синтетической геометрии"
+	}
+	fmt.Printf("🧾 %s: эксперимент %s, источник %s, версия данных %s\n", reportKind, ctx.Report.ExperimentID, ctx.Report.GeometrySource, ctx.Report.InputDataVersion[:12])
 	outputDir := outputPathManager.SVGDir()
 
 	originalBase := opts.OriginalBase
@@ -465,13 +469,6 @@ func writeFractalSeries(opts fractalSeriesOptions, output string, ctx exportCont
 
 	for iter := 0; iter <= iterations; iter++ {
 		curves[iter] = opts.Builder(modelBase, iter)
-		if opts.ErosionStrength > 0 {
-			seed := opts.ErosionSeed
-			if seed == 0 {
-				seed = time.Now().UnixNano()
-			}
-			curves[iter] = geometry.ErodeWithSeed(curves[iter], opts.ErosionStrength, seed+int64(iter))
-		}
 		renderCurves[iter] = simplifyForSeriesSVG(curves[iter]).Points
 		lengths[iter] = geometry.PolylineLength(curves[iter])
 		if len(curves[iter]) > maxRawPoints {
@@ -485,8 +482,10 @@ func writeFractalSeries(opts fractalSeriesOptions, output string, ctx exportCont
 		}
 	}
 
-	if maxRawPoints > maxRenderPoints {
+	if opts.Synthetic && maxRawPoints > maxRenderPoints {
 		fmt.Printf("ℹ️  Упрощение синтетического SVG: максимальный слой %d → %d точек для рендера\n", maxRawPoints, maxRenderPoints)
+	} else if maxRawPoints > maxRenderPoints {
+		fmt.Printf("ℹ️  Упрощение наблюдаемой линии для SVG: %d → %d точек; расчёт выполнен по всем исходным точкам\n", maxRawPoints, maxRenderPoints)
 	}
 
 	referenceSummary := summarizePolyline(originalBase)
@@ -503,45 +502,51 @@ func writeFractalSeries(opts fractalSeriesOptions, output string, ctx exportCont
 		if dimensions[iter] != nil && len(dimensions[iter].Samples) > 1 {
 			logLogFilename = filepath.Join(outputDir, fmt.Sprintf("%s_loglog_%d.svg", opts.Prefix, iter))
 			analysis := fractal.AnalyzeBoxCounting(curves[iter])
-			if err := svgrender.DrawLogLogSVG(logLogPlotOptionsFromAnalysis(analysis, iter), logLogFilename); err != nil {
+			if err := svgrender.DrawLogLogSVG(logLogPlotOptionsFromAnalysis(analysis, iter, opts.Synthetic), logLogFilename); err != nil {
 				return err
 			}
 			dimensions[iter].LogLogSVGFile = logLogFilename
 			fmt.Printf("Log-log график сохранён: %s\n", logLogFilename)
 		}
-		layers := makeFractalLayers(renderCurves[iter:iter+1], lengths[iter:iter+1], iter)
-		charts := makeSeriesCharts(iter, lengths[:iter+1], dimensions[:iter+1])
-		meta := []string{
-			fmt.Sprintf("Реальная линия: %.0f км, %d т.", referenceSummary.LengthKM, referenceSummary.PointsCount),
-			fmt.Sprintf("База модели: %.0f км, %d т. (%+.1f%% к реальной)", modelSummary.LengthKM, modelSummary.PointsCount, modelSimplification.LengthDeltaPercent),
-			fmt.Sprintf("Текущий слой: %.0f км, %d т. расчёт / %d т. SVG", lengths[iter], len(curves[iter]), len(renderCurves[iter])),
+		layers := makeFractalLayers(renderCurves[iter:iter+1], lengths[iter:iter+1], iter, opts.Synthetic)
+		charts := makeSeriesCharts(iter, lengths[:iter+1], dimensions[:iter+1], opts.Synthetic, opts.IncludeKochTheory)
+		meta := []string{}
+		if opts.Synthetic {
+			meta = append(meta,
+				fmt.Sprintf("Исходная линия: %.0f км, %d т.", referenceSummary.LengthKM, referenceSummary.PointsCount),
+				fmt.Sprintf("База синтетической модели: %.0f км, %d т. (%+.1f%% к исходной)", modelSummary.LengthKM, modelSummary.PointsCount, modelSimplification.LengthDeltaPercent),
+				fmt.Sprintf("Синтетический слой: %.0f км, %d т. расчёт / %d т. SVG", lengths[iter], len(curves[iter]), len(renderCurves[iter])),
+			)
+		} else {
+			meta = append(meta,
+				fmt.Sprintf("Наблюдаемая линия: %.0f км, %d т.", referenceSummary.LengthKM, referenceSummary.PointsCount),
+				fmt.Sprintf("Расчёт: %d исходных точек; SVG: %d точек", len(curves[iter]), len(renderCurves[iter])),
+			)
 		}
 		if dimension := dimensions[iter]; dimension != nil {
 			if dimension.Valid {
-				meta = append(meta, fmt.Sprintf("D: %.5f, R²=%.4f, стаб=%t", dimension.Dimension, dimension.RegressionRSquared, dimension.StableAcrossScales))
+				stability := "нет"
+				if dimension.StableAcrossScales {
+					stability = "да"
+				}
+				meta = append(meta, fmt.Sprintf("D: %.5f, R²=%.4f, устойчива=%s", dimension.Dimension, dimension.RegressionRSquared, stability))
 			} else {
-				meta = append(meta, fmt.Sprintf("D: n/a, масштабов=%d", dimension.SampleCount))
+				meta = append(meta, fmt.Sprintf("D: н/д, масштабов=%d", dimension.SampleCount))
 			}
 		}
-		if opts.ErosionStrength > 0 {
-			meta = append(meta, fmt.Sprintf("Эрозия: σ=%.0f м, seed=%d", opts.ErosionStrength, opts.ErosionSeed))
-		}
-
-		subtitle := fmt.Sprintf("Модель: органическая кривая Коха · итерация %d · сетка box-counting", iter)
-		if opts.OrganicOptions != nil {
+		subtitle := "Наблюдаемая береговая линия без синтетического преобразования · сетка box-counting"
+		if opts.Synthetic {
 			subtitle = fmt.Sprintf("Модель: органическая кривая Коха · итерация %d · сетка box-counting · seed=%d",
 				iter, opts.OrganicOptions.Seed)
-			if dimensions[iter] != nil {
-				subtitle += fmt.Sprintf("\nМасштабов ε: %d · εпредст.=%.0f м · D=%.5f · R²=%.4f\nУстойчивость по масштабам: %t",
-					dimensions[iter].SampleCount, dimensions[iter].BoxSizeMeters, dimensions[iter].Dimension, dimensions[iter].RegressionRSquared, dimensions[iter].StableAcrossScales)
-				if dimensions[iter].DimensionCI95High > dimensions[iter].DimensionCI95Low {
-					subtitle += fmt.Sprintf("\n95%% ДИ размерности: [%.5f; %.5f]", dimensions[iter].DimensionCI95Low, dimensions[iter].DimensionCI95High)
-				} else {
-					subtitle += "\n95% ДИ размерности: не оценён"
-				}
-			}
-			if opts.ErosionStrength > 0 {
-				subtitle += fmt.Sprintf("\nЭрозионное возмущение: %.0f м · seed=%d", opts.ErosionStrength, opts.ErosionSeed)
+			subtitle += "\nУчебная синтетическая геометрия: не интерпретировать как свойство природного берега"
+		}
+		if dimensions[iter] != nil {
+			subtitle += fmt.Sprintf("\nМасштабов ε: %d · εпредст.=%.0f м · D=%.5f · R²=%.4f\nУстойчивость по масштабам: %t",
+				dimensions[iter].SampleCount, dimensions[iter].BoxSizeMeters, dimensions[iter].Dimension, dimensions[iter].RegressionRSquared, dimensions[iter].StableAcrossScales)
+			if dimensions[iter].DimensionCI95High > dimensions[iter].DimensionCI95Low {
+				subtitle += fmt.Sprintf("\n95%% ДИ размерности: [%.5f; %.5f]", dimensions[iter].DimensionCI95Low, dimensions[iter].DimensionCI95High)
+			} else {
+				subtitle += "\n95% ДИ размерности: не оценён"
 			}
 		}
 		subtitle += "\n" + reportMetadataLines(ctx.Report)
@@ -557,7 +562,11 @@ func writeFractalSeries(opts fractalSeriesOptions, output string, ctx exportCont
 		}
 
 		if ctx.Config.EnableEnhanced {
-			fmt.Printf("🔧 Научный режим включён для итерации %d\n", iter)
+			modeName := "научный режим наблюдений"
+			if opts.Synthetic {
+				modeName = "учебный режим синтетической серии"
+			}
+			fmt.Printf("🔧 Включён %s, шаг %d\n", modeName, iter)
 			// Для фрактального анализа направление ветра не используется.
 			renderConfig := ctx.Config
 			if dimensions[iter] != nil {
@@ -607,18 +616,22 @@ func writeFractalSeries(opts fractalSeriesOptions, output string, ctx exportCont
 		Dataset:             ctx.Dataset,
 		Source:              ctx.Source,
 		Title:               opts.Title,
+		GeometryKind:        "наблюдаемая",
+		Interpretation:      "Оценка box-counting относится к наблюдаемому набору данных и доступному диапазону масштабов.",
 		OutputDir:           outputPathManager.BaseDir(),
 		ReferenceCoastline:  referenceSummary,
 		ReferenceRender:     referenceRenderSummary,
 		ModelBase:           modelSummary,
 		ModelSimplification: modelSimplification,
-		ErosionStrength:     opts.ErosionStrength,
-		ErosionSeed:         opts.ErosionSeed,
 		Report:              ctx.Report,
 		Iterations:          iterationsMetrics,
 		Highlights:          coastlineHighlightsMetricsFromHints(visualHints),
 		Validation:          validationMetricsFromData(ctx.Validation, validationSummary),
 		Reproducibility:     reproducibility,
+	}
+	if opts.Synthetic {
+		seriesMetrics.GeometryKind = "синтетическая-демонстрационная"
+		seriesMetrics.Interpretation = "Учебная синтетическая серия; не является выводом о фрактальной размерности природной береговой линии."
 	}
 	if opts.OrganicOptions != nil {
 		seriesMetrics.OrganicOptions = &organicOptionsMetrics{
@@ -650,7 +663,7 @@ func regressionBoxSizeRange(metrics *dimensionMetrics) (float64, float64) {
 	return minimum, maximum
 }
 
-func makeFractalLayers(curves [][]geometry.LatLon, lengths []float64, iteration int) []svgrender.Layer {
+func makeFractalLayers(curves [][]geometry.LatLon, lengths []float64, iteration int, synthetic bool) []svgrender.Layer {
 	palette := []string{
 		"#1f6f8b",
 		"#2c7a7b",
@@ -663,8 +676,12 @@ func makeFractalLayers(curves [][]geometry.LatLon, lengths []float64, iteration 
 
 	layers := make([]svgrender.Layer, 0, len(curves))
 	for i := range curves {
+		label := "Наблюдаемая береговая линия"
+		if synthetic {
+			label = fmt.Sprintf("Синтетическая модель, итерация %d", iteration)
+		}
 		layers = append(layers, svgrender.Layer{
-			Label:       fmt.Sprintf("Модель, итерация %d", iteration),
+			Label:       label,
 			Points:      curves[i],
 			LengthKM:    lengths[i],
 			Stroke:      palette[iteration%len(palette)],
@@ -706,7 +723,7 @@ func safeRatio(value, base float64) float64 {
 	return value / base
 }
 
-func logLogPlotOptionsFromAnalysis(analysis fractal.BoxCountingAnalysis, iteration int) svgrender.LogLogPlotOptions {
+func logLogPlotOptionsFromAnalysis(analysis fractal.BoxCountingAnalysis, iteration int, synthetic bool) svgrender.LogLogPlotOptions {
 	points := make([]svgrender.LogLogPoint, 0, len(analysis.Samples))
 	for index, sample := range analysis.Samples {
 		points = append(points, svgrender.LogLogPoint{
@@ -716,8 +733,12 @@ func logLogPlotOptionsFromAnalysis(analysis fractal.BoxCountingAnalysis, iterati
 			InRegression:    index >= analysis.RegressionStart && index <= analysis.RegressionEnd,
 		})
 	}
+	title := "Аудит box-counting — наблюдаемая линия"
+	if synthetic {
+		title = fmt.Sprintf("Аудит box-counting — синтетическая итерация %d", iteration)
+	}
 	return svgrender.LogLogPlotOptions{
-		Title:          fmt.Sprintf("Аудит box-counting — итерация %d", iteration),
+		Title:          title,
 		Subtitle:       "Все масштабы ε и значения N(ε); пунктир — окно линейной регрессии",
 		Points:         points,
 		Dimension:      analysis.Dimension,
@@ -821,12 +842,13 @@ func fixStatTone(count int) string {
 	return "#3f6b4b"
 }
 
-func makeSeriesCharts(currentIter int, lengths []float64, dimensions []*dimensionMetrics) []svgrender.Chart {
-	charts := []svgrender.Chart{
-		buildLengthChart(lengths),
+func makeSeriesCharts(currentIter int, lengths []float64, dimensions []*dimensionMetrics, includeLength, includeKochTheory bool) []svgrender.Chart {
+	charts := make([]svgrender.Chart, 0, 2)
+	if includeLength {
+		charts = append(charts, buildLengthChart(lengths))
 	}
 
-	dimensionChart := buildDimensionChart(dimensions)
+	dimensionChart := buildDimensionChart(dimensions, includeKochTheory)
 	if len(dimensionChart.Series) > 0 {
 		charts = append(charts, dimensionChart)
 	}
@@ -852,7 +874,7 @@ func buildLengthChart(lengths []float64) svgrender.Chart {
 	return chart
 }
 
-func buildDimensionChart(dimensions []*dimensionMetrics) svgrender.Chart {
+func buildDimensionChart(dimensions []*dimensionMetrics, includeKochTheory bool) svgrender.Chart {
 	values := make([]float64, len(dimensions))
 	hasValues := false
 	for i, dimension := range dimensions {
@@ -867,13 +889,7 @@ func buildDimensionChart(dimensions []*dimensionMetrics) svgrender.Chart {
 		return svgrender.Chart{}
 	}
 
-	theory := make([]float64, len(values))
-	theoreticalDimension := math.Log(4) / math.Log(3)
-	for i := range theory {
-		theory[i] = theoreticalDimension
-	}
-
-	return svgrender.Chart{
+	chart := svgrender.Chart{
 		Title: "Размерность D",
 		Series: []svgrender.ChartSeries{
 			{
@@ -881,14 +897,22 @@ func buildDimensionChart(dimensions []*dimensionMetrics) svgrender.Chart {
 				Values: values,
 				Stroke: "#8b3f5c",
 			},
-			{
-				Label:     "Теория",
-				Values:    theory,
-				Stroke:    "#6f5f1f",
-				DashArray: "5 4",
-			},
 		},
 	}
+	if includeKochTheory {
+		theory := make([]float64, len(values))
+		theoreticalDimension := math.Log(4) / math.Log(3)
+		for i := range theory {
+			theory[i] = theoreticalDimension
+		}
+		chart.Series = append(chart.Series, svgrender.ChartSeries{
+			Label:     "Теория",
+			Values:    theory,
+			Stroke:    "#6f5f1f",
+			DashArray: "5 4",
+		})
+	}
+	return chart
 }
 
 func resolveOutputPath(output, defaultName, command string) (string, error) {
@@ -971,10 +995,11 @@ func WriteCoastlineSVG(points []geometry.LatLon, validation coastline.Validation
 	return writeCoastlineSVG(points, renderPoints.Points, "", "coastline.svg", ctx, outputPathManager)
 }
 
-// WriteDimensionSVGSeries создаёт SVG-файлы для каждой итерации фрактальной размерности
-func WriteDimensionSVGSeries(basePoints []geometry.LatLon, iterations int, opts koch.OrganicOptions, outputPathManager *OutputPathManager, dataset, source string, validation coastline.ValidationReport) error {
-	if len(basePoints) == 0 {
-		return fmt.Errorf("нет базовых точек")
+// WriteDimensionSVG создаёт научные SVG-артефакты оценки box-counting для
+// неизменённой наблюдаемой береговой линии.
+func WriteDimensionSVG(points []geometry.LatLon, outputPathManager *OutputPathManager, dataset, source string, validation coastline.ValidationReport) error {
+	if len(points) == 0 {
+		return fmt.Errorf("нет наблюдаемых точек")
 	}
 	if outputPathManager == nil {
 		return fmt.Errorf("менеджер выходных путей не задан")
@@ -984,8 +1009,43 @@ func WriteDimensionSVGSeries(basePoints []geometry.LatLon, iterations int, opts 
 	}
 
 	ctx := newExportContext("dimension", dataset, source, validation)
+	return writeFractalSeries(fractalSeriesOptions{
+		Title:             "Фрактальная размерность наблюдаемой береговой линии",
+		Prefix:            "dimension",
+		MetricsBaseName:   "dimension",
+		Iterations:        0,
+		OriginalBase:      points,
+		ModelBase:         points,
+		IncludeDimension:  true,
+		Synthetic:         false,
+		IncludeKochTheory: false,
+		Builder: func(base []geometry.LatLon, _ int) []geometry.LatLon {
+			return append([]geometry.LatLon(nil), base...)
+		},
+	}, "", ctx, outputPathManager)
+}
 
-	return writeOrganicKochSVGSeries(nil, basePoints, iterations, "", opts, 0, "dimension", "dimension", true, ctx, outputPathManager)
+// WriteKochDemoSVGSeries создаёт учебную серию SVG для синтетических
+// Кох-подобных кривых и явно маркирует её как демонстрационную.
+func WriteKochDemoSVGSeries(originalPoints, modelBase []geometry.LatLon, iterations int, opts koch.OrganicOptions, outputPathManager *OutputPathManager, dataset, source string, validation coastline.ValidationReport) error {
+	if len(modelBase) == 0 {
+		return fmt.Errorf("нет базовых точек")
+	}
+	if iterations < 0 {
+		return fmt.Errorf("число итераций не может быть отрицательным")
+	}
+	if len(originalPoints) == 0 {
+		return fmt.Errorf("нет исходных точек")
+	}
+	if outputPathManager == nil {
+		return fmt.Errorf("менеджер выходных путей не задан")
+	}
+	if err := outputPathManager.EnsureDirectories(); err != nil {
+		return err
+	}
+
+	ctx := newExportContext("koch-demo", dataset, source, validation)
+	return writeOrganicKochSVGSeries(originalPoints, modelBase, iterations, "", opts, "koch_demo", "koch-demo", true, ctx, outputPathManager)
 }
 
 // WriteErosionSVGSeries создаёт SVG-файлы для каждого шага эрозии

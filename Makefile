@@ -119,7 +119,7 @@
 # demo: clean build bathymetry
 # 	@echo ""
 # 	@echo "🚀 Запуск полного сценария (all) с волновой эрозией и батиметрией..."
-# 	@./$(BINARY_NAME) all --iterations 3 --steps 5 --erosion-strength 30 --bathymetry $(BATHYMETRY_FILE) --output ./output/demo
+# 	@./$(BINARY_NAME) all --steps 5 --erosion-strength 30 --bathymetry $(BATHYMETRY_FILE) --output ./output/demo
 # 	@echo ""
 # 	@echo "🎉 Демо завершено!"
 # 	@echo "Результаты: ./output/demo/"

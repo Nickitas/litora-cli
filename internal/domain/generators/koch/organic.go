@@ -7,14 +7,19 @@ import (
 	"math/rand"
 )
 
+// MaxIterations ограничивает рост числа точек в учебной синтетической серии.
 const MaxIterations = 10
 
+// OrganicOptions задаёт воспроизводимые параметры синтетического генератора.
 type OrganicOptions struct {
-	Seed            int64
-	AngleJitterDeg  float64
-	HeightJitterPct float64
+	Seed            int64   // зерно генератора случайных чисел
+	AngleJitterDeg  float64 // максимальное случайное отклонение угла в градусах
+	HeightJitterPct float64 // относительное случайное отклонение высоты выступа
 }
 
+// OrganicKochCurve искусственно преобразует базовую полилинию по
+// Кох-подобному правилу. Результат предназначен для учебных демонстраций и
+// проверки алгоритмов, а не для вывода о фрактальности исходной береговой линии.
 func OrganicKochCurve(base []geometry.LatLon, iterations int, opts OrganicOptions) []geometry.LatLon {
 	if iterations < 0 {
 		iterations = 0

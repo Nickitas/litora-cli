@@ -104,7 +104,7 @@ func commandUsesCoastlineSVG(command string) bool {
 
 func commandUsesModelBase(command string) bool {
 	switch command {
-	case cmdAll, cmdDimension:
+	case cmdAll, cmdKochDemo:
 		return true
 	default:
 		return false

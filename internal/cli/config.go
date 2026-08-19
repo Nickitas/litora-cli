@@ -6,6 +6,7 @@ const (
 	cmdAll       = "all"
 	cmdCoastline = "coastline"
 	cmdDimension = "dimension"
+	cmdKochDemo  = "koch-demo"
 	cmdErosion   = "erosion"
 	cmdBenchmark = "benchmark"
 )
@@ -52,6 +53,8 @@ func canonicalCommandPath(command string) string {
 		return "lito coastline"
 	case cmdDimension:
 		return "lito dimension"
+	case cmdKochDemo:
+		return "lito koch-demo"
 	case cmdErosion:
 		return "lito erosion"
 	case cmdBenchmark:

@@ -263,7 +263,7 @@ python scripts/analysis/segment_svg_generator.py data/black-sea.json \
 
 ```bash
 # 1. Базовая модель
-./lito all --iterations 6 --steps 15 --target-years 30 --years-per-step 2 \
+./lito all --steps 15 --target-years 30 --years-per-step 2 \
   --storm-probability 0.2 --sea-level-rise 0.008
 
 # 2. Анализ

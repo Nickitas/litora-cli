@@ -81,7 +81,7 @@ lito-windows-amd64.exe --help
 lito source
 
 # Полный научный сценарий
-lito all --iterations 3 --steps 5
+lito all --steps 5
 ```
 
 ## Дополнительные инструменты
