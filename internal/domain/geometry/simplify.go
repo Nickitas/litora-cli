@@ -105,6 +105,104 @@ func SimplifyPolyline(points []LatLon, options SimplifyOptions) SimplifyResult {
 	return result
 }
 
+// SimplifyPolylineWithTolerance упрощает береговую линию алгоритмом
+// Дугласа—Пекера с явно заданным метрическим допуском. Функция предназначена
+// для воспроизводимой подготовки границы расчётной 2D-сетки: значение допуска
+// сохраняет физический смысл при смене охвата карты и числа исходных точек.
+func SimplifyPolylineWithTolerance(points []LatLon, toleranceMeters float64) SimplifyResult {
+	cloned := clonePoints(points)
+	result := SimplifyResult{
+		Points:          cloned,
+		OriginalCount:   len(points),
+		SimplifiedCount: len(points),
+		ToleranceMeters: toleranceMeters,
+	}
+	if len(points) < 3 || toleranceMeters <= 0 {
+		result.OriginalClosed = isClosedPolyline(points)
+		result.SimplifiedClosed = result.OriginalClosed
+		return result
+	}
+
+	closed := isClosedPolyline(points)
+	result.OriginalClosed = closed
+	working := cloned
+	if closed {
+		working = clonePoints(working[:len(working)-1])
+	}
+	if len(working) < 3 {
+		result.SimplifiedClosed = closed
+		return result
+	}
+
+	projected := projectToMeters(working)
+	simplified := simplifyWithTolerance(working, projected, toleranceMeters)
+	if closed {
+		simplified = simplifyClosedWithTolerance(working, projected, toleranceMeters)
+	}
+	minimum := 2
+	if closed {
+		minimum = 3
+	}
+	if len(simplified) < minimum {
+		result.SimplifiedClosed = closed
+		return result
+	}
+	if closed {
+		simplified = append(simplified, simplified[0])
+	}
+
+	result.Points = simplified
+	result.SimplifiedCount = len(simplified)
+	result.Applied = len(simplified) != len(points)
+	result.SimplifiedClosed = closed
+	return result
+}
+
+// simplifyClosedWithTolerance разбивает кольцо на две дуги между удалёнными
+// опорными вершинами. Это исключает вырожденную хорду между соседними первой и
+// последней вершинами, которая возникает при прямом применении алгоритма
+// Дугласа—Пекера к замкнутому контуру.
+func simplifyClosedWithTolerance(points []LatLon, projected []pointXY, toleranceMeters float64) []LatLon {
+	if len(points) < 4 {
+		return clonePoints(points)
+	}
+	// Первая исходная вершина остаётся первой в результате, чтобы упрощённые
+	// рёбра однозначно сопоставлялись исходным дугам при расчёте Σ|ΔS|.
+	firstAnchor := 0
+	secondAnchor := farthestProjectedPoint(projected, firstAnchor)
+	if firstAnchor == secondAnchor {
+		return clonePoints(points)
+	}
+
+	firstPoints := clonePoints(points[firstAnchor : secondAnchor+1])
+	firstProjected := append([]pointXY(nil), projected[firstAnchor:secondAnchor+1]...)
+	secondPoints := append(clonePoints(points[secondAnchor:]), points[:firstAnchor+1]...)
+	secondProjected := append(append([]pointXY(nil), projected[secondAnchor:]...), projected[:firstAnchor+1]...)
+
+	firstSimplified := simplifyWithTolerance(firstPoints, firstProjected, toleranceMeters)
+	secondSimplified := simplifyWithTolerance(secondPoints, secondProjected, toleranceMeters)
+	result := append([]LatLon(nil), firstSimplified...)
+	if len(secondSimplified) > 2 {
+		result = append(result, secondSimplified[1:len(secondSimplified)-1]...)
+	}
+	if len(result) < 3 {
+		return clonePoints(points)
+	}
+	return result
+}
+
+func farthestProjectedPoint(points []pointXY, from int) int {
+	farthest := from
+	maxDistance := -1.0
+	for index := range points {
+		if distance := squaredDistance(points[from], points[index]); distance > maxDistance {
+			maxDistance = distance
+			farthest = index
+		}
+	}
+	return farthest
+}
+
 func simplifyWithTolerance(points []LatLon, projected []pointXY, toleranceMeters float64) []LatLon {
 	if len(points) < 3 || toleranceMeters <= 0 {
 		return clonePoints(points)

@@ -60,6 +60,18 @@ type LoadResult struct {
 	LoadWarnings []string          // Предупреждения при загрузке
 }
 
+// PolygonLoadResult содержит замкнутую внешнюю границу водоёма и внутренние
+// кольца островов. В отличие от Load результат не отбрасывает малые кольца
+// GeoJSON, поэтому пригоден для построения сетки по всей поверхности водоёма.
+type PolygonLoadResult struct {
+	Outer        []geometry.LatLon
+	Holes        [][]geometry.LatLon
+	Validation   ValidationReport
+	Source       string
+	DatasetName  string
+	LoadWarnings []string
+}
+
 // LoadFromJSON загружает береговую линию из локального JSON-файла
 func LoadFromJSON(filename string) ([]geometry.LatLon, ValidationReport, error) {
 	data, err := os.ReadFile(filename)
@@ -97,6 +109,65 @@ func Load(options LoadOptions) (LoadResult, error) {
 
 	return LoadResult{
 		Points:       points,
+		Validation:   report,
+		Source:       payload.Source,
+		DatasetName:  datasetName,
+		LoadWarnings: payload.LoadWarnings,
+	}, nil
+}
+
+// LoadPolygon загружает полигон водоёма, сохраняя острова как внутренние
+// кольца. Для простого массива координат создаётся один внешний контур.
+func LoadPolygon(options LoadOptions) (PolygonLoadResult, error) {
+	localPath := strings.TrimSpace(options.LocalPath)
+	remoteURL := strings.TrimSpace(options.RemoteURL)
+	cachePath := strings.TrimSpace(options.CachePath)
+	payload, err := resolveSourcePayload(localPath, remoteURL, cachePath, options.Refresh, options.HTTPClient)
+	if err != nil {
+		return PolygonLoadResult{}, err
+	}
+
+	sequences, err := parsePolygonSequences(payload.Payload, options.RemoteBounds)
+	if err != nil {
+		return PolygonLoadResult{}, fmt.Errorf("ошибка парсинга полигона водоёма %q: %w", payload.Source, err)
+	}
+	if len(sequences) == 0 {
+		return PolygonLoadResult{}, fmt.Errorf("источник %q не содержит колец водоёма", payload.Source)
+	}
+
+	outerIndex := largestRingIndex(sequences)
+	outer, report, err := normalizeMeshRing(sequences[outerIndex])
+	if err != nil {
+		return PolygonLoadResult{}, fmt.Errorf("ошибка внешнего кольца водоёма %q: %w", payload.Source, err)
+	}
+
+	holes := make([][]geometry.LatLon, 0, len(sequences)-1)
+	for index, sequence := range sequences {
+		if index == outerIndex || len(sequence) < 3 {
+			continue
+		}
+		ring, ringReport, ringErr := normalizeMeshRing(sequence)
+		if ringErr != nil {
+			report.Warnings = append(report.Warnings, fmt.Sprintf("внутреннее кольцо %d пропущено: %v", index, ringErr))
+			continue
+		}
+		if !pointInRing(ring[0], outer) {
+			report.Warnings = append(report.Warnings, fmt.Sprintf("отдельное кольцо %d вне основного водоёма пропущено", index))
+			continue
+		}
+		report.Fixes = append(report.Fixes, ringReport.Fixes...)
+		report.Warnings = append(report.Warnings, ringReport.Warnings...)
+		holes = append(holes, ring)
+	}
+
+	datasetName := filepath.Base(localPath)
+	if metadata, metaErr := inspectSourceMetadata(payload.Payload); metaErr == nil {
+		datasetName = datasetNameFromMetadata(metadata, localPath, remoteURL)
+	}
+
+	return PolygonLoadResult{
+		Outer:        outer,
+		Holes:        holes,
 		Validation:   report,
 		Source:       payload.Source,
 		DatasetName:  datasetName,
@@ -315,6 +386,30 @@ type geoJSONGeometry struct {
 
 // parseGeoJSONPoints парсит точки из GeoJSON
 func parseGeoJSONPoints(data []byte, bounds GeoBounds) ([]geometry.LatLon, error) {
+	sequences, err := parseGeoJSONSequences(data)
+	if err != nil {
+		return nil, err
+	}
+
+	filtered := filterGeoJSONSequences(sequences, bounds)
+	if len(filtered) == 0 {
+		if !bounds.IsZero() {
+			return nil, fmt.Errorf("GeoJSON не содержит координат внутри указанных границ")
+		}
+		return nil, fmt.Errorf("GeoJSON не содержит достаточно координат")
+	}
+
+	best := bestSequence(filtered)
+	if len(best) < 2 {
+		return nil, fmt.Errorf("последовательность GeoJSON не содержит достаточно координат")
+	}
+
+	return best, nil
+}
+
+// parseGeoJSONSequences извлекает все линейные последовательности GeoJSON,
+// не выбирая только самое длинное кольцо.
+func parseGeoJSONSequences(data []byte) ([][]geometry.LatLon, error) {
 	var collection geoJSONFeatureCollection
 	if err := json.Unmarshal(data, &collection); err != nil {
 		return nil, fmt.Errorf("ошибка парсинга корня GeoJSON: %w", err)
@@ -364,20 +459,98 @@ func parseGeoJSONPoints(data []byte, bounds GeoBounds) ([]geometry.LatLon, error
 		return nil, fmt.Errorf("GeoJSON не содержит геометрии береговой линии")
 	}
 
-	filtered := filterGeoJSONSequences(sequences, bounds)
-	if len(filtered) == 0 {
-		if !bounds.IsZero() {
-			return nil, fmt.Errorf("GeoJSON не содержит координат внутри указанных границ")
+	return sequences, nil
+}
+
+func parsePolygonSequences(data []byte, bounds GeoBounds) ([][]geometry.LatLon, error) {
+	trimmed := bytes.TrimSpace(data)
+	if len(trimmed) == 0 {
+		return nil, fmt.Errorf("пустые данные водоёма")
+	}
+	if trimmed[0] != '{' {
+		points, err := parseCoastlineData(trimmed, bounds)
+		if err != nil {
+			return nil, err
 		}
-		return nil, fmt.Errorf("GeoJSON не содержит достаточно координат")
+		return [][]geometry.LatLon{points}, nil
 	}
 
-	best := bestSequence(filtered)
-	if len(best) < 2 {
-		return nil, fmt.Errorf("последовательность GeoJSON не содержит достаточно координат")
+	var envelope struct {
+		Type string `json:"type"`
 	}
+	if err := json.Unmarshal(trimmed, &envelope); err != nil {
+		return nil, err
+	}
+	switch strings.ToLower(envelope.Type) {
+	case "featurecollection", "feature", "polygon", "multipolygon", "linestring", "multilinestring", "geometrycollection":
+		sequences, err := parseGeoJSONSequences(trimmed)
+		if err != nil {
+			return nil, err
+		}
+		return filterGeoJSONSequences(sequences, bounds), nil
+	default:
+		points, err := parseBenchmarkCoastline(trimmed, envelope.Type)
+		if err != nil {
+			return nil, err
+		}
+		return [][]geometry.LatLon{points}, nil
+	}
+}
 
-	return best, nil
+func largestRingIndex(sequences [][]geometry.LatLon) int {
+	bestIndex := 0
+	bestArea := geometry.Area(sequences[0])
+	for index := 1; index < len(sequences); index++ {
+		if area := geometry.Area(sequences[index]); area > bestArea {
+			bestArea = area
+			bestIndex = index
+		}
+	}
+	return bestIndex
+}
+
+func normalizeMeshRing(points []geometry.LatLon) ([]geometry.LatLon, ValidationReport, error) {
+	if len(points) < 3 {
+		return nil, ValidationReport{}, fmt.Errorf("кольцо должно содержать минимум три точки")
+	}
+	working := append([]geometry.LatLon(nil), points...)
+	if isClosedPolyline(working) {
+		working = working[:len(working)-1]
+	}
+	report := ValidationReport{}
+	deduplicated := make([]geometry.LatLon, 0, len(working))
+	for index, point := range working {
+		if point.Lat < minValidLatitude || point.Lat > maxValidLatitude || point.Lon < minValidLongitude || point.Lon > maxValidLongitude {
+			return nil, report, fmt.Errorf("недопустимая координата кольца в индексе %d", index)
+		}
+		if len(deduplicated) > 0 && pointKey(deduplicated[len(deduplicated)-1]) == pointKey(point) {
+			continue
+		}
+		deduplicated = append(deduplicated, point)
+	}
+	if len(deduplicated) < 3 {
+		return nil, report, fmt.Errorf("после удаления соседних дубликатов осталось меньше трёх точек")
+	}
+	if removed := len(working) - len(deduplicated); removed > 0 {
+		report.Fixes = append(report.Fixes, fmt.Sprintf("удалены соседние повторяющиеся координаты кольца: %d", removed))
+	}
+	if intersections := findSelfIntersections(deduplicated); len(intersections) > 0 {
+		return nil, report, fmt.Errorf("кольцо имеет самопересечения: сегменты %s", formatIntersections(intersections))
+	}
+	deduplicated = append(deduplicated, deduplicated[0])
+	return deduplicated, report, nil
+}
+
+func pointInRing(point geometry.LatLon, ring []geometry.LatLon) bool {
+	inside := false
+	for i, j := 0, len(ring)-1; i < len(ring); j, i = i, i+1 {
+		a, b := ring[i], ring[j]
+		crosses := (a.Lat > point.Lat) != (b.Lat > point.Lat)
+		if crosses && point.Lon < (b.Lon-a.Lon)*(point.Lat-a.Lat)/(b.Lat-a.Lat)+a.Lon {
+			inside = !inside
+		}
+	}
+	return inside
 }
 
 // geometrySequencesFromGeoJSON извлекает последовательности точек из геометрии GeoJSON

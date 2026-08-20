@@ -15,6 +15,7 @@ const (
 	subdirErosion    = "erosion"
 	subdirWaterbody  = "waterbody"
 	subdirBenchmark  = "benchmark"
+	subdirMesh       = "mesh"
 	defaultOutputDir = "output"
 )
 
@@ -36,7 +37,7 @@ func NewOutputPathManager(baseDir string) *OutputPathManager {
 }
 
 // EnsureDirectories создаёт все выходные подкаталоги, если они не существуют.
-// Создаёт каталоги SVG, метрик, CSV, GIF, эрозии, водоёмов и benchmark.
+// Создаёт каталоги SVG, метрик, CSV, GIF, эрозии, водоёмов, benchmark и сеток.
 func (opm *OutputPathManager) EnsureDirectories() error {
 	dirs := []string{
 		opm.SVGDir(),
@@ -46,6 +47,7 @@ func (opm *OutputPathManager) EnsureDirectories() error {
 		opm.ErosionDir(),
 		opm.WaterbodyDir(),
 		opm.BenchmarkDir(),
+		opm.MeshDir(),
 	}
 
 	for _, dir := range dirs {
@@ -55,6 +57,16 @@ func (opm *OutputPathManager) EnsureDirectories() error {
 	}
 
 	return nil
+}
+
+// MeshDir возвращает каталог расчётных 2D-сеток и отчётов их сравнения.
+func (opm *OutputPathManager) MeshDir() string {
+	return filepath.Join(opm.baseDir, subdirMesh)
+}
+
+// MeshPath возвращает путь к файлу внутри каталога расчётных 2D-сеток.
+func (opm *OutputPathManager) MeshPath(filename string) string {
+	return filepath.Join(opm.MeshDir(), filename)
 }
 
 // BaseDir возвращает базовый выходной каталог

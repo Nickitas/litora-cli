@@ -64,6 +64,22 @@ func TestFetchCoastlineDataParsesGeoJSONPolygon(t *testing.T) {
 	}
 }
 
+func TestLoadPolygonPreservesIslandHole(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "waterbody.geojson")
+	payload := `{"type":"Polygon","coordinates":[[[34,43],[35,43],[35,44],[34,44],[34,43]],[[34.4,43.4],[34.4,43.6],[34.6,43.6],[34.6,43.4],[34.4,43.4]]]}`
+	if err := os.WriteFile(path, []byte(payload), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := LoadPolygon(LoadOptions{LocalPath: path})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Outer) != 5 || len(result.Holes) != 1 || len(result.Holes[0]) != 5 {
+		t.Fatalf("ожидалось внешнее кольцо и одно отверстие: внешних=%d, отверстий=%d", len(result.Outer), len(result.Holes))
+	}
+}
+
 func TestLoadUsesRemoteGeoJSONWhenAvailable(t *testing.T) {
 	dir := t.TempDir()
 	fallbackPath := filepath.Join(dir, "fallback.json")

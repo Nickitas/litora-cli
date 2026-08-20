@@ -3,6 +3,7 @@ package cobra
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"text/tabwriter"
 
 	"coastal-geometry/internal/cli"
@@ -14,10 +15,11 @@ import (
 )
 
 var (
-	dimInput     string
-	dimSourceURL string
-	dimRefresh   bool
-	dimOutput    string
+	dimInput        string
+	dimSourceURL    string
+	dimRefresh      bool
+	dimOutput       string
+	dimFullBlackSea bool
 )
 
 var dimensionCmd = &cobra.Command{
@@ -40,14 +42,31 @@ func init() {
 	dimensionCmd.Flags().StringVar(&dimSourceURL, "source-url", "", "явно включить удалённый GeoJSON-источник")
 	dimensionCmd.Flags().BoolVar(&dimRefresh, "refresh", false, "принудительное обновление удалённого кэша")
 	dimensionCmd.Flags().StringVar(&dimOutput, "output", "", "каталог для вывода (по умолчанию: ./output)")
+	dimensionCmd.Flags().BoolVar(&dimFullBlackSea, "full-black-sea", false, "анализировать полный открытый контур Чёрного моря, а не упрощённый локальный JSON")
 }
 
 func runDimension(_ *cobra.Command, _ []string) error {
-	result, err := coastline.Load(coastline.LoadOptions{
+	if dimFullBlackSea && (dimInput != "" || dimSourceURL != "") {
+		return fmt.Errorf("--full-black-sea нельзя сочетать с --input или --source-url")
+	}
+	loadOptions := coastline.LoadOptions{
 		LocalPath: dimInput,
 		RemoteURL: dimSourceURL,
 		Refresh:   dimRefresh,
-	})
+	}
+	if dimFullBlackSea {
+		cachePath := filepath.Join(coastline.DefaultCoastlineCacheDir, "black-sea.geojson")
+		if !dimRefresh {
+			if _, statErr := os.Stat(cachePath); statErr == nil {
+				loadOptions.LocalPath = cachePath
+			} else {
+				loadOptions.RemoteURL = coastline.DefaultCoastlineGeoJSONURL
+			}
+		} else {
+			loadOptions.RemoteURL = coastline.DefaultCoastlineGeoJSONURL
+		}
+	}
+	result, err := coastline.Load(loadOptions)
 	if err != nil {
 		return fmt.Errorf("загрузка береговой линии: %w", err)
 	}

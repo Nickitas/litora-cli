@@ -122,3 +122,42 @@ func TestSimplifyPolylineEdgeCases(t *testing.T) {
 		})
 	}
 }
+
+// TestSimplifyPolylineWithTolerancePreservesClosedRing проверяет метрический
+// режим упрощения, используемый генераторами 2D-сеток.
+func TestSimplifyPolylineWithTolerancePreservesClosedRing(t *testing.T) {
+	points := []LatLon{
+		{Lat: 43.0, Lon: 34.0},
+		{Lat: 43.00001, Lon: 34.005},
+		{Lat: 43.0, Lon: 34.01},
+		{Lat: 43.01, Lon: 34.01},
+		{Lat: 43.01, Lon: 34.0},
+		{Lat: 43.0, Lon: 34.0},
+	}
+
+	result := SimplifyPolylineWithTolerance(points, 10)
+	if !result.OriginalClosed || !result.SimplifiedClosed {
+		t.Fatalf("замкнутость должна сохраняться: %+v", result)
+	}
+	if result.Points[0] != result.Points[len(result.Points)-1] {
+		t.Fatal("результат должен завершаться исходной первой точкой")
+	}
+	if result.ToleranceMeters != 10 {
+		t.Fatalf("неверный допуск: %.1f", result.ToleranceMeters)
+	}
+}
+
+func TestSimplifyClosedPolylineWithToleranceDoesNotDegenerate(t *testing.T) {
+	points := []LatLon{
+		{Lat: 0, Lon: 0}, {Lat: 0, Lon: 0.01}, {Lat: 0, Lon: 0.02},
+		{Lat: 0.01, Lon: 0.02}, {Lat: 0.02, Lon: 0.02}, {Lat: 0.02, Lon: 0.01},
+		{Lat: 0.02, Lon: 0}, {Lat: 0.01, Lon: 0}, {Lat: 0, Lon: 0},
+	}
+	result := SimplifyPolylineWithTolerance(points, 100)
+	if !result.SimplifiedClosed || result.Points[0] != result.Points[len(result.Points)-1] {
+		t.Fatal("упрощённый замкнутый контур должен оставаться замкнутым")
+	}
+	if len(result.Points) < 5 {
+		t.Fatalf("прямоугольное кольцо не должно вырождаться, точек: %d", len(result.Points))
+	}
+}
