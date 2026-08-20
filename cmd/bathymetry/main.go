@@ -9,8 +9,7 @@ import (
 )
 
 const (
-	gebcoURL       = "https://www.gebco.net/data-products-gridded-bathymetry-data/"
-	blackSeaRegion = "40.5_46.5_27.5_42.5"
+	gebcoURL = "https://www.gebco.net/data-products/gridded-bathymetry-data/gebco2026-grid"
 )
 
 func main() {
@@ -52,9 +51,9 @@ func downloadBathymetry() {
 	fmt.Println("\n1. Посетите GEBCO Data Viewer:")
 	fmt.Printf("   %s\n", gebcoURL)
 	fmt.Println("\n2. Выберите регион Чёрного моря:")
-	fmt.Println("   - Север: 46.5°N")
+	fmt.Println("   - Север: 47.5°N")
 	fmt.Println("   - Юг: 40.5°N")
-	fmt.Println("   - Запад: 27.5°E")
+	fmt.Println("   - Запад: 27.0°E")
 	fmt.Println("   - Восток: 42.5°E")
 	fmt.Println("\n3. Скачайте NetCDF файл (.nc)")
 	fmt.Println("\n4. Сохраните точный URL, название и DOI выбранной версии продукта")
@@ -67,7 +66,7 @@ func downloadBathymetry() {
 	}
 
 	fmt.Println("\nАвтоматизированная загрузка и конвертация:")
-	fmt.Println("   cmd/bathymetry/convert/download_bathymetry.sh URL ПРОДУКТ DOI ВЫХОДНОЙ_JSON")
+	fmt.Println("   cmd/bathymetry/convert/download_bathymetry.sh URL_GEBCO_2026 ВЫХОДНОЙ_JSON")
 }
 
 func convertBathymetry() {

@@ -58,7 +58,6 @@ var (
 	allMaxChange              float64
 	allMaxBathymetryGap       float64
 	allBlackSeaSochi          bool
-	allWaterbody              string
 )
 
 var allCmd = &cobra.Command{
@@ -71,10 +70,10 @@ var allCmd = &cobra.Command{
 3. Одномерное моделирование CERC по загруженному волновому ряду
 4. Пространственный баланс наносов и экспорт результатов
 
-Без файлов и без --waterbody команда запускает демонстрационный открытый
+Без файлов команда запускает демонстрационный открытый
 сценарий Сочи со статусом demo. Он не является оценкой годового размыва,
-калибровкой или научным отчётом. Для другого водоёма нужны его фактические
-входные данные.`,
+калибровкой или научным отчётом. Программа принимает данные только для
+Чёрного моря.`,
 	RunE: runAll,
 }
 
@@ -90,7 +89,7 @@ func init() {
 	// Erosion options
 	allCmd.Flags().IntVar(&allSteps, "steps", 0, "ограничить число первых состояний волнового ряда (0 — использовать все)")
 	allCmd.Flags().StringVar(&allBathymetry, "bathymetry", "", "путь к JSON батиметрии")
-	allCmd.Flags().Float64Var(&allBathymetryResolution, "bathymetry-resolution", 0, "шаг регулярной батиметрической сетки в градусах (обязателен для выбранного вручную водоёма)")
+	allCmd.Flags().Float64Var(&allBathymetryResolution, "bathymetry-resolution", 0, "шаг регулярной батиметрической сетки Чёрного моря в градусах")
 	allCmd.Flags().StringVar(&allWaveInput, "wave-input", "", "путь к волновому ряду наблюдений, реанализа или прогноза в CSV/JSON (обязателен)")
 	allCmd.Flags().StringVar(&allWaveSource, "wave-source", "", "источник волнового ряда, если он не указан в JSON")
 	allCmd.Flags().Float64Var(&allBreakingIndex, "breaking-index", 0.78, "индекс разрушения H_b/h_b")
@@ -106,7 +105,6 @@ func init() {
 	allCmd.Flags().StringVar(&allSedimentSources, "sediment-sources", "", "JSON внешних источников и стоков наносов по ячейкам")
 	allCmd.Flags().StringVar(&allStructures, "structures", "", "JSON сооружений, изменяющих пропуск потока между ячейками")
 	allCmd.Flags().BoolVar(&allBlackSeaSochi, "black-sea-sochi", false, "загрузить открытые данные Сочи для демонстрационного конвейера demo")
-	allCmd.Flags().StringVar(&allWaterbody, "waterbody", "", "водоём РФ из lito waterbody list")
 
 	// Export options
 	allCmd.Flags().StringVar(&allOutputCSV, "output-csv", "", "путь к CSV файлу для экспорта метрик")
@@ -124,41 +122,11 @@ func runAll(cmd *cobra.Command, args []string) error {
 	// Пустой запуск должен быть воспроизводимым и не использовать обзорную
 	// линию всего Чёрного моря как локальный инженерный участок. Поэтому
 	// выбирается единственный готовый набор с открытыми входами — Сочи.
-	if allWaterbody == "" && allInput == "" && allBathymetry == "" && allWaveInput == "" && !allBlackSeaSochi {
+	if allInput == "" && allBathymetry == "" && allWaveInput == "" && !allBlackSeaSochi {
 		allBlackSeaSochi = true
 		fmt.Println("✓ Входные файлы не заданы: выбран демонстрационный набор Чёрного моря — Сочи (demo)")
 	}
-	if allWaterbody != "" {
-		body, err := selectedWaterbody(allWaterbody)
-		if err != nil {
-			return err
-		}
-		if allBlackSeaSochi && body.ID != "black-sea-sochi" {
-			return fmt.Errorf("--black-sea-sochi можно сочетать только с --waterbody black-sea-sochi")
-		}
-		// Автосценарий активируется только когда пользователь не передал свои данные.
-		if body.ID == "black-sea-sochi" && allInput == "" && allBathymetry == "" && allWaveInput == "" {
-			allBlackSeaSochi = true
-		}
-		fmt.Printf("✓ Выбран водоём: %s (%s)\n", body.Name, body.Availability)
-	}
-	// Ручной выбор обязан иметь собственные данные участка, а не значения по
-	// умолчанию, предназначенные для другого бассейна.
-	if allWaterbody != "" && !allBlackSeaSochi {
-		if allInput == "" {
-			return fmt.Errorf("для выбранного водоёма укажите локальный --input")
-		}
-		if allBathymetry == "" {
-			return fmt.Errorf("для выбранного водоёма укажите локальную --bathymetry")
-		}
-		if allBathymetryResolution <= 0 {
-			return fmt.Errorf("для выбранного водоёма укажите фактический --bathymetry-resolution")
-		}
-	}
 	if allBlackSeaSochi {
-		if allWaterbody == "" {
-			allWaterbody = "black-sea-sochi"
-		}
 		paths, err := prepareBlackSeaSochiData(allRefresh)
 		if err != nil {
 			return fmt.Errorf("подготовка набора Сочи: %w", err)
@@ -260,7 +228,6 @@ func runAll(cmd *cobra.Command, args []string) error {
 		BathymetrySHA256:          modelInputs.BathymetrySHA256,
 		BathymetryPassport:        modelInputs.BathymetryPassportPath,
 		BathymetryStatus:          modelInputs.BathymetryStatus,
-		WaterbodyID:               allWaterbody,
 		SedimentSources:           sedimentSources,
 		Structures:                structures,
 		LeftBoundaryTransportM3S:  allLeftBoundaryTransport,

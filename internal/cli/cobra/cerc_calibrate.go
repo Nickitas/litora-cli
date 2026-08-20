@@ -9,6 +9,7 @@ import (
 	"text/tabwriter"
 
 	"coastal-geometry/internal/cli"
+	"coastal-geometry/internal/domain/blacksea"
 	"coastal-geometry/internal/domain/coastline"
 	"coastal-geometry/internal/domain/geometry"
 
@@ -26,7 +27,6 @@ var (
 	cercCalibrationMaxDistance            float64
 	cercCalibrationMinWaveHours           float64
 	cercCalibrationOutput                 string
-	cercCalibrationWaterbody              string
 	cercCalibrationBreakingIndex          float64
 	cercCalibrationBermHeight             float64
 	cercCalibrationClosureDepth           float64
@@ -62,7 +62,6 @@ func init() {
 	cercCalibrationCmd.Flags().StringVar(&cercCalibrationCoefficients, "cerc-coefficients", "0.2,0.3,0.39,0.5,0.6", "проверяемые коэффициенты CERC через запятую")
 	cercCalibrationCmd.Flags().Float64Var(&cercCalibrationMaxDistance, "max-observation-distance", 500, "максимальная дистанция наблюдения до сегмента, м")
 	cercCalibrationCmd.Flags().Float64Var(&cercCalibrationMinWaveHours, "min-wave-hours", 8766, "минимальное покрытие волнового ряда для годовой калибровки, ч")
-	cercCalibrationCmd.Flags().StringVar(&cercCalibrationWaterbody, "waterbody", "", "водоём РФ из lito waterbody list")
 	cercCalibrationCmd.Flags().Float64Var(&cercCalibrationBreakingIndex, "breaking-index", 0.78, "индекс разрушения H_b/h_b")
 	cercCalibrationCmd.Flags().Float64Var(&cercCalibrationBermHeight, "berm-height", 2, "высота бермы активного профиля, м")
 	cercCalibrationCmd.Flags().Float64Var(&cercCalibrationClosureDepth, "closure-depth", 8, "глубина замыкания активного профиля, м")
@@ -77,13 +76,6 @@ func init() {
 }
 
 func runCERCCalibration(cmd *cobra.Command, args []string) error {
-	if cercCalibrationWaterbody != "" {
-		body, err := selectedWaterbody(cercCalibrationWaterbody)
-		if err != nil {
-			return err
-		}
-		fmt.Printf("✓ Выбран водоём: %s\n", body.Name)
-	}
 	for _, required := range []struct {
 		name  string
 		value string
@@ -135,7 +127,6 @@ func runCERCCalibration(cmd *cobra.Command, args []string) error {
 		BathymetrySHA256:          inputs.BathymetrySHA256,
 		BathymetryPassport:        inputs.BathymetryPassportPath,
 		BathymetryStatus:          inputs.BathymetryStatus,
-		WaterbodyID:               cercCalibrationWaterbody,
 		SedimentSources:           sedimentSources,
 		Structures:                structures,
 		BreakingIndex:             cercCalibrationBreakingIndex,
@@ -191,7 +182,7 @@ func writeCERCCalibrationReport(output *cli.OutputPathManager, coastlineSource, 
 		CoastlineSource        string                             `json:"coastline_source"`
 		WaveSource             string                             `json:"wave_source"`
 		ObservationsSource     string                             `json:"observations_source"`
-		WaterbodyID            string                             `json:"waterbody_id,omitempty"`
+		BasinID                string                             `json:"basin_id"`
 		BathymetrySource       string                             `json:"bathymetry_source"`
 		BathymetrySHA256       string                             `json:"bathymetry_sha256"`
 		BathymetryPassport     string                             `json:"bathymetry_passport,omitempty"`
@@ -208,7 +199,7 @@ func writeCERCCalibrationReport(output *cli.OutputPathManager, coastlineSource, 
 		Results                []geometry.CERCCalibrationResult   `json:"results"`
 	}{
 		CoastlineSource: coastlineSource, WaveSource: waveSource, ObservationsSource: observationsSource,
-		WaterbodyID: model.WaterbodyID, BathymetrySource: model.BathymetrySource,
+		BasinID: blacksea.ID, BathymetrySource: model.BathymetrySource,
 		BathymetrySHA256: model.BathymetrySHA256, BathymetryPassport: model.BathymetryPassport,
 		BathymetryStatus: model.BathymetryStatus, BathymetryResolution: bathymetryResolution,
 		BreakingIndex: model.BreakingIndex, BermHeightMeters: model.BermHeightMeters, ClosureDepthMeters: model.ClosureDepthMeters,

@@ -58,7 +58,6 @@ var (
 	erosionMaxChange              float64
 	erosionMaxBathymetryGap       float64
 	erosionBlackSeaSochi          bool
-	erosionWaterbody              string
 )
 
 var erosionCmd = &cobra.Command{
@@ -85,7 +84,7 @@ func init() {
 	// Erosion parameters
 	erosionCmd.Flags().IntVar(&erosionSteps, "steps", 0, "ограничить число первых состояний волнового ряда (0 — использовать все)")
 	erosionCmd.Flags().StringVar(&erosionBathymetry, "bathymetry", "", "путь к JSON батиметрии")
-	erosionCmd.Flags().Float64Var(&erosionBathymetryResolution, "bathymetry-resolution", 0, "шаг регулярной батиметрической сетки в градусах (обязателен для выбранного вручную водоёма)")
+	erosionCmd.Flags().Float64Var(&erosionBathymetryResolution, "bathymetry-resolution", 0, "шаг регулярной батиметрической сетки Чёрного моря в градусах")
 	erosionCmd.Flags().StringVar(&erosionWaveInput, "wave-input", "", "путь к волновому ряду наблюдений, реанализа или прогноза в CSV/JSON (обязателен)")
 	erosionCmd.Flags().StringVar(&erosionWaveSource, "wave-source", "", "источник волнового ряда, если он не указан в JSON")
 	erosionCmd.Flags().Float64Var(&erosionBreakingIndex, "breaking-index", 0.78, "индекс разрушения H_b/h_b")
@@ -101,7 +100,6 @@ func init() {
 	erosionCmd.Flags().StringVar(&erosionSedimentSources, "sediment-sources", "", "JSON внешних источников и стоков наносов по ячейкам")
 	erosionCmd.Flags().StringVar(&erosionStructures, "structures", "", "JSON сооружений, изменяющих пропуск потока между ячейками")
 	erosionCmd.Flags().BoolVar(&erosionBlackSeaSochi, "black-sea-sochi", false, "загрузить открытые данные Сочи и выполнить демонстрационный расчёт demo")
-	erosionCmd.Flags().StringVar(&erosionWaterbody, "waterbody", "", "водоём РФ из lito waterbody list")
 
 	// Export options
 	erosionCmd.Flags().StringVar(&erosionOutputCSV, "output-csv", "", "путь к CSV файлу для экспорта метрик")
@@ -114,41 +112,11 @@ func init() {
 func runErosion(cmd *cobra.Command, args []string) error {
 	// Пустой запуск выбирает проверяемый сценарий Сочи, а не синтетические
 	// условия и не обзорную береговую линию другого масштаба.
-	if erosionWaterbody == "" && erosionInput == "" && erosionBathymetry == "" && erosionWaveInput == "" && !erosionBlackSeaSochi {
+	if erosionInput == "" && erosionBathymetry == "" && erosionWaveInput == "" && !erosionBlackSeaSochi {
 		erosionBlackSeaSochi = true
 		fmt.Println("✓ Входные файлы не заданы: выбран демонстрационный набор Чёрного моря — Сочи (demo)")
 	}
-	if erosionWaterbody != "" {
-		body, err := selectedWaterbody(erosionWaterbody)
-		if err != nil {
-			return err
-		}
-		if erosionBlackSeaSochi && body.ID != "black-sea-sochi" {
-			return fmt.Errorf("--black-sea-sochi можно сочетать только с --waterbody black-sea-sochi")
-		}
-		// Если входные файлы не заданы, готовый сценарий Сочи загружается сам.
-		if body.ID == "black-sea-sochi" && erosionInput == "" && erosionBathymetry == "" && erosionWaveInput == "" {
-			erosionBlackSeaSochi = true
-		}
-		fmt.Printf("✓ Выбран водоём: %s (%s)\n", body.Name, body.Availability)
-	}
-	// Для ручного выбора запрещаем незаметно подставить батиметрию Чёрного моря
-	// или обзорную береговую линию другого бассейна.
-	if erosionWaterbody != "" && !erosionBlackSeaSochi {
-		if erosionInput == "" {
-			return fmt.Errorf("для выбранного водоёма укажите локальный --input")
-		}
-		if erosionBathymetry == "" {
-			return fmt.Errorf("для выбранного водоёма укажите локальную --bathymetry")
-		}
-		if erosionBathymetryResolution <= 0 {
-			return fmt.Errorf("для выбранного водоёма укажите фактический --bathymetry-resolution")
-		}
-	}
 	if erosionBlackSeaSochi {
-		if erosionWaterbody == "" {
-			erosionWaterbody = "black-sea-sochi"
-		}
 		paths, err := prepareBlackSeaSochiData(erosionRefresh)
 		if err != nil {
 			return fmt.Errorf("подготовка набора Сочи: %w", err)
@@ -224,7 +192,6 @@ func runErosion(cmd *cobra.Command, args []string) error {
 		BathymetrySHA256:          modelInputs.BathymetrySHA256,
 		BathymetryPassport:        modelInputs.BathymetryPassportPath,
 		BathymetryStatus:          modelInputs.BathymetryStatus,
-		WaterbodyID:               erosionWaterbody,
 		SedimentSources:           sedimentSources,
 		Structures:                structures,
 		LeftBoundaryTransportM3S:  erosionLeftBoundaryTransport,

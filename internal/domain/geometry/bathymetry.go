@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"math"
 	"strconv"
+
+	"coastal-geometry/internal/domain/blacksea"
 )
 
 // BathymetryPoint представляет одно измерение глубины в точке.
@@ -212,29 +214,11 @@ func bilinearInterpolate1D(v0, v1, t float64) float64 {
 }
 
 func validateBathymetryPoints(points []BathymetryPoint) error {
-	// Глобальные физические пределы позволяют использовать реальную
-	// батиметрию водоёмов РФ за пределами Чёрного моря. Подводные значения
-	// хранятся отрицательными, как в исходном контракте пакета.
-	const maxDepth = -12000.0
+	// Предел выбран с запасом относительно максимальной глубины Чёрного моря.
+	// Значения хранятся как отрицательные отметки elevation_m.
+	const maxBlackSeaDepth = -3000.0
 
 	for i, p := range points {
-		// Проверка координат с tolerant margin
-		if p.Lat < -90 || p.Lat > 90 {
-			return fmt.Errorf("точка %d: широта %.4f за пределами [-90, 90]", i, p.Lat)
-		}
-		if p.Lon < -180 || p.Lon > 180 {
-			return fmt.Errorf("точка %d: долгота %.4f за пределами [-180, 180]", i, p.Lon)
-		}
-
-		// Проверка глубины
-		if p.Depth > 0 {
-			return fmt.Errorf("точка %d: положительная глубина %.2f (должна быть под водой, отрицательная)", i, p.Depth)
-		}
-		if p.Depth < maxDepth {
-			return fmt.Errorf("точка %d: глубина %.2f превышает реалистичную глубину (максимальная ~-%.2f м)", i, p.Depth, maxDepth)
-		}
-
-		// Проверка на NaN/Inf
 		if math.IsNaN(p.Lat) || math.IsInf(p.Lat, 0) {
 			return fmt.Errorf("точка %d: широта равна NaN/Inf", i)
 		}
@@ -243,6 +227,28 @@ func validateBathymetryPoints(points []BathymetryPoint) error {
 		}
 		if math.IsNaN(p.Depth) || math.IsInf(p.Depth, 0) {
 			return fmt.Errorf("точка %d: глубина равна NaN/Inf", i)
+		}
+		if p.Lat < -90 || p.Lat > 90 {
+			return fmt.Errorf("точка %d: недопустимая широта %.4f", i, p.Lat)
+		}
+		if p.Lon < -180 || p.Lon > 180 {
+			return fmt.Errorf("точка %d: недопустимая долгота %.4f", i, p.Lon)
+		}
+		if !blacksea.Contains(p.Lat, p.Lon) {
+			return fmt.Errorf(
+				"точка %d: координаты (%.4f, %.4f) вне области Чёрного моря [%.1f, %.1f] × [%.1f, %.1f]",
+				i, p.Lat, p.Lon,
+				blacksea.MinLatitude, blacksea.MaxLatitude,
+				blacksea.MinLongitude, blacksea.MaxLongitude,
+			)
+		}
+
+		// Проверка глубины
+		if p.Depth > 0 {
+			return fmt.Errorf("точка %d: положительная глубина %.2f (должна быть под водой, отрицательная)", i, p.Depth)
+		}
+		if p.Depth < maxBlackSeaDepth {
+			return fmt.Errorf("точка %d: отметка %.2f м ниже допустимого предела Чёрного моря %.0f м", i, p.Depth, maxBlackSeaDepth)
 		}
 	}
 

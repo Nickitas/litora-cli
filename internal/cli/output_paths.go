@@ -13,7 +13,6 @@ const (
 	subdirCSV        = "csv"
 	subdirGIF        = "gif"
 	subdirErosion    = "erosion"
-	subdirWaterbody  = "waterbody"
 	subdirBenchmark  = "benchmark"
 	subdirMesh       = "mesh"
 	defaultOutputDir = "output"
@@ -37,7 +36,7 @@ func NewOutputPathManager(baseDir string) *OutputPathManager {
 }
 
 // EnsureDirectories создаёт все выходные подкаталоги, если они не существуют.
-// Создаёт каталоги SVG, метрик, CSV, GIF, эрозии, водоёмов, benchmark и сеток.
+// Создаёт каталоги SVG, метрик, CSV, GIF, эрозии, benchmark и сеток.
 func (opm *OutputPathManager) EnsureDirectories() error {
 	dirs := []string{
 		opm.SVGDir(),
@@ -45,7 +44,6 @@ func (opm *OutputPathManager) EnsureDirectories() error {
 		opm.CSVDir(),
 		opm.GIFDir(),
 		opm.ErosionDir(),
-		opm.WaterbodyDir(),
 		opm.BenchmarkDir(),
 		opm.MeshDir(),
 	}
@@ -102,16 +100,6 @@ func (opm *OutputPathManager) ErosionDir() string {
 // ErosionPath возвращает путь к файлу результатов расчёта эрозии.
 func (opm *OutputPathManager) ErosionPath(filename string) string {
 	return filepath.Join(opm.ErosionDir(), filename)
-}
-
-// WaterbodyDir возвращает каталог экспортов каталога водоёмов.
-func (opm *OutputPathManager) WaterbodyDir() string {
-	return filepath.Join(opm.baseDir, subdirWaterbody)
-}
-
-// WaterbodyPath возвращает путь к файлу экспорта каталога водоёмов.
-func (opm *OutputPathManager) WaterbodyPath(filename string) string {
-	return filepath.Join(opm.WaterbodyDir(), filename)
 }
 
 // BenchmarkDir возвращает каталог параметрических и калибровочных отчётов.

@@ -35,8 +35,8 @@ var (
 
 var meshCmd = &cobra.Command{
 	Use:   "mesh",
-	Short: "Построить и сравнить расчётные 2D-сетки водоёма",
-	Long: `Строит четырёхугольные сетки по всей поверхности выбранного водоёма
+	Short: "Построить и сравнить расчётные 2D-сетки Чёрного моря",
+	Long: `Строит четырёхугольные сетки по всей поверхности Чёрного моря
 открытым генератором Gmsh. Для каждой пары «детализация береговой линии —
 целевая длина ребра» сравниваются независимые алгоритмы Delaunay,
 Frontal-Delaunay for Quads и упаковка параллелограммов.
@@ -136,7 +136,7 @@ func runMesh(_ *cobra.Command, _ []string) error {
 	}
 	polygon, err := coastline.LoadPolygon(loadOptions)
 	if err != nil {
-		return fmt.Errorf("загрузка поверхности водоёма: %w", err)
+		return fmt.Errorf("загрузка поверхности Чёрного моря: %w", err)
 	}
 	for _, warning := range append(polygon.LoadWarnings, polygon.Validation.Warnings...) {
 		fmt.Printf("Предупреждение: %s\n", warning)
@@ -154,7 +154,7 @@ func runMesh(_ *cobra.Command, _ []string) error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("Загружен водоём: %s; внешних точек %d, островов %d\n", polygon.Source, len(polygon.Outer), len(polygon.Holes))
+	fmt.Printf("Загружено Чёрное море: %s; внешних точек %d, островов %d\n", polygon.Source, len(polygon.Outer), len(polygon.Holes))
 	fmt.Printf("Генератор: Gmsh %s (%s)\n", gmshVersion, gmshPath)
 
 	report := meshComparisonReport{

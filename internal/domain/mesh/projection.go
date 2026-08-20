@@ -9,7 +9,7 @@ import (
 const equalAreaEarthRadiusMeters = 6_371_008.8
 
 // EqualAreaProjection реализует сферическую азимутальную равноплощадную
-// проекцию Ламберта с центром в среднем положении точек водоёма.
+// проекцию Ламберта с центром в среднем положении точек Чёрного моря.
 type EqualAreaProjection struct {
 	ReferenceLat float64 `json:"reference_lat"`
 	ReferenceLon float64 `json:"reference_lon"`

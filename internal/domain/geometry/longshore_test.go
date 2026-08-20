@@ -5,6 +5,8 @@ import (
 	"math"
 	"strings"
 	"testing"
+
+	"coastal-geometry/internal/domain/blacksea"
 )
 
 // TestRunLongshoreCERCConservesSediment проверяет баланс ячеек при нулевом
@@ -85,6 +87,9 @@ func TestRunLongshoreCERCReportsInputQuality(t *testing.T) {
 	}
 	if result.BathymetrySHA256 != config.BathymetrySHA256 || result.BathymetryPassport != config.BathymetryPassport || result.BathymetryStatus != config.BathymetryStatus {
 		t.Fatalf("происхождение батиметрии не перенесено в результат: %+v", result)
+	}
+	if result.BasinID != blacksea.ID {
+		t.Fatalf("результат должен быть жёстко привязан к Чёрному морю: %q", result.BasinID)
 	}
 }
 

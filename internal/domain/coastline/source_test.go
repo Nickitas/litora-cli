@@ -65,7 +65,7 @@ func TestFetchCoastlineDataParsesGeoJSONPolygon(t *testing.T) {
 }
 
 func TestLoadPolygonPreservesIslandHole(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "waterbody.geojson")
+	path := filepath.Join(t.TempDir(), "black-sea.geojson")
 	payload := `{"type":"Polygon","coordinates":[[[34,43],[35,43],[35,44],[34,44],[34,43]],[[34.4,43.4],[34.4,43.6],[34.6,43.6],[34.6,43.4],[34.4,43.4]]]}`
 	if err := os.WriteFile(path, []byte(payload), 0o644); err != nil {
 		t.Fatal(err)
@@ -85,8 +85,8 @@ func TestLoadUsesRemoteGeoJSONWhenAvailable(t *testing.T) {
 	fallbackPath := filepath.Join(dir, "fallback.json")
 	cachePath := filepath.Join(dir, "cache.geojson")
 	if err := os.WriteFile(fallbackPath, []byte(`[
-		{"lat": 10.0, "lon": 10.0},
-		{"lat": 11.0, "lon": 11.0}
+		{"lat": 43.0, "lon": 34.0},
+		{"lat": 43.1, "lon": 34.1}
 	]`), 0o644); err != nil {
 		t.Fatalf("write fallback json: %v", err)
 	}
@@ -135,8 +135,8 @@ func TestLoadUsesExplicitLocalInputWithoutFallback(t *testing.T) {
 	localPath := filepath.Join(dir, "local.json")
 	cachePath := filepath.Join(dir, "cache.geojson")
 	if err := os.WriteFile(localPath, []byte(`[
-		{"lat": 10.0, "lon": 10.0},
-		{"lat": 11.0, "lon": 11.0}
+		{"lat": 43.0, "lon": 34.0},
+		{"lat": 43.1, "lon": 34.1}
 	]`), 0o644); err != nil {
 		t.Fatalf("write local json: %v", err)
 	}

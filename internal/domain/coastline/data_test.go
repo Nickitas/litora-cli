@@ -62,6 +62,27 @@ func TestLoadFromJSONRejectsInvalidLatitude(t *testing.T) {
 	}
 }
 
+func TestLoadFromJSONRejectsCoordinatesOutsideBlackSea(t *testing.T) {
+	dir := t.TempDir()
+	filename := filepath.Join(dir, "outside-black-sea.json")
+	content := `[
+		{"lat": 53.2, "lon": 107.4},
+		{"lat": 53.3, "lon": 107.5}
+	]`
+
+	if err := os.WriteFile(filename, []byte(content), 0o644); err != nil {
+		t.Fatalf("write temp json: %v", err)
+	}
+
+	_, _, err := LoadFromJSON(filename)
+	if err == nil {
+		t.Fatal("expected error for coordinates outside Black Sea, got nil")
+	}
+	if !strings.Contains(err.Error(), "вне области Чёрного моря") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
 func TestLoadFromJSONRemovesDuplicateCoordinates(t *testing.T) {
 	dir := t.TempDir()
 	filename := filepath.Join(dir, "duplicates.json")

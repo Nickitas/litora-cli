@@ -1,0 +1,1154 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/Nickitas/Fractal-Approximation-Erosion-Simulation/main/docs/schemas/lito-seabed-v1.schema.json",
+  "title": "Отчёт качества батиметрической модели Lito",
+  "description": "Контракт lito-seabed/v1 для воспроизводимой модели морского дна.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "schema_ref",
+    "run",
+    "status",
+    "source",
+    "coordinates",
+    "conventions",
+    "code_tables",
+    "mesh",
+    "sampling",
+    "quality",
+    "outputs",
+    "warnings"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "lito-seabed/v1"
+    },
+    "schema_ref": {
+      "const": "docs/schemas/lito-seabed-v1.schema.json"
+    },
+    "run": {
+      "$ref": "#/$defs/run"
+    },
+    "status": {
+      "enum": [
+        "completed",
+        "preview_only",
+        "failed"
+      ]
+    },
+    "source": {
+      "$ref": "#/$defs/source"
+    },
+    "coordinates": {
+      "$ref": "#/$defs/coordinates"
+    },
+    "conventions": {
+      "$ref": "#/$defs/conventions"
+    },
+    "code_tables": {
+      "$ref": "#/$defs/codeTables"
+    },
+    "mesh": {
+      "$ref": "#/$defs/meshSummary"
+    },
+    "sampling": {
+      "$ref": "#/$defs/samplingSummary"
+    },
+    "quality": {
+      "$ref": "#/$defs/qualitySummary"
+    },
+    "outputs": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/outputArtifact"
+      }
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "samples": {
+      "$ref": "#/$defs/samples"
+    }
+  },
+  "$defs": {
+    "nullableString": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "string",
+          "minLength": 1
+        }
+      ]
+    },
+    "nullableNumber": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "number"
+        }
+      ]
+    },
+    "nullableNonNegativeNumber": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "number",
+          "minimum": 0
+        }
+      ]
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-fA-F]{64}$"
+    },
+    "run": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "generated_at",
+        "command",
+        "software_version"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "generated_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "command": {
+          "type": "string",
+          "minLength": 1
+        },
+        "software_version": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "dataset": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "sha256"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/sha256"
+            }
+          ]
+        }
+      }
+    },
+    "bathymetrySource": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "passport_path",
+        "dataset_sha256",
+        "status",
+        "source_product",
+        "license",
+        "attribution"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "passport_path": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "dataset_sha256": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/sha256"
+            }
+          ]
+        },
+        "status": {
+          "enum": [
+            "verified_derived",
+            "synthetic_test",
+            "legacy_unverified_mixed",
+            "unverified"
+          ]
+        },
+        "source_product": {
+          "type": "string",
+          "minLength": 1
+        },
+        "license": {
+          "type": "string",
+          "minLength": 1
+        },
+        "attribution": {
+          "type": "string"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "verified_derived"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "properties": {
+              "passport_path": {
+                "type": "string",
+                "minLength": 1
+              },
+              "dataset_sha256": {
+                "$ref": "#/$defs/sha256"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "coastline",
+        "bathymetry"
+      ],
+      "properties": {
+        "coastline": {
+          "$ref": "#/$defs/dataset"
+        },
+        "bathymetry": {
+          "$ref": "#/$defs/bathymetrySource"
+        }
+      }
+    },
+    "horizontalSource": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "epsg",
+        "axis_order",
+        "angular_unit"
+      ],
+      "properties": {
+        "name": {
+          "const": "WGS 84"
+        },
+        "epsg": {
+          "const": 4326
+        },
+        "axis_order": {
+          "const": "longitude,latitude"
+        },
+        "angular_unit": {
+          "const": "degree"
+        }
+      }
+    },
+    "horizontalMesh": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "method",
+        "linear_unit",
+        "reference_latitude_deg",
+        "reference_longitude_deg"
+      ],
+      "properties": {
+        "method": {
+          "const": "spherical_laea"
+        },
+        "linear_unit": {
+          "const": "m"
+        },
+        "reference_latitude_deg": {
+          "type": "number",
+          "minimum": -90,
+          "maximum": 90
+        },
+        "reference_longitude_deg": {
+          "type": "number",
+          "minimum": -180,
+          "maximum": 180
+        }
+      }
+    },
+    "verticalTransformation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "applied",
+        "method"
+      ],
+      "properties": {
+        "applied": {
+          "type": "boolean"
+        },
+        "method": {
+          "$ref": "#/$defs/nullableString"
+        }
+      }
+    },
+    "verticalReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "epsg",
+        "unit",
+        "positive_direction",
+        "source_native",
+        "caveat",
+        "transformation"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "epsg": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "integer",
+              "minimum": 1
+            }
+          ]
+        },
+        "unit": {
+          "const": "m"
+        },
+        "positive_direction": {
+          "const": "up"
+        },
+        "source_native": {
+          "type": "boolean"
+        },
+        "caveat": {
+          "type": "string",
+          "minLength": 1
+        },
+        "transformation": {
+          "$ref": "#/$defs/verticalTransformation"
+        }
+      }
+    },
+    "coordinates": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "horizontal_source",
+        "horizontal_mesh",
+        "vertical"
+      ],
+      "properties": {
+        "horizontal_source": {
+          "$ref": "#/$defs/horizontalSource"
+        },
+        "horizontal_mesh": {
+          "$ref": "#/$defs/horizontalMesh"
+        },
+        "vertical": {
+          "$ref": "#/$defs/verticalReference"
+        }
+      }
+    },
+    "conventions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "elevation_positive_direction",
+        "underwater_elevation_relation",
+        "water_depth_relation",
+        "no_data_policy",
+        "vertical_exaggeration_in_data"
+      ],
+      "properties": {
+        "elevation_positive_direction": {
+          "const": "up"
+        },
+        "underwater_elevation_relation": {
+          "const": "elevation_m <= 0"
+        },
+        "water_depth_relation": {
+          "const": "water_depth_m = max(0, -elevation_m)"
+        },
+        "no_data_policy": {
+          "const": "null_with_quality_flag; never_zero_fill"
+        },
+        "vertical_exaggeration_in_data": {
+          "const": 1
+        }
+      }
+    },
+    "codeTables": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sampling_method",
+        "quality_flag",
+        "boundary_kind",
+        "cell_quality_flag"
+      ],
+      "properties": {
+        "sampling_method": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "not_sampled",
+            "exact",
+            "bilinear",
+            "nearest",
+            "irregular",
+            "coastline_constraint"
+          ],
+          "properties": {
+            "not_sampled": {
+              "const": 0
+            },
+            "exact": {
+              "const": 1
+            },
+            "bilinear": {
+              "const": 2
+            },
+            "nearest": {
+              "const": 3
+            },
+            "irregular": {
+              "const": 4
+            },
+            "coastline_constraint": {
+              "const": 5
+            }
+          }
+        },
+        "quality_flag": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "rejected",
+            "no_data",
+            "fallback",
+            "constrained",
+            "verified"
+          ],
+          "properties": {
+            "rejected": {
+              "const": 0
+            },
+            "no_data": {
+              "const": 1
+            },
+            "fallback": {
+              "const": 2
+            },
+            "constrained": {
+              "const": 3
+            },
+            "verified": {
+              "const": 4
+            }
+          }
+        },
+        "boundary_kind": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "none",
+            "coastline",
+            "island",
+            "open_boundary"
+          ],
+          "properties": {
+            "none": {
+              "const": 0
+            },
+            "coastline": {
+              "const": 1
+            },
+            "island": {
+              "const": 2
+            },
+            "open_boundary": {
+              "const": 3
+            }
+          }
+        },
+        "cell_quality_flag": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "fallback",
+            "mixed",
+            "verified"
+          ],
+          "properties": {
+            "fallback": {
+              "const": 1
+            },
+            "mixed": {
+              "const": 2
+            },
+            "verified": {
+              "const": 3
+            }
+          }
+        }
+      }
+    },
+    "edgeRange": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "minimum",
+        "maximum"
+      ],
+      "properties": {
+        "minimum": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "maximum": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        }
+      }
+    },
+    "meshSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "input_format",
+        "node_count",
+        "cell_count",
+        "quadrilateral_count",
+        "boundary_node_count",
+        "target_edge_m",
+        "node_fields",
+        "cell_fields"
+      ],
+      "properties": {
+        "input_format": {
+          "enum": [
+            "gmsh_msh_2.2",
+            "vtu",
+            "synthetic"
+          ]
+        },
+        "node_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "cell_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "quadrilateral_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "boundary_node_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "target_edge_m": {
+          "$ref": "#/$defs/edgeRange"
+        },
+        "node_fields": {
+          "type": "array",
+          "minItems": 12,
+          "maxItems": 12,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "id",
+              "x_m",
+              "y_m",
+              "longitude_deg",
+              "latitude_deg",
+              "elevation_m",
+              "water_depth_m",
+              "sampling_method",
+              "source_distance_m",
+              "quality_flag",
+              "is_boundary",
+              "boundary_kind"
+            ]
+          },
+          "allOf": [
+            {
+              "contains": {
+                "const": "elevation_m"
+              }
+            },
+            {
+              "contains": {
+                "const": "water_depth_m"
+              }
+            },
+            {
+              "contains": {
+                "const": "quality_flag"
+              }
+            }
+          ]
+        },
+        "cell_fields": {
+          "type": "array",
+          "minItems": 13,
+          "maxItems": 13,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "id",
+              "node_ids",
+              "area_m2",
+              "elevation_min_m",
+              "elevation_max_m",
+              "elevation_mean_m",
+              "water_depth_mean_m",
+              "slope_deg",
+              "aspect_deg",
+              "roughness_m",
+              "region",
+              "quality_flag",
+              "quality_score"
+            ]
+          },
+          "allOf": [
+            {
+              "contains": {
+                "const": "node_ids"
+              }
+            },
+            {
+              "contains": {
+                "const": "elevation_mean_m"
+              }
+            },
+            {
+              "contains": {
+                "const": "quality_flag"
+              }
+            }
+          ]
+        }
+      }
+    },
+    "methodCounts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "exact",
+        "bilinear",
+        "nearest",
+        "irregular",
+        "coastline_constraint",
+        "not_sampled"
+      ],
+      "properties": {
+        "exact": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "bilinear": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "nearest": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "irregular": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "coastline_constraint": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "not_sampled": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "samplingSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "total_node_count",
+        "assigned_node_count",
+        "no_data_node_count",
+        "coverage_percent",
+        "method_counts",
+        "mean_source_distance_m",
+        "max_source_distance_m"
+      ],
+      "properties": {
+        "total_node_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "assigned_node_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "no_data_node_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "coverage_percent": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "method_counts": {
+          "$ref": "#/$defs/methodCounts"
+        },
+        "mean_source_distance_m": {
+          "$ref": "#/$defs/nullableNonNegativeNumber"
+        },
+        "max_source_distance_m": {
+          "$ref": "#/$defs/nullableNonNegativeNumber"
+        }
+      }
+    },
+    "qualityCheck": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "status",
+        "value",
+        "unit",
+        "threshold",
+        "method"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "status": {
+          "enum": [
+            "passed",
+            "warning",
+            "failed",
+            "not_applicable"
+          ]
+        },
+        "value": {
+          "$ref": "#/$defs/nullableNumber"
+        },
+        "unit": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "threshold": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "method": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "qualitySummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "accepted",
+        "reasons",
+        "checks"
+      ],
+      "properties": {
+        "accepted": {
+          "type": "boolean"
+        },
+        "reasons": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "checks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/qualityCheck"
+          }
+        }
+      }
+    },
+    "outputArtifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "role",
+        "format",
+        "path",
+        "sha256"
+      ],
+      "properties": {
+        "role": {
+          "enum": [
+            "mesh_3d",
+            "visualization_3d",
+            "nodes_table",
+            "cells_table",
+            "quality_report",
+            "overview_map",
+            "profile"
+          ]
+        },
+        "format": {
+          "enum": [
+            "msh2",
+            "vtu",
+            "csv",
+            "json",
+            "svg",
+            "png"
+          ]
+        },
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/sha256"
+            }
+          ]
+        }
+      }
+    },
+    "nodeRecord": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "x_m",
+        "y_m",
+        "longitude_deg",
+        "latitude_deg",
+        "elevation_m",
+        "water_depth_m",
+        "sampling_method",
+        "source_distance_m",
+        "quality_flag",
+        "is_boundary",
+        "boundary_kind"
+      ],
+      "properties": {
+        "id": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "x_m": {
+          "type": "number"
+        },
+        "y_m": {
+          "type": "number"
+        },
+        "longitude_deg": {
+          "type": "number",
+          "minimum": -180,
+          "maximum": 180
+        },
+        "latitude_deg": {
+          "type": "number",
+          "minimum": -90,
+          "maximum": 90
+        },
+        "elevation_m": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "number",
+              "maximum": 0
+            }
+          ]
+        },
+        "water_depth_m": {
+          "$ref": "#/$defs/nullableNonNegativeNumber"
+        },
+        "sampling_method": {
+          "enum": [
+            "not_sampled",
+            "exact",
+            "bilinear",
+            "nearest",
+            "irregular",
+            "coastline_constraint"
+          ]
+        },
+        "source_distance_m": {
+          "$ref": "#/$defs/nullableNonNegativeNumber"
+        },
+        "quality_flag": {
+          "enum": [
+            "verified",
+            "fallback",
+            "constrained",
+            "no_data",
+            "rejected"
+          ]
+        },
+        "is_boundary": {
+          "type": "boolean"
+        },
+        "boundary_kind": {
+          "enum": [
+            "none",
+            "coastline",
+            "island",
+            "open_boundary"
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "quality_flag": {
+                "enum": [
+                  "no_data",
+                  "rejected"
+                ]
+              }
+            },
+            "required": [
+              "quality_flag"
+            ]
+          },
+          "then": {
+            "properties": {
+              "elevation_m": {
+                "type": "null"
+              },
+              "water_depth_m": {
+                "type": "null"
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "elevation_m": {
+                "type": "number",
+                "maximum": 0
+              },
+              "water_depth_m": {
+                "type": "number",
+                "minimum": 0
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "quality_flag": {
+                "enum": [
+                  "no_data",
+                  "rejected"
+                ]
+              }
+            },
+            "required": [
+              "quality_flag"
+            ]
+          },
+          "then": {
+            "properties": {
+              "sampling_method": {
+                "const": "not_sampled"
+              },
+              "source_distance_m": {
+                "type": "null"
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "sampling_method": {
+                "enum": [
+                  "exact",
+                  "bilinear",
+                  "nearest",
+                  "irregular",
+                  "coastline_constraint"
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    "cellRecord": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "node_ids",
+        "area_m2",
+        "elevation_min_m",
+        "elevation_max_m",
+        "elevation_mean_m",
+        "water_depth_mean_m",
+        "slope_deg",
+        "aspect_deg",
+        "roughness_m",
+        "region",
+        "quality_flag",
+        "quality_score"
+      ],
+      "properties": {
+        "id": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "node_ids": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "uniqueItems": true,
+          "items": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "area_m2": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "elevation_min_m": {
+          "type": "number",
+          "maximum": 0
+        },
+        "elevation_max_m": {
+          "type": "number",
+          "maximum": 0
+        },
+        "elevation_mean_m": {
+          "type": "number",
+          "maximum": 0
+        },
+        "water_depth_mean_m": {
+          "type": "number",
+          "minimum": 0
+        },
+        "slope_deg": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 90
+        },
+        "aspect_deg": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "number",
+              "minimum": 0,
+              "exclusiveMaximum": 360
+            }
+          ]
+        },
+        "roughness_m": {
+          "type": "number",
+          "minimum": 0
+        },
+        "region": {
+          "enum": [
+            "coast",
+            "shelf",
+            "slope",
+            "basin",
+            "unclassified"
+          ]
+        },
+        "quality_flag": {
+          "enum": [
+            "verified",
+            "mixed",
+            "fallback"
+          ]
+        },
+        "quality_score": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      }
+    },
+    "samples": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "nodes",
+        "cells"
+      ],
+      "properties": {
+        "nodes": {
+          "type": "array",
+          "maxItems": 20,
+          "items": {
+            "$ref": "#/$defs/nodeRecord"
+          }
+        },
+        "cells": {
+          "type": "array",
+          "maxItems": 20,
+          "items": {
+            "$ref": "#/$defs/cellRecord"
+          }
+        }
+      }
+    }
+  }
+}

@@ -25,7 +25,7 @@ type MeshReportOptions struct {
 	SimplifiedPointCount          int
 }
 
-// DrawMeshReportSVG создаёт обзор всей поверхности водоёма по фактическим
+// DrawMeshReportSVG создаёт обзор всей поверхности Чёрного моря по фактическим
 // ячейкам Gmsh. Для очень больших сеток SVG равномерно прореживается, а полный
 // набор без потерь остаётся в MSH-файле.
 func DrawMeshReportSVG(domain mesh2d.PreparedDomain, generated mesh2d.Mesh, metrics mesh2d.QualityMetrics, options MeshReportOptions, filename string) error {
@@ -104,7 +104,7 @@ func DrawMeshReportSVG(domain mesh2d.PreparedDomain, generated mesh2d.Mesh, metr
 <svg xmlns="http://www.w3.org/2000/svg" width="1440" height="940" viewBox="0 0 1440 940">
   <rect width="100%%" height="100%%" fill="#f7f4ea"/>
   <rect x="20" y="20" width="1400" height="900" rx="28" fill="#fcfbf7" stroke="#d6d0c4"/>
-  <text x="56" y="58" font-family="Helvetica, Arial, sans-serif" font-size="24" font-weight="700" fill="#16324f">Расчётная 2D-сетка водоёма</text>
+  <text x="56" y="58" font-family="Helvetica, Arial, sans-serif" font-size="24" font-weight="700" fill="#16324f">Расчётная 2D-сетка Чёрного моря</text>
   <text x="56" y="84" font-family="Helvetica, Arial, sans-serif" font-size="12" fill="#4f6d7a">Набор: %s · генератор: %s</text>
   <text x="56" y="104" font-family="Helvetica, Arial, sans-serif" font-size="12" fill="#4f6d7a">Ребро: %.0f м · допуск берега: %.0f м (фактически %.2f м) · точки: %d → %d</text>
   <text x="56" y="124" font-family="Helvetica, Arial, sans-serif" font-size="12" fill="#4f6d7a">Ячейки: %d · четырёхугольники: %.2f%% · оценка качества: %.2f/100</text>

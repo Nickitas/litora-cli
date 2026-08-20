@@ -40,11 +40,19 @@
 совместимости; он не пригоден как эмпирическая батиметрия, для научной
 калибровки или навигации.
 
+По контракту [`lito-seabed/v1`](adr/seabed-data-contract.md) этот набор нельзя
+использовать для принятой научной модели дна. Его статус должен сохраниться в
+отчёте, а результат допускается только как явно маркированный предварительный
+просмотр либо отклоняется. Нулевые значения не подставляются вместо отсутствия
+подтверждённых данных. Сам legacy-файл сохраняется для аудита и не является
+неиспользуемым временным артефактом.
+
 ## Подготовка производного GEBCO
 
-Актуальный на дату этой документации [GEBCO_2026 Grid](https://www.gebco.net/data-products-gridded-bathymetry-data/gebco2026-grid)
-и исторический [GEBCO_2024 Grid](https://www.gebco.net/data-products-gridded-bathymetry-data/gebco2024-grid)
-имеют шаг 15 угловых секунд. Сетка 0,01° имеет шаг 36 угловых секунд, поэтому
+Для проекта зафиксирован [GEBCO_2026 Grid](https://www.gebco.net/data-products/gridded-bathymetry-data/gebco2026-grid)
+вместе с Type Identifier Grid. Обоснование выбора и контрольный источник
+описаны в [`docs/bathymetry-source-selection.md`](bathymetry-source-selection.md).
+GEBCO_2026 имеет шаг 15 угловых секунд. Сетка 0,01° имеет шаг 36 угловых секунд, поэтому
 её следует называть только ресэмплированным производным региональным набором,
 а не «GEBCO с разрешением 0,01°».
 
@@ -60,8 +68,6 @@ GEBCO хранит высоты в метрах: отрицательные зн
 ```bash
 cmd/bathymetry/convert/download_bathymetry.sh \
   'ТОЧНЫЙ_URL_NETCDF_ИЗ_GEBCO' \
-  GEBCO_2026 \
-  '10.5285/4f68d5c7-45eb-f999-e063-7086abc036fa' \
   output/source/black-sea-bathymetry-gebco2026-0.01deg-derived.json
 ```
 

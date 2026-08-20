@@ -111,13 +111,10 @@ func TestLoadBathymetryFromJSON_EmptyArray_Error(t *testing.T) {
 	}
 }
 
-func TestLoadBathymetryFromJSON_AllowsRussianLakeCoordinates(t *testing.T) {
-	grid, err := LoadBathymetryFromJSON([]byte(`[{"lat":53.2,"lon":107.4,"depth":-25}]`), BathymetryLoadOptions{Resolution: 0.01})
-	if err != nil {
-		t.Fatalf("батиметрия Байкала должна быть допустима: %v", err)
-	}
-	if len(grid.Points) != 1 {
-		t.Fatalf("ожидалась одна точка, получено %d", len(grid.Points))
+func TestLoadBathymetryFromJSONRejectsCoordinatesOutsideBlackSea(t *testing.T) {
+	_, err := LoadBathymetryFromJSON([]byte(`[{"lat":53.2,"lon":107.4,"depth":-25}]`), BathymetryLoadOptions{Resolution: 0.01})
+	if err == nil || !containsString(err.Error(), "вне области Чёрного моря") {
+		t.Fatalf("ожидалось отклонение координат другой акватории, получено: %v", err)
 	}
 }
 

@@ -8,14 +8,40 @@ import platform
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+from urllib.parse import urlparse
 
 import numpy as np
+
+
+BLACK_SEA_BOUNDS = (40.5, 47.5, 27.0, 42.5)
+SOURCE_PRODUCT = "GEBCO_2026 Grid"
+SOURCE_PRODUCT_DOI = "10.5285/4f68d5c7-45eb-f999-e063-7086abc036fa"
+SOURCE_GRID_INTERVAL_ARC_SECONDS = 15
+HORIZONTAL_REFERENCE = "WGS 84 по допущению GEBCO"
+VERTICAL_REFERENCE = "Средний уровень моря по допущению GEBCO"
+VERTICAL_REFERENCE_CAVEAT = (
+    "В мелководных районах исходные данные GEBCO могут иметь иную "
+    "вертикальную систему отсчёта."
+)
+LICENSE = (
+    "Общественное достояние; обязательны атрибуция, отсутствие ложного "
+    "официального статуса и соблюдение отказа от гарантий GEBCO."
+)
+LICENSE_URL = (
+    "https://www.gebco.net/data-products/gridded-bathymetry-data/"
+    "gebco2026-grid#terms-of-use-and-disclaimer"
+)
+ATTRIBUTION = (
+    "GEBCO Bathymetric Compilation Group 2026 (2026). The GEBCO_2026 Grid — "
+    "a continuous terrain model for oceans and land at 15 arc-second "
+    f"intervals. doi:{SOURCE_PRODUCT_DOI}"
+)
+OFFICIAL_SOURCE_HOSTS = {"download.gebco.net", "dap.ceda.ac.uk"}
 
 try:
     import xarray as xr
 except ImportError:
-    print("Установите зависимости: pip install -r cmd/bathymetry/convert/requirements.txt")
-    sys.exit(1)
+    xr = None
 
 
 def file_sha256(path):
@@ -43,8 +69,25 @@ def parse_downloaded_at(value):
     return value
 
 
+def validate_source_url(value):
+    """Принимает только официальный URL зафиксированного источника."""
+    parsed = urlparse(value)
+    if parsed.scheme != "https" or parsed.hostname not in OFFICIAL_SOURCE_HOSTS:
+        hosts = ", ".join(sorted(OFFICIAL_SOURCE_HOSTS))
+        raise argparse.ArgumentTypeError(
+            f"ожидается HTTPS URL GEBCO_2026 с официального хоста: {hosts}"
+        )
+    return value
+
+
 def convert_netcdf_to_json(args):
     """Ресэмплирует GEBCO ближайшим соседом и создаёт JSON с паспортом."""
+    if xr is None:
+        print(
+            "Установите зависимости: "
+            "pip install -r cmd/bathymetry/convert/requirements.txt"
+        )
+        sys.exit(1)
     input_path = Path(args.input)
     output_path = Path(args.output)
     passport_path = (
@@ -80,7 +123,7 @@ def convert_netcdf_to_json(args):
             )
 
         elevation = elevation.sortby(latitude_name).sortby(longitude_name)
-        min_lat, max_lat, min_lon, max_lon = args.bounds
+        min_lat, max_lat, min_lon, max_lon = BLACK_SEA_BOUNDS
         target_latitudes = np.round(
             np.arange(min_lat, max_lat + args.resolution / 2, args.resolution), 10
         )
@@ -124,7 +167,7 @@ def convert_netcdf_to_json(args):
     passport = {
         "schema_version": "1.0",
         "title": (
-            f"Ресэмплированный производный региональный набор {args.source_product} "
+            f"Ресэмплированный производный региональный набор {SOURCE_PRODUCT} "
             f"для Чёрного моря ({args.resolution:g}°)"
         ),
         "status": "verified_derived",
@@ -133,23 +176,23 @@ def convert_netcdf_to_json(args):
         "created_at": created_at,
         "point_count": len(points),
         "bounds": {
-            "min_lat": args.bounds[0],
-            "max_lat": args.bounds[1],
-            "min_lon": args.bounds[2],
-            "max_lon": args.bounds[3],
+            "min_lat": BLACK_SEA_BOUNDS[0],
+            "max_lat": BLACK_SEA_BOUNDS[1],
+            "min_lon": BLACK_SEA_BOUNDS[2],
+            "max_lon": BLACK_SEA_BOUNDS[3],
         },
         "target_resolution_degrees": args.resolution,
         "target_resolution_arc_seconds": args.resolution * 3600,
-        "source_product": args.source_product,
-        "source_product_doi": args.source_product_doi,
+        "source_product": SOURCE_PRODUCT,
+        "source_product_doi": SOURCE_PRODUCT_DOI,
         "source_url": args.source_url,
         "source_downloaded_at": args.downloaded_at,
         "source_netcdf": input_path.as_posix(),
         "source_netcdf_sha256": source_checksum,
-        "source_grid_interval_arc_seconds": args.source_grid_interval_arc_seconds,
-        "horizontal_reference": args.horizontal_reference,
-        "vertical_reference": args.vertical_reference,
-        "vertical_reference_caveat": args.vertical_reference_caveat,
+        "source_grid_interval_arc_seconds": SOURCE_GRID_INTERVAL_ARC_SECONDS,
+        "horizontal_reference": HORIZONTAL_REFERENCE,
+        "vertical_reference": VERTICAL_REFERENCE,
+        "vertical_reference_caveat": VERTICAL_REFERENCE_CAVEAT,
         "resampling_method": "ближайший сосед по центрам ячеек исходной сетки",
         "land_filter": (
             "Сохранены только конечные значения elevation < 0; знак GEBCO не инвертируется."
@@ -160,9 +203,9 @@ def convert_netcdf_to_json(args):
             "numpy": np.__version__,
             "xarray": xr.__version__,
         },
-        "license": args.license,
-        "license_url": args.license_url,
-        "attribution": args.attribution,
+        "license": LICENSE,
+        "license_url": LICENSE_URL,
+        "attribution": ATTRIBUTION,
         "limitations": [
             "Целевой шаг сетки не является разрешением исходных измерений.",
             "Ближайший сосед не добавляет пространственной детализации.",
@@ -193,34 +236,17 @@ def build_parser():
         help="Целевой шаг сетки в градусах (по умолчанию 0.01)",
     )
     parser.add_argument(
-        "--bounds",
-        nargs=4,
-        type=float,
+        "--source-url",
         required=True,
-        metavar=("MIN_LAT", "MAX_LAT", "MIN_LON", "MAX_LON"),
-        help="Границы производного регионального набора",
+        type=validate_source_url,
+        help="Точный официальный URL загрузки GEBCO_2026",
     )
-    parser.add_argument("--source-product", required=True, help="Продукт и версия")
-    parser.add_argument("--source-product-doi", required=True, help="DOI продукта")
-    parser.add_argument("--source-url", required=True, help="Точный URL загрузки")
     parser.add_argument(
         "--downloaded-at",
         required=True,
         type=parse_downloaded_at,
         help="Дата загрузки в ISO 8601 с часовым поясом",
     )
-    parser.add_argument(
-        "--source-grid-interval-arc-seconds",
-        required=True,
-        type=float,
-        help="Шаг исходной сетки в угловых секундах",
-    )
-    parser.add_argument("--horizontal-reference", required=True)
-    parser.add_argument("--vertical-reference", required=True)
-    parser.add_argument("--vertical-reference-caveat", default="")
-    parser.add_argument("--license", required=True)
-    parser.add_argument("--license-url", required=True)
-    parser.add_argument("--attribution", required=True)
     return parser
 
 
@@ -228,7 +254,4 @@ if __name__ == "__main__":
     arguments = build_parser().parse_args()
     if arguments.resolution <= 0:
         raise ValueError("Целевой шаг сетки должен быть положительным")
-    min_latitude, max_latitude, min_longitude, max_longitude = arguments.bounds
-    if min_latitude >= max_latitude or min_longitude >= max_longitude:
-        raise ValueError("Границы должны быть заданы в возрастающем порядке")
     convert_netcdf_to_json(arguments)

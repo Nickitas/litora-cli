@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"coastal-geometry/internal/domain/blacksea"
 	"coastal-geometry/internal/domain/geometry"
 )
 
@@ -60,9 +61,9 @@ type LoadResult struct {
 	LoadWarnings []string          // Предупреждения при загрузке
 }
 
-// PolygonLoadResult содержит замкнутую внешнюю границу водоёма и внутренние
+// PolygonLoadResult содержит замкнутую внешнюю границу Чёрного моря и внутренние
 // кольца островов. В отличие от Load результат не отбрасывает малые кольца
-// GeoJSON, поэтому пригоден для построения сетки по всей поверхности водоёма.
+// GeoJSON, поэтому пригоден для построения сетки по всей поверхности моря.
 type PolygonLoadResult struct {
 	Outer        []geometry.LatLon
 	Holes        [][]geometry.LatLon
@@ -116,7 +117,7 @@ func Load(options LoadOptions) (LoadResult, error) {
 	}, nil
 }
 
-// LoadPolygon загружает полигон водоёма, сохраняя острова как внутренние
+// LoadPolygon загружает полигон Чёрного моря, сохраняя острова как внутренние
 // кольца. Для простого массива координат создаётся один внешний контур.
 func LoadPolygon(options LoadOptions) (PolygonLoadResult, error) {
 	localPath := strings.TrimSpace(options.LocalPath)
@@ -129,16 +130,16 @@ func LoadPolygon(options LoadOptions) (PolygonLoadResult, error) {
 
 	sequences, err := parsePolygonSequences(payload.Payload, options.RemoteBounds)
 	if err != nil {
-		return PolygonLoadResult{}, fmt.Errorf("ошибка парсинга полигона водоёма %q: %w", payload.Source, err)
+		return PolygonLoadResult{}, fmt.Errorf("ошибка парсинга полигона Чёрного моря %q: %w", payload.Source, err)
 	}
 	if len(sequences) == 0 {
-		return PolygonLoadResult{}, fmt.Errorf("источник %q не содержит колец водоёма", payload.Source)
+		return PolygonLoadResult{}, fmt.Errorf("источник %q не содержит колец Чёрного моря", payload.Source)
 	}
 
 	outerIndex := largestRingIndex(sequences)
 	outer, report, err := normalizeMeshRing(sequences[outerIndex])
 	if err != nil {
-		return PolygonLoadResult{}, fmt.Errorf("ошибка внешнего кольца водоёма %q: %w", payload.Source, err)
+		return PolygonLoadResult{}, fmt.Errorf("ошибка внешнего кольца Чёрного моря %q: %w", payload.Source, err)
 	}
 
 	holes := make([][]geometry.LatLon, 0, len(sequences)-1)
@@ -152,7 +153,7 @@ func LoadPolygon(options LoadOptions) (PolygonLoadResult, error) {
 			continue
 		}
 		if !pointInRing(ring[0], outer) {
-			report.Warnings = append(report.Warnings, fmt.Sprintf("отдельное кольцо %d вне основного водоёма пропущено", index))
+			report.Warnings = append(report.Warnings, fmt.Sprintf("отдельное кольцо %d вне основного полигона Чёрного моря пропущено", index))
 			continue
 		}
 		report.Fixes = append(report.Fixes, ringReport.Fixes...)
@@ -294,6 +295,14 @@ func normalizeLoadedPoints(points []geometry.LatLon) ([]geometry.LatLon, Validat
 		}
 		if point.Lon < minValidLongitude || point.Lon > maxValidLongitude {
 			return nil, ValidationReport{}, fmt.Errorf("данные береговой линии содержат недопустимую долготу в индексе %d: %f", i, point.Lon)
+		}
+		if !blacksea.Contains(point.Lat, point.Lon) {
+			return nil, ValidationReport{}, fmt.Errorf(
+				"точка береговой линии в индексе %d (%.6f, %.6f) находится вне области Чёрного моря [%.1f, %.1f] × [%.1f, %.1f]",
+				i, point.Lat, point.Lon,
+				blacksea.MinLatitude, blacksea.MaxLatitude,
+				blacksea.MinLongitude, blacksea.MaxLongitude,
+			)
 		}
 	}
 
@@ -465,7 +474,7 @@ func parseGeoJSONSequences(data []byte) ([][]geometry.LatLon, error) {
 func parsePolygonSequences(data []byte, bounds GeoBounds) ([][]geometry.LatLon, error) {
 	trimmed := bytes.TrimSpace(data)
 	if len(trimmed) == 0 {
-		return nil, fmt.Errorf("пустые данные водоёма")
+		return nil, fmt.Errorf("пустые данные Чёрного моря")
 	}
 	if trimmed[0] != '{' {
 		points, err := parseCoastlineData(trimmed, bounds)
@@ -522,6 +531,9 @@ func normalizeMeshRing(points []geometry.LatLon) ([]geometry.LatLon, ValidationR
 	for index, point := range working {
 		if point.Lat < minValidLatitude || point.Lat > maxValidLatitude || point.Lon < minValidLongitude || point.Lon > maxValidLongitude {
 			return nil, report, fmt.Errorf("недопустимая координата кольца в индексе %d", index)
+		}
+		if !blacksea.Contains(point.Lat, point.Lon) {
+			return nil, report, fmt.Errorf("координата кольца в индексе %d находится вне области Чёрного моря", index)
 		}
 		if len(deduplicated) > 0 && pointKey(deduplicated[len(deduplicated)-1]) == pointKey(point) {
 			continue

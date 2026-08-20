@@ -1,0 +1,258 @@
+{
+  "schema_version": "lito-seabed/v1",
+  "schema_ref": "docs/schemas/lito-seabed-v1.schema.json",
+  "run": {
+    "id": "synthetic-one-quad",
+    "generated_at": "2026-08-20T00:00:00Z",
+    "command": "lito seabed build --synthetic-example",
+    "software_version": "development"
+  },
+  "status": "completed",
+  "source": {
+    "coastline": {
+      "path": "synthetic://straight-coastline",
+      "sha256": null
+    },
+    "bathymetry": {
+      "path": "synthetic://inclined-plane",
+      "passport_path": null,
+      "dataset_sha256": null,
+      "status": "synthetic_test",
+      "source_product": "Аналитическая наклонная плоскость ARCH-01",
+      "license": "Тестовые данные проекта Lito",
+      "attribution": "Синтетический пример Lito"
+    }
+  },
+  "coordinates": {
+    "horizontal_source": {
+      "name": "WGS 84",
+      "epsg": 4326,
+      "axis_order": "longitude,latitude",
+      "angular_unit": "degree"
+    },
+    "horizontal_mesh": {
+      "method": "spherical_laea",
+      "linear_unit": "m",
+      "reference_latitude_deg": 43,
+      "reference_longitude_deg": 34
+    },
+    "vertical": {
+      "name": "Синтетический локальный ноль",
+      "epsg": null,
+      "unit": "m",
+      "positive_direction": "up",
+      "source_native": true,
+      "caveat": "Вертикальная система существует только для теста контракта.",
+      "transformation": {
+        "applied": false,
+        "method": null
+      }
+    }
+  },
+  "conventions": {
+    "elevation_positive_direction": "up",
+    "underwater_elevation_relation": "elevation_m <= 0",
+    "water_depth_relation": "water_depth_m = max(0, -elevation_m)",
+    "no_data_policy": "null_with_quality_flag; never_zero_fill",
+    "vertical_exaggeration_in_data": 1
+  },
+  "code_tables": {
+    "sampling_method": {
+      "not_sampled": 0,
+      "exact": 1,
+      "bilinear": 2,
+      "nearest": 3,
+      "irregular": 4,
+      "coastline_constraint": 5
+    },
+    "quality_flag": {
+      "rejected": 0,
+      "no_data": 1,
+      "fallback": 2,
+      "constrained": 3,
+      "verified": 4
+    },
+    "boundary_kind": {
+      "none": 0,
+      "coastline": 1,
+      "island": 2,
+      "open_boundary": 3
+    },
+    "cell_quality_flag": {
+      "fallback": 1,
+      "mixed": 2,
+      "verified": 3
+    }
+  },
+  "mesh": {
+    "input_format": "synthetic",
+    "node_count": 4,
+    "cell_count": 1,
+    "quadrilateral_count": 1,
+    "boundary_node_count": 2,
+    "target_edge_m": {
+      "minimum": 100,
+      "maximum": 100
+    },
+    "node_fields": [
+      "id",
+      "x_m",
+      "y_m",
+      "longitude_deg",
+      "latitude_deg",
+      "elevation_m",
+      "water_depth_m",
+      "sampling_method",
+      "source_distance_m",
+      "quality_flag",
+      "is_boundary",
+      "boundary_kind"
+    ],
+    "cell_fields": [
+      "id",
+      "node_ids",
+      "area_m2",
+      "elevation_min_m",
+      "elevation_max_m",
+      "elevation_mean_m",
+      "water_depth_mean_m",
+      "slope_deg",
+      "aspect_deg",
+      "roughness_m",
+      "region",
+      "quality_flag",
+      "quality_score"
+    ]
+  },
+  "sampling": {
+    "total_node_count": 4,
+    "assigned_node_count": 4,
+    "no_data_node_count": 0,
+    "coverage_percent": 100,
+    "method_counts": {
+      "exact": 0,
+      "bilinear": 2,
+      "nearest": 0,
+      "irregular": 0,
+      "coastline_constraint": 2,
+      "not_sampled": 0
+    },
+    "mean_source_distance_m": 45,
+    "max_source_distance_m": 50
+  },
+  "quality": {
+    "accepted": true,
+    "reasons": [],
+    "checks": [
+      {
+        "name": "Покрытие узлов батиметрией",
+        "status": "passed",
+        "value": 100,
+        "unit": "%",
+        "threshold": "= 100",
+        "method": "Доля узлов с конечными elevation_m и water_depth_m"
+      },
+      {
+        "name": "Согласование берегового нуля",
+        "status": "passed",
+        "value": 2,
+        "unit": "узел",
+        "threshold": "все береговые узлы имеют elevation_m = 0",
+        "method": "Проверка boundary_kind = coastline"
+      }
+    ]
+  },
+  "outputs": [
+    {
+      "role": "quality_report",
+      "format": "json",
+      "path": "output/seabed/synthetic-one-quad/seabed-quality.json",
+      "sha256": null
+    }
+  ],
+  "warnings": [
+    "Пример предназначен только для проверки контракта и не описывает реальный участок моря."
+  ],
+  "samples": {
+    "nodes": [
+      {
+        "id": 1,
+        "x_m": 0,
+        "y_m": 0,
+        "longitude_deg": 34,
+        "latitude_deg": 43,
+        "elevation_m": 0,
+        "water_depth_m": 0,
+        "sampling_method": "coastline_constraint",
+        "source_distance_m": null,
+        "quality_flag": "constrained",
+        "is_boundary": true,
+        "boundary_kind": "coastline"
+      },
+      {
+        "id": 2,
+        "x_m": 100,
+        "y_m": 0,
+        "longitude_deg": 34.00123,
+        "latitude_deg": 43,
+        "elevation_m": 0,
+        "water_depth_m": 0,
+        "sampling_method": "coastline_constraint",
+        "source_distance_m": null,
+        "quality_flag": "constrained",
+        "is_boundary": true,
+        "boundary_kind": "coastline"
+      },
+      {
+        "id": 3,
+        "x_m": 100,
+        "y_m": 100,
+        "longitude_deg": 34.00123,
+        "latitude_deg": 43.0009,
+        "elevation_m": -20,
+        "water_depth_m": 20,
+        "sampling_method": "bilinear",
+        "source_distance_m": 50,
+        "quality_flag": "verified",
+        "is_boundary": false,
+        "boundary_kind": "none"
+      },
+      {
+        "id": 4,
+        "x_m": 0,
+        "y_m": 100,
+        "longitude_deg": 34,
+        "latitude_deg": 43.0009,
+        "elevation_m": -10,
+        "water_depth_m": 10,
+        "sampling_method": "bilinear",
+        "source_distance_m": 40,
+        "quality_flag": "verified",
+        "is_boundary": false,
+        "boundary_kind": "none"
+      }
+    ],
+    "cells": [
+      {
+        "id": 1,
+        "node_ids": [
+          1,
+          2,
+          3,
+          4
+        ],
+        "area_m2": 10000,
+        "elevation_min_m": -20,
+        "elevation_max_m": 0,
+        "elevation_mean_m": -7.5,
+        "water_depth_mean_m": 7.5,
+        "slope_deg": 8.53,
+        "aspect_deg": 0,
+        "roughness_m": 8.29,
+        "region": "coast",
+        "quality_flag": "mixed",
+        "quality_score": 0.95
+      }
+    ]
+  }
+}

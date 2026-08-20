@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"math"
 	"time"
+
+	"coastal-geometry/internal/domain/blacksea"
 )
 
 const (
@@ -37,7 +39,6 @@ type LongshoreModelConfig struct {
 	BathymetrySHA256          string                    // SHA-256 фактически загруженного JSON
 	BathymetryPassport        string                    // путь к проверенному паспорту происхождения
 	BathymetryStatus          string                    // статус набора из паспорта
-	WaterbodyID               string                    // идентификатор выбранного водоёма из каталога Lito
 	SedimentSources           []LongshoreSedimentSource // внешние источники и стоки наносов по ячейкам
 	Structures                []LongshoreStructure      // сооружения, меняющие пропуск потока между ячейками
 	LeftBoundaryTransportM3S  float64                   // поток через левую границу, положительный внутрь сегмента
@@ -120,7 +121,7 @@ type ModelInputQuality struct {
 type LongshoreModelResult struct {
 	ScenarioClassification
 	Model              string                    `json:"model"`
-	WaterbodyID        string                    `json:"waterbody_id,omitempty"`
+	BasinID            string                    `json:"basin_id"`
 	BathymetrySource   string                    `json:"bathymetry_source"`
 	BathymetrySHA256   string                    `json:"bathymetry_sha256,omitempty"`
 	BathymetryPassport string                    `json:"bathymetry_passport,omitempty"`
@@ -160,7 +161,7 @@ func RunLongshoreCERC(points []LatLon, climate WaveClimate, config LongshoreMode
 	result := LongshoreModelResult{
 		ScenarioClassification: config.Scenario,
 		Model:                  "Одномерная CERC: дисперсия, рефракция, shoaling, разрушение волн и баланс наносов",
-		WaterbodyID:            config.WaterbodyID,
+		BasinID:                blacksea.ID,
 		BathymetrySource:       config.BathymetrySource,
 		BathymetrySHA256:       config.BathymetrySHA256,
 		BathymetryPassport:     config.BathymetryPassport,

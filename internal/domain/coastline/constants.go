@@ -1,6 +1,10 @@
 package coastline
 
-import "time"
+import (
+	"time"
+
+	"coastal-geometry/internal/domain/blacksea"
+)
 
 // Константы для путей к файлам по умолчанию
 const (
@@ -68,10 +72,10 @@ const (
 
 // DefaultBlackSeaBounds - границы Чёрного моря по умолчанию
 var DefaultBlackSeaBounds = GeoBounds{
-	MinLat: 40.5,
-	MaxLat: 46.8,
-	MinLon: 27.0,
-	MaxLon: 42.2,
+	MinLat: blacksea.MinLatitude,
+	MaxLat: blacksea.MaxLatitude,
+	MinLon: blacksea.MinLongitude,
+	MaxLon: blacksea.MaxLongitude,
 }
 
 // DefaultCoastlineGeoJSONURL - URL GeoJSON береговой линии по умолчанию

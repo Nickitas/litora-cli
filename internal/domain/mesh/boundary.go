@@ -77,7 +77,7 @@ func PrepareDomain(outer []geometry.LatLon, holes [][]geometry.LatLon, tolerance
 	result.ReferenceAreaM2 = domainArea(result.OriginalRings)
 	result.SimplifiedAreaM2 = domainArea(result.SimplifiedRings)
 	if result.ReferenceAreaM2 <= 0 || result.SimplifiedAreaM2 <= 0 {
-		return PreparedDomain{}, fmt.Errorf("площадь подготовленного водоёма должна быть положительной")
+		return PreparedDomain{}, fmt.Errorf("площадь подготовленной акватории Чёрного моря должна быть положительной")
 	}
 	return result, nil
 }
