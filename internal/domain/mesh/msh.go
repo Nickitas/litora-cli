@@ -3,6 +3,7 @@ package mesh
 import (
 	"bufio"
 	"fmt"
+	"math"
 	"os"
 	"strconv"
 	"strings"
@@ -20,6 +21,7 @@ func ReadMSH2(path string) (Mesh, error) {
 	scanner := bufio.NewScanner(file)
 	scanner.Buffer(make([]byte, 64*1024), 4*1024*1024)
 	var result Mesh
+	var longitudeData, latitudeData bool
 	for scanner.Scan() {
 		switch strings.TrimSpace(scanner.Text()) {
 		case "$Nodes":
@@ -30,6 +32,17 @@ func ReadMSH2(path string) (Mesh, error) {
 			if err := readElements(scanner, &result); err != nil {
 				return Mesh{}, err
 			}
+		case "$NodeData":
+			name, err := readNodeData(scanner, &result)
+			if err != nil {
+				return Mesh{}, err
+			}
+			switch name {
+			case "longitude_deg":
+				longitudeData = true
+			case "latitude_deg":
+				latitudeData = true
+			}
 		}
 	}
 	if err := scanner.Err(); err != nil {
@@ -37,6 +50,18 @@ func ReadMSH2(path string) (Mesh, error) {
 	}
 	if len(result.Nodes) == 0 {
 		return Mesh{}, fmt.Errorf("MSH не содержит узлов")
+	}
+	if longitudeData != latitudeData {
+		return Mesh{}, fmt.Errorf("MSH должен содержать оба блока WGS 84: longitude_deg и latitude_deg")
+	}
+	if longitudeData {
+		for nodeID := 1; nodeID < len(result.Nodes); nodeID++ {
+			point := result.Nodes[nodeID]
+			if point.LongitudeDeg < -180 || point.LongitudeDeg > 180 || point.LatitudeDeg < -90 || point.LatitudeDeg > 90 {
+				return Mesh{}, fmt.Errorf("узел %d содержит координаты WGS 84 вне допустимого диапазона", nodeID)
+			}
+			result.Nodes[nodeID].GeographicCoordinatesSet = true
+		}
 	}
 	return result, nil
 }
@@ -92,6 +117,29 @@ func WriteMSH2(path string, generated Mesh) error {
 		if _, err := fmt.Fprintln(writer, "$EndElements"); err != nil {
 			return err
 		}
+		geographicNodeCount := 0
+		for nodeID := 1; nodeID < len(generated.Nodes); nodeID++ {
+			point := generated.Nodes[nodeID]
+			if !point.GeographicCoordinatesSet {
+				continue
+			}
+			if math.IsNaN(point.LongitudeDeg) || math.IsInf(point.LongitudeDeg, 0) || point.LongitudeDeg < -180 || point.LongitudeDeg > 180 ||
+				math.IsNaN(point.LatitudeDeg) || math.IsInf(point.LatitudeDeg, 0) || point.LatitudeDeg < -90 || point.LatitudeDeg > 90 {
+				return fmt.Errorf("узел %d содержит некорректные координаты WGS 84", nodeID)
+			}
+			geographicNodeCount++
+		}
+		if geographicNodeCount != 0 && geographicNodeCount != len(generated.Nodes)-1 {
+			return fmt.Errorf("координаты WGS 84 заданы только для %d из %d узлов", geographicNodeCount, len(generated.Nodes)-1)
+		}
+		if geographicNodeCount > 0 {
+			if err := writeScalarNodeData(writer, "longitude_deg", generated.Nodes, func(point Point) float64 { return point.LongitudeDeg }); err != nil {
+				return err
+			}
+			if err := writeScalarNodeData(writer, "latitude_deg", generated.Nodes, func(point Point) float64 { return point.LatitudeDeg }); err != nil {
+				return err
+			}
+		}
 		return writer.Flush()
 	}()
 	closeErr := file.Close()
@@ -102,6 +150,19 @@ func WriteMSH2(path string, generated Mesh) error {
 		return fmt.Errorf("закрытие MSH %q: %w", path, closeErr)
 	}
 	return nil
+}
+
+func writeScalarNodeData(writer *bufio.Writer, name string, nodes []Point, value func(Point) float64) error {
+	if _, err := fmt.Fprintf(writer, "$NodeData\n1\n%q\n1\n0\n3\n0\n1\n%d\n", name, len(nodes)-1); err != nil {
+		return err
+	}
+	for nodeID := 1; nodeID < len(nodes); nodeID++ {
+		if _, err := fmt.Fprintf(writer, "%d %.15g\n", nodeID, value(nodes[nodeID])); err != nil {
+			return err
+		}
+	}
+	_, err := fmt.Fprintln(writer, "$EndNodeData")
+	return err
 }
 
 func readNodes(scanner *bufio.Scanner, result *Mesh) error {
@@ -196,4 +257,110 @@ func readElements(scanner *bufio.Scanner, result *Mesh) error {
 		return fmt.Errorf("секция $Elements не завершена маркером $EndElements")
 	}
 	return nil
+}
+
+func readNodeData(scanner *bufio.Scanner, result *Mesh) (string, error) {
+	stringTagCount, err := scanNonNegativeInteger(scanner, "число строковых тегов $NodeData")
+	if err != nil {
+		return "", err
+	}
+	stringTags := make([]string, stringTagCount)
+	for index := range stringTags {
+		if !scanner.Scan() {
+			return "", fmt.Errorf("секция $NodeData оборвана на строковом теге")
+		}
+		stringTags[index] = strings.Trim(strings.TrimSpace(scanner.Text()), "\"")
+	}
+	name := ""
+	if len(stringTags) > 0 {
+		name = stringTags[0]
+	}
+
+	realTagCount, err := scanNonNegativeInteger(scanner, "число вещественных тегов $NodeData")
+	if err != nil {
+		return "", err
+	}
+	for index := 0; index < realTagCount; index++ {
+		if !scanner.Scan() {
+			return "", fmt.Errorf("секция $NodeData оборвана на вещественном теге")
+		}
+		if _, err := strconv.ParseFloat(strings.TrimSpace(scanner.Text()), 64); err != nil {
+			return "", fmt.Errorf("некорректный вещественный тег $NodeData %q", scanner.Text())
+		}
+	}
+
+	integerTagCount, err := scanNonNegativeInteger(scanner, "число целочисленных тегов $NodeData")
+	if err != nil {
+		return "", err
+	}
+	integerTags := make([]int, integerTagCount)
+	for index := range integerTags {
+		if !scanner.Scan() {
+			return "", fmt.Errorf("секция $NodeData оборвана на целочисленном теге")
+		}
+		value, valueErr := strconv.Atoi(strings.TrimSpace(scanner.Text()))
+		if valueErr != nil {
+			return "", fmt.Errorf("некорректный целочисленный тег $NodeData %q", scanner.Text())
+		}
+		integerTags[index] = value
+	}
+	if len(integerTags) < 3 || integerTags[1] <= 0 || integerTags[2] < 0 {
+		return "", fmt.Errorf("$NodeData %q не содержит корректные теги компонентов и узлов", name)
+	}
+	componentCount, entryCount := integerTags[1], integerTags[2]
+	isGeographic := name == "longitude_deg" || name == "latitude_deg"
+	if isGeographic {
+		if componentCount != 1 {
+			return "", fmt.Errorf("блок %s должен содержать одно значение на узел", name)
+		}
+		if len(result.Nodes) <= 1 || entryCount != len(result.Nodes)-1 {
+			return "", fmt.Errorf("блок %s содержит %d записей вместо %d", name, entryCount, len(result.Nodes)-1)
+		}
+	}
+
+	seen := make(map[int]bool, entryCount)
+	for index := 0; index < entryCount; index++ {
+		if !scanner.Scan() {
+			return "", fmt.Errorf("секция $NodeData %q оборвана на записи %d", name, index+1)
+		}
+		fields := strings.Fields(scanner.Text())
+		if len(fields) < componentCount+1 {
+			return "", fmt.Errorf("некорректная запись $NodeData %q", scanner.Text())
+		}
+		nodeID, idErr := strconv.Atoi(fields[0])
+		if idErr != nil {
+			return "", fmt.Errorf("некорректный идентификатор узла $NodeData %q", fields[0])
+		}
+		if !isGeographic {
+			continue
+		}
+		if nodeID <= 0 || nodeID >= len(result.Nodes) || seen[nodeID] {
+			return "", fmt.Errorf("некорректный или повторный узел %d в блоке %s", nodeID, name)
+		}
+		value, valueErr := strconv.ParseFloat(fields[1], 64)
+		if valueErr != nil || math.IsNaN(value) || math.IsInf(value, 0) {
+			return "", fmt.Errorf("некорректное значение узла %d в блоке %s", nodeID, name)
+		}
+		if name == "longitude_deg" {
+			result.Nodes[nodeID].LongitudeDeg = value
+		} else {
+			result.Nodes[nodeID].LatitudeDeg = value
+		}
+		seen[nodeID] = true
+	}
+	if !scanner.Scan() || strings.TrimSpace(scanner.Text()) != "$EndNodeData" {
+		return "", fmt.Errorf("секция $NodeData %q не завершена маркером $EndNodeData", name)
+	}
+	return name, nil
+}
+
+func scanNonNegativeInteger(scanner *bufio.Scanner, label string) (int, error) {
+	if !scanner.Scan() {
+		return 0, fmt.Errorf("после %s отсутствует значение", label)
+	}
+	value, err := strconv.Atoi(strings.TrimSpace(scanner.Text()))
+	if err != nil || value < 0 {
+		return 0, fmt.Errorf("некорректное %s %q", label, scanner.Text())
+	}
+	return value, nil
 }

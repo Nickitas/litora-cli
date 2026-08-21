@@ -1,6 +1,7 @@
 package mesh
 
 import (
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -31,6 +32,9 @@ func TestPrepareDomainAccountsForDroppedIsland(t *testing.T) {
 	}
 	if domain.CumulativeFeatureDeviationM2 <= 0 {
 		t.Fatal("площадь исключённого острова должна входить в отклонение")
+	}
+	if domain.ProjectionRoundTripMaxErrorMeters > 0.001 {
+		t.Fatalf("ошибка обратной проекции слишком велика: %.9f м", domain.ProjectionRoundTripMaxErrorMeters)
 	}
 }
 
@@ -132,5 +136,52 @@ func TestWriteMSH2PreservesFullQuadMesh(t *testing.T) {
 	}
 	if result.TriangleCount != 0 || result.QuadCount != 1 || len(result.BoundaryEdges) != 4 {
 		t.Fatalf("итоговая сетка повреждена при записи: %+v", result)
+	}
+}
+
+func TestWriteMSH2PreservesWGS84NodeData(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "georeferenced.msh")
+	projection := EqualAreaProjection{ReferenceLat: 43.05, ReferenceLon: 34.05}
+	geographic := []geometry.LatLon{
+		{Lat: 43.0, Lon: 34.0},
+		{Lat: 43.0, Lon: 34.1},
+		{Lat: 43.1, Lon: 34.1},
+		{Lat: 43.1, Lon: 34.0},
+	}
+	nodes := []Point{{}}
+	for _, coordinate := range geographic {
+		nodes = append(nodes, projection.Project(coordinate))
+	}
+	source := Mesh{
+		Nodes:         nodes,
+		Cells:         []Cell{{Nodes: [4]int{1, 2, 3, 4}, NodeCount: 4}},
+		BoundaryEdges: [][2]int{{1, 2}, {2, 3}, {3, 4}, {4, 1}},
+		QuadCount:     1,
+	}
+	if err := WriteMSH2(path, source); err != nil {
+		t.Fatal(err)
+	}
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{`"longitude_deg"`, `"latitude_deg"`} {
+		if !strings.Contains(string(content), name) {
+			t.Fatalf("MSH не содержит блок %s", name)
+		}
+	}
+
+	result, err := ReadMSH2(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for index, expected := range geographic {
+		actual := result.Nodes[index+1]
+		if !actual.GeographicCoordinatesSet {
+			t.Fatalf("узел %d потерял признак WGS 84", index+1)
+		}
+		if math.Abs(actual.LatitudeDeg-expected.Lat) > 1e-12 || math.Abs(actual.LongitudeDeg-expected.Lon) > 1e-12 {
+			t.Fatalf("узел %d потерял координаты WGS 84: %+v, ожидалось %+v", index+1, actual, expected)
+		}
 	}
 }

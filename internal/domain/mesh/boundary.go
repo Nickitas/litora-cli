@@ -30,6 +30,15 @@ func PrepareDomain(outer []geometry.LatLon, holes [][]geometry.LatLon, tolerance
 	projection := NewEqualAreaProjection(geoRings)
 
 	result := PreparedDomain{Projection: projection}
+	for _, ring := range geoRings {
+		for _, point := range openRing(ring) {
+			errorMeters, err := projection.RoundTripErrorMeters(point)
+			if err != nil {
+				return PreparedDomain{}, fmt.Errorf("проверка обратной проекции: %w", err)
+			}
+			result.ProjectionRoundTripMaxErrorMeters = math.Max(result.ProjectionRoundTripMaxErrorMeters, errorMeters)
+		}
+	}
 	retainedGeoRings := make([][]geometry.LatLon, 0, len(geoRings))
 	retainedOriginalMetric := make([][]Point, 0, len(geoRings))
 	for ringIndex, ring := range geoRings {

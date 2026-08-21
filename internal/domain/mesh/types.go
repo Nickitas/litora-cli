@@ -69,10 +69,15 @@ func (algorithm Algorithm) options() (algorithmOptions, error) {
 	}
 }
 
-// Point задаёт плоскую координату в метрах.
+// Point задаёт координаты узла в локальной плоскости LAEA и WGS 84.
+// GeographicCoordinatesSet отличает вычисленные географические координаты
+// от нулевых значений старого плоского MSH.
 type Point struct {
-	X float64 `json:"x"`
-	Y float64 `json:"y"`
+	X                        float64 `json:"x_m"`
+	Y                        float64 `json:"y_m"`
+	LongitudeDeg             float64 `json:"longitude_deg"`
+	LatitudeDeg              float64 `json:"latitude_deg"`
+	GeographicCoordinatesSet bool    `json:"geographic_coordinates_set"`
 }
 
 // Cell хранит индексы узлов одной поверхностной ячейки.
@@ -105,6 +110,9 @@ type PreparedDomain struct {
 	// автоматического уменьшения ради сохранения топологии колец.
 	EffectiveBoundaryToleranceMeters float64
 	Projection                       EqualAreaProjection
+	// ProjectionRoundTripMaxErrorMeters — максимальная ошибка
+	// WGS 84 → LAEA → WGS 84 на всех исходных кольцах.
+	ProjectionRoundTripMaxErrorMeters float64
 }
 
 // GenerationConfig задаёт один воспроизводимый запуск Gmsh.

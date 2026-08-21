@@ -336,14 +336,17 @@ Frontal-Delaunay for Quads и Packing of Parallelograms. Для каждого �
 глубины. План подключения проверенной батиметрии, назначения `Z` узлам,
 построения изобат и 3D-рельефа, адаптации размера ячеек и научной проверки
 описан в [`todo/DEVELOPMENT_PLAN.md`](todo/DEVELOPMENT_PLAN.md).
-Задачи `ARCH-01` и `DATA-01` выполнены: соглашения о знаке, вертикальной
-системе, NoData, полях узлов/ячеек и форматах закреплены в
+Задачи `ARCH-01`, `DATA-01`, `DATA-02` и `GEO-01` выполнены: соглашения о
+знаке, вертикальной системе, NoData, полях узлов/ячеек и форматах закреплены в
 [`docs/adr/seabed-data-contract.md`](docs/adr/seabed-data-contract.md), а
 машинная схема отчёта — в
 [`docs/schemas/lito-seabed-v1.schema.json`](docs/schemas/lito-seabed-v1.schema.json).
 Для батиметрии зафиксированы основной источник GEBCO_2026 с TID и контрольный
 EMODnet DTM 2024; решение, лицензии и ограничения описаны в
 [`docs/bathymetry-source-selection.md`](docs/bathymetry-source-selection.md).
+Итоговые узлы сетки теперь содержат `X/Y` в LAEA и `longitude/latitude` в
+WGS 84; методика обратного преобразования и предел ошибки приведены в
+[`docs/mesh-generation.md`](docs/mesh-generation.md#равноплощадная-проекция).
 
 ### 3. Геоморфологическое моделирование эрозии
 

@@ -64,15 +64,16 @@ func init() {
 }
 
 type meshComparisonReport struct {
-	SchemaVersion string            `json:"schema_version"`
-	GeneratedAt   string            `json:"generated_at"`
-	DatasetName   string            `json:"dataset_name"`
-	Source        string            `json:"source"`
-	GmshPath      string            `json:"gmsh_path"`
-	GmshVersion   string            `json:"gmsh_version"`
-	Projection    string            `json:"projection"`
-	Criterion     meshCriterion     `json:"criterion"`
-	Levels        []meshLevelReport `json:"levels"`
+	SchemaVersion                     string            `json:"schema_version"`
+	GeneratedAt                       string            `json:"generated_at"`
+	DatasetName                       string            `json:"dataset_name"`
+	Source                            string            `json:"source"`
+	GmshPath                          string            `json:"gmsh_path"`
+	GmshVersion                       string            `json:"gmsh_version"`
+	Projection                        string            `json:"projection"`
+	ProjectionRoundTripMaxErrorMeters float64           `json:"projection_round_trip_max_error_meters"`
+	Criterion                         meshCriterion     `json:"criterion"`
+	Levels                            []meshLevelReport `json:"levels"`
 }
 
 type meshCriterion struct {
@@ -179,6 +180,8 @@ func runMesh(_ *cobra.Command, _ []string) error {
 		}
 		if report.Projection == "" {
 			report.Projection = fmt.Sprintf("%s; центр %.6f°, %.6f°", prepared.Projection.Description(), prepared.Projection.ReferenceLat, prepared.Projection.ReferenceLon)
+			report.ProjectionRoundTripMaxErrorMeters = prepared.ProjectionRoundTripMaxErrorMeters
+			fmt.Printf("Обратная проекция WGS 84: максимальная ошибка цикла %.9f м\n", prepared.ProjectionRoundTripMaxErrorMeters)
 		}
 		estimated := prepared.EstimatedCellCount(edgeMeters)
 		if meshMaxCells > 0 && estimated > meshMaxCells && !meshAllowLarge {

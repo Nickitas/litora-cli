@@ -113,6 +113,9 @@ func GenerateGmsh(domain PreparedDomain, config GenerationConfig) (Mesh, error) 
 		return Mesh{}, fmt.Errorf("Gmsh не создал поверхностных ячеек")
 	}
 	fullQuads := SubdivideToFullQuads(generated)
+	if err := domain.Projection.AssignGeographicCoordinates(fullQuads.Nodes); err != nil {
+		return Mesh{}, fmt.Errorf("географическая привязка итоговой сетки: %w", err)
+	}
 	if err := WriteMSH2(config.MeshPath, fullQuads); err != nil {
 		return Mesh{}, fmt.Errorf("сохранение итоговой четырёхугольной сетки: %w", err)
 	}
