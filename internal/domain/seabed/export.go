@@ -12,19 +12,48 @@ import (
 // WriteNodeDepthCSV сохраняет полный узловой слой BATHY-01 в порядке полей
 // контракта lito-seabed/v1. Nil записывается пустым полем, а не нулём.
 func WriteNodeDepthCSV(path string, model Model) error {
+	return writeNodesCSV(path, model, nil)
+}
+
+// WriteNodesCSV сохраняет принятую узловую таблицу EXPORT-02 и добавляет запись
+// metadata с проекцией, вертикальной системой и единицами. Это позволяет
+// отделить таблицу от sidecar-отчёта без потери пространственного контекста.
+func WriteNodesCSV(path string, model Model, metadata ExportMetadata) error {
+	normalized, err := normalizeExportMetadata(metadata, model)
+	if err != nil {
+		return err
+	}
+	if err := validateMSHModel(model); err != nil {
+		return fmt.Errorf("проверка модели для nodes.csv: %w", err)
+	}
+	return writeNodesCSV(path, model, &normalized)
+}
+
+func writeNodesCSV(path string, model Model, metadata *ExportMetadata) error {
 	file, err := createOutputFile(path)
 	if err != nil {
 		return err
 	}
 	writer := csv.NewWriter(file)
-	writeErr := writer.Write([]string{
+	header := []string{
 		"id", "x_m", "y_m", "longitude_deg", "latitude_deg", "elevation_m",
 		"water_depth_m", "sampling_method", "source_distance_m", "quality_flag",
 		"is_boundary", "boundary_kind",
-	})
+	}
+	if metadata != nil {
+		header = append(header, "record_type")
+		header = append(header, exportMetadataCSVHeader()...)
+	}
+	writeErr := writer.Write(header)
+	if writeErr == nil && metadata != nil {
+		row := make([]string, 12)
+		row = append(row, "metadata")
+		row = append(row, exportMetadataCSVValues(*metadata)...)
+		writeErr = writer.Write(row)
+	}
 	for nodeID := 1; writeErr == nil && nodeID < len(model.Nodes); nodeID++ {
 		node := model.Nodes[nodeID]
-		writeErr = writer.Write([]string{
+		row := []string{
 			strconv.Itoa(node.ID),
 			formatFloat(node.XM),
 			formatFloat(node.YM),
@@ -37,7 +66,12 @@ func WriteNodeDepthCSV(path string, model Model) error {
 			string(node.QualityFlag),
 			strconv.FormatBool(node.IsBoundary),
 			string(node.BoundaryKind),
-		})
+		}
+		if metadata != nil {
+			row = append(row, "data")
+			row = append(row, make([]string, len(exportMetadataCSVHeader()))...)
+		}
+		writeErr = writer.Write(row)
 	}
 	writer.Flush()
 	if writeErr == nil {
@@ -54,23 +88,50 @@ func WriteNodeDepthCSV(path string, model Model) error {
 }
 
 // WriteCellsCSV сохраняет принятые производные характеристики BATHY-03.
-// Ячейки с NoData не попадают в файл и отражаются в CellSummary.
-func WriteCellsCSV(path string, model Model) error {
+// Ячейки с NoData не попадают в файл и отражаются в CellSummary. Необязательный
+// третий аргумент используется EXPORT-02 и добавляет запись с проекцией,
+// вертикальной системой и единицами; вызов без него сохраняет прежний CSV BATHY-03.
+func WriteCellsCSV(path string, model Model, exportMetadata ...ExportMetadata) error {
+	if len(exportMetadata) > 1 {
+		return fmt.Errorf("для cells.csv можно задать только один блок метаданных")
+	}
+	var metadata *ExportMetadata
+	if len(exportMetadata) == 1 {
+		normalized, err := normalizeExportMetadata(exportMetadata[0], model)
+		if err != nil {
+			return err
+		}
+		if err := validateMSHModel(model); err != nil {
+			return fmt.Errorf("проверка модели для cells.csv: %w", err)
+		}
+		metadata = &normalized
+	}
 	file, err := createOutputFile(path)
 	if err != nil {
 		return err
 	}
 	writer := csv.NewWriter(file)
-	writeErr := writer.Write([]string{
+	header := []string{
 		"id", "node_ids", "area_m2", "elevation_min_m", "elevation_max_m",
 		"elevation_mean_m", "water_depth_mean_m", "slope_deg", "aspect_deg",
 		"roughness_m", "region", "quality_flag", "quality_score",
-	})
+	}
+	if metadata != nil {
+		header = append(header, "record_type")
+		header = append(header, exportMetadataCSVHeader()...)
+	}
+	writeErr := writer.Write(header)
+	if writeErr == nil && metadata != nil {
+		row := make([]string, 13)
+		row = append(row, "metadata")
+		row = append(row, exportMetadataCSVValues(*metadata)...)
+		writeErr = writer.Write(row)
+	}
 	for _, cell := range model.Cells {
 		if writeErr != nil {
 			break
 		}
-		writeErr = writer.Write([]string{
+		row := []string{
 			strconv.Itoa(cell.ID),
 			fmt.Sprintf("[%d,%d,%d,%d]", cell.NodeIDs[0], cell.NodeIDs[1], cell.NodeIDs[2], cell.NodeIDs[3]),
 			formatFloat(cell.AreaM2),
@@ -84,7 +145,12 @@ func WriteCellsCSV(path string, model Model) error {
 			string(cell.Region),
 			string(cell.QualityFlag),
 			formatFloat(cell.QualityScore),
-		})
+		}
+		if metadata != nil {
+			row = append(row, "data")
+			row = append(row, make([]string, len(exportMetadataCSVHeader()))...)
+		}
+		writeErr = writer.Write(row)
 	}
 	writer.Flush()
 	if writeErr == nil {

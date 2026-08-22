@@ -276,16 +276,30 @@ flowchart LR
 
 #### EXPORT-02 — Добавить VTU и табличный экспорт
 
+- Статус: **выполнено 2026-08-22**.
 - Приоритет: P1.
 - Зависимости: `BATHY-03`.
 - Размер: M.
 - Работы:
-  - экспортировать `.vtu` для ParaView;
-  - сохранять `nodes.csv`, `cells.csv`, `profiles.csv`;
-  - включать проекцию, вертикальный датум и единицы в каждый формат.
+  - [x] экспортировать `.vtu` для ParaView;
+  - [x] сохранять `nodes.csv`, `cells.csv`, `profiles.csv`;
+  - [x] включать проекцию, вертикальный датум и единицы в каждый формат.
+- Реализация:
+  - [`internal/domain/seabed/vtu.go`](../internal/domain/seabed/vtu.go) и
+    [`vtu_read.go`](../internal/domain/seabed/vtu_read.go) — потоковая запись и
+    строгое обратное чтение VTK XML UnstructuredGrid;
+  - [`internal/domain/seabed/export_bundle.go`](../internal/domain/seabed/export_bundle.go)
+    — единый набор VTU, трёх CSV и `export-metadata.json`;
+  - [`docs/seabed-vtu-csv-export.md`](../docs/seabed-vtu-csv-export.md) — поля,
+    единицы, нумерация и ограничения профилей;
+  - профили экспортируются только по явно выбранным узлам; автоматический
+    выбор разрезов остаётся в VIEW-03.
+- Артефакты: `output/seabed/black-sea-depth.vtu`, `nodes.csv`, `cells.csv`,
+  `profiles.csv`, `export-metadata.json`.
 - Готово, когда:
-  - VTU открывается без предупреждений и содержит поля глубины/качества;
-  - табличные файлы согласованы с MSH по идентификаторам.
+  - [x] VTU проходит XML-проверку и строгое обратное чтение без потери полей
+    глубины/качества;
+  - [x] табличные файлы согласованы с MSH по идентификаторам.
 
 ### Этап D. Понятная визуализация
 

@@ -337,7 +337,7 @@ Frontal-Delaunay for Quads и Packing of Parallelograms. Для каждого �
 построения изобат и 3D-рельефа, адаптации размера ячеек и научной проверки
 описан в [`todo/DEVELOPMENT_PLAN.md`](todo/DEVELOPMENT_PLAN.md).
 Задачи `ARCH-01`, `DATA-01`, `DATA-02`, `GEO-01`, `BATHY-01`, `BATHY-02`,
-`BATHY-03` и `EXPORT-01` выполнены: соглашения о
+`BATHY-03`, `EXPORT-01` и `EXPORT-02` выполнены: соглашения о
 знаке, вертикальной системе, NoData, полях узлов/ячеек и форматах закреплены в
 [`docs/adr/seabed-data-contract.md`](docs/adr/seabed-data-contract.md), а
 машинная схема отчёта — в
@@ -364,6 +364,14 @@ WGS 84; методика обратного преобразования и пр
 ложную нулевую глубину. Формат, таблицы кодов и правила round-trip описаны в
 [`docs/seabed-msh-export.md`](docs/seabed-msh-export.md). Пользовательская
 команда `lito seabed` будет добавлена в задаче `CLI-01`.
+
+Для ParaView создаётся `black-sea-depth.vtu`: четырёхугольники VTK используют
+трёхмерные точки `X/Y/elevation_m`, узловые и ячеечные скаляры повторяют MSH,
+единицы записываются как `UNITS_LABEL`, а системы координат и вертикальный
+датум — в `FieldData`. Единый экспортный набор также содержит `nodes.csv`,
+`cells.csv`, `profiles.csv` и `export-metadata.json`; идентификаторы узлов и
+ячеек проверяются обратным чтением. Формат описан в
+[`docs/seabed-vtu-csv-export.md`](docs/seabed-vtu-csv-export.md).
 
 ### 3. Геоморфологическое моделирование эрозии
 

@@ -113,5 +113,6 @@ roughness_m = sqrt(Σ(zᵢ − z_planeᵢ)² / 4)
 - `WriteCellDerivationJSON` →
   `output/seabed/.../cell-derivation.json`.
 
-Запись полей в `$ElementData` MSH относится к задаче `EXPORT-01`, а VTU — к
-`EXPORT-02`.
+Запись полей в `$ElementData` MSH реализована в `EXPORT-01`. `EXPORT-02`
+дублирует их как `CellData` VTU и в обогащённом `cells.csv`; точный состав
+описан в [`docs/seabed-vtu-csv-export.md`](seabed-vtu-csv-export.md).

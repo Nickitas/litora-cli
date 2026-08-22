@@ -58,11 +58,11 @@ type MSHDocument struct {
 // скалярных блоках MSH 2.2. Метод возвращает новые карты, чтобы таблицы нельзя
 // было изменить для последующих операций записи.
 type MSHCodeTables struct {
-	SamplingMethod map[SamplingMethod]int
-	QualityFlag    map[QualityFlag]int
-	BoundaryKind   map[BoundaryKind]int
-	CellRegion     map[CellRegion]int
-	CellQuality    map[CellQualityFlag]int
+	SamplingMethod map[SamplingMethod]int  `json:"sampling_method"`
+	QualityFlag    map[QualityFlag]int     `json:"quality_flag"`
+	BoundaryKind   map[BoundaryKind]int    `json:"boundary_kind"`
+	CellRegion     map[CellRegion]int      `json:"cell_region"`
+	CellQuality    map[CellQualityFlag]int `json:"cell_quality_flag"`
 }
 
 // DefaultMSHCodeTables возвращает неизменяемый по смыслу набор кодов схемы

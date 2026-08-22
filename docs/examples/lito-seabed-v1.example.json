@@ -227,9 +227,27 @@
   },
   "outputs": [
     {
+      "role": "mesh_3d",
+      "format": "vtu",
+      "path": "output/seabed/synthetic-one-quad/black-sea-depth.vtu",
+      "sha256": null
+    },
+    {
+      "role": "nodes_table",
+      "format": "csv",
+      "path": "output/seabed/synthetic-one-quad/nodes.csv",
+      "sha256": null
+    },
+    {
       "role": "cells_table",
       "format": "csv",
       "path": "output/seabed/synthetic-one-quad/cells.csv",
+      "sha256": null
+    },
+    {
+      "role": "profile",
+      "format": "csv",
+      "path": "output/seabed/synthetic-one-quad/profiles.csv",
       "sha256": null
     },
     {
