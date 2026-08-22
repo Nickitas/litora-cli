@@ -140,6 +140,62 @@
     "mean_source_distance_m": 45,
     "max_source_distance_m": 50
   },
+  "reconciliation": {
+    "transition_width_m": 200,
+    "boundary_counts": {
+      "coastline": 2,
+      "island": 0,
+      "open_boundary": 0
+    },
+    "correction_counts": {
+      "coastline_zero": 2,
+      "coast_transition": 0,
+      "positive_inside_rejected": 0,
+      "outside_aquatory_rejected": 0
+    },
+    "total_correction_count": 2,
+    "deepened_node_count": 0,
+    "max_abs_adjustment_m": 0,
+    "correction_ledger_path": "output/seabed/synthetic-one-quad/reconciliation-corrections.csv"
+  },
+  "cell_derivation": {
+    "area_method": "формула Гаусса по X/Y в LAEA",
+    "elevation_method": "минимум, максимум и среднее четырёх узлов",
+    "slope_aspect_method": "плоскость наименьших квадратов z = a·x + b·y + c",
+    "roughness_method": "RMS остатков узловых отметок относительно плоскости ячейки",
+    "region_method": "береговая топология и пороги средней положительной глубины",
+    "horizontal_unit": "m",
+    "elevation_unit": "m",
+    "slope_unit": "degree",
+    "aspect_convention": "азимут наибольшего понижения: 0° север, 90° восток, по часовой стрелке",
+    "region_thresholds": {
+      "coast_max_depth_m": 20,
+      "shelf_max_depth_m": 200,
+      "slope_max_depth_m": 2000
+    },
+    "summary": {
+      "total_cell_count": 1,
+      "assigned_cell_count": 1,
+      "no_data_cell_count": 0,
+      "coverage_percent": 100,
+      "region_counts": {
+        "coast": 1,
+        "shelf": 0,
+        "slope": 0,
+        "basin": 0,
+        "unclassified": 0
+      },
+      "quality_counts": {
+        "verified": 0,
+        "mixed": 1,
+        "fallback": 0
+      },
+      "mean_slope_deg": 8.984876931685685,
+      "max_slope_deg": 8.984876931685685,
+      "mean_roughness_m": 2.5,
+      "max_roughness_m": 2.5
+    }
+  },
   "quality": {
     "accepted": true,
     "reasons": [],
@@ -163,6 +219,18 @@
     ]
   },
   "outputs": [
+    {
+      "role": "cells_table",
+      "format": "csv",
+      "path": "output/seabed/synthetic-one-quad/cells.csv",
+      "sha256": null
+    },
+    {
+      "role": "corrections_table",
+      "format": "csv",
+      "path": "output/seabed/synthetic-one-quad/reconciliation-corrections.csv",
+      "sha256": null
+    },
     {
       "role": "quality_report",
       "format": "json",
@@ -246,12 +314,12 @@
         "elevation_max_m": 0,
         "elevation_mean_m": -7.5,
         "water_depth_mean_m": 7.5,
-        "slope_deg": 8.53,
-        "aspect_deg": 0,
-        "roughness_m": 8.29,
+        "slope_deg": 8.984876931685685,
+        "aspect_deg": 18.43494882292201,
+        "roughness_m": 2.5,
         "region": "coast",
         "quality_flag": "mixed",
-        "quality_score": 0.95
+        "quality_score": 0.875
       }
     ]
   }

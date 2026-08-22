@@ -45,6 +45,16 @@ type BathymetryLoadResult struct {
 	LoadWarnings []string
 }
 
+// BathymetrySampleDetails описывает происхождение одной выборки регулярной
+// батиметрии. SourceDistanceMeters — расстояние до ближайшей исходной точки,
+// участвовавшей в назначении значения, а не расстояние до узла сетки Lito.
+type BathymetrySampleDetails struct {
+	ElevationM           float64
+	SourceDistanceMeters float64
+	Exact                bool
+	Interpolated         bool
+}
+
 // LoadBathymetryFromJSON загружает данные батиметрии из JSON-массива байтов.
 // JSON должен быть массивом объектов с полями lat, lon и depth, а паспорт
 // происхождения должен храниться рядом в отдельном файле .metadata.json.
@@ -174,6 +184,81 @@ func (g *BathymetryGrid) SampleDepth(lat, lon, maxDistanceMeters float64) (depth
 		return 0, 0, err
 	}
 
+	return g.nearestDepth(lat, lon, maxDistanceMeters, err)
+}
+
+// SampleDepthDetailed назначает отметку дна и явно различает точное значение,
+// билинейную интерполяцию и ближайшую замену. В отличие от SampleDepth,
+// расстояние для интерполяции не обнуляется: оно относится к ближайшей из
+// четырёх исходных точек и пригодно для отчёта качества сеточной модели дна.
+func (g *BathymetryGrid) SampleDepthDetailed(lat, lon, maxDistanceMeters float64) (BathymetrySampleDetails, error) {
+	if g == nil {
+		return BathymetrySampleDetails{}, fmt.Errorf("батиметрическая сетка не задана")
+	}
+	if point, ok := g.exactPoint(lat, lon); ok {
+		return BathymetrySampleDetails{ElevationM: point.Depth, Exact: true}, nil
+	}
+
+	elevation, interpolationErr := g.InterpolateDepth(lat, lon)
+	if interpolationErr == nil {
+		distance, err := g.interpolationSourceDistance(lat, lon)
+		if err != nil {
+			return BathymetrySampleDetails{}, err
+		}
+		return BathymetrySampleDetails{
+			ElevationM:           elevation,
+			SourceDistanceMeters: distance,
+			Interpolated:         true,
+		}, nil
+	}
+
+	elevation, distance, err := g.nearestDepth(lat, lon, maxDistanceMeters, interpolationErr)
+	if err != nil {
+		return BathymetrySampleDetails{}, err
+	}
+	return BathymetrySampleDetails{ElevationM: elevation, SourceDistanceMeters: distance}, nil
+}
+
+func (g *BathymetryGrid) exactPoint(lat, lon float64) (BathymetryPoint, bool) {
+	if g == nil || g.Resolution <= 0 {
+		return BathymetryPoint{}, false
+	}
+	point, ok := g.Points[gridKey(lat, lon, g.Resolution)]
+	if !ok || math.Abs(point.Lat-lat) > 1e-10 || math.Abs(point.Lon-lon) > 1e-10 {
+		return BathymetryPoint{}, false
+	}
+	return point, true
+}
+
+func (g *BathymetryGrid) interpolationSourceDistance(lat, lon float64) (float64, error) {
+	lat0 := math.Floor(lat/g.Resolution) * g.Resolution
+	lon0 := math.Floor(lon/g.Resolution) * g.Resolution
+	lat1 := lat0 + g.Resolution
+	lon1 := lon0 + g.Resolution
+	keys := []string{
+		gridKey(lat0, lon0, g.Resolution),
+		gridKey(lat0, lon1, g.Resolution),
+		gridKey(lat1, lon0, g.Resolution),
+		gridKey(lat1, lon1, g.Resolution),
+	}
+	bestDistance := math.Inf(1)
+	for _, key := range keys {
+		point, ok := g.Points[key]
+		if !ok {
+			return 0, fmt.Errorf("недостающая исходная точка для оценки расстояния интерполяции в (%f, %ff)", lat, lon)
+		}
+		distance := Haversine(LatLon{Lat: lat, Lon: lon}, LatLon{Lat: point.Lat, Lon: point.Lon}) * 1000
+		if distance < bestDistance {
+			bestDistance = distance
+		}
+	}
+	return bestDistance, nil
+}
+
+func (g *BathymetryGrid) nearestDepth(lat, lon, maxDistanceMeters float64, cause error) (depth, distanceMeters float64, err error) {
+	if maxDistanceMeters <= 0 || g.Resolution <= 0 {
+		return 0, 0, cause
+	}
 	latRadius := int(math.Ceil(maxDistanceMeters / metersPerDegLat / g.Resolution))
 	metersPerDegLon := metersPerDegLat * math.Cos(lat*math.Pi/180)
 	if math.Abs(metersPerDegLon) < 1e-9 {
@@ -200,12 +285,15 @@ func (g *BathymetryGrid) SampleDepth(lat, lon, maxDistanceMeters float64) (depth
 	if bestDistance <= maxDistanceMeters {
 		return bestDepth, bestDistance, nil
 	}
-	return 0, 0, fmt.Errorf("%w; ближайшая точка не найдена в радиусе %.0f м", err, maxDistanceMeters)
+	return 0, 0, fmt.Errorf("%w; ближайшая точка не найдена в радиусе %.0f м", cause, maxDistanceMeters)
 }
 
 func gridKey(lat, lon, resolution float64) string {
-	latIdx := math.Floor(lat / resolution)
-	lonIdx := math.Floor(lon / resolution)
+	// Исходные точки регулярной сетки относятся к ближайшему целому индексу.
+	// Floor схлопывает соседние узлы для десятичных координат вроде 43.01 из-за
+	// двоичного представления float64 (4300.999999...), поэтому здесь нужен Round.
+	latIdx := math.Round(lat / resolution)
+	lonIdx := math.Round(lon / resolution)
 	return fmt.Sprintf("%s,%s", strconv.FormatFloat(latIdx, 'f', -1, 64), strconv.FormatFloat(lonIdx, 'f', -1, 64))
 }
 

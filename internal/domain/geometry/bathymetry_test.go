@@ -156,6 +156,29 @@ func TestBuildGrid_ValidPoints_Success(t *testing.T) {
 	}
 }
 
+func TestBuildGridDoesNotCollapseDecimalCoordinateNodes(t *testing.T) {
+	points := []BathymetryPoint{
+		{Lat: 43.0, Lon: 34.0, Depth: -10},
+		{Lat: 43.0, Lon: 34.01, Depth: -20},
+		{Lat: 43.01, Lon: 34.0, Depth: -30},
+		{Lat: 43.01, Lon: 34.01, Depth: -40},
+	}
+	grid, err := BuildGrid(points, 0.01)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(grid.Points) != len(points) {
+		t.Fatalf("десятичные координаты схлопнулись в %d узла вместо %d", len(grid.Points), len(points))
+	}
+	details, err := grid.SampleDepthDetailed(43.01, 34.01, 2_000)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !details.Exact || details.ElevationM != -40 {
+		t.Fatalf("крайний узел регулярной сетки должен читаться точно: %+v", details)
+	}
+}
+
 func TestBuildGrid_EmptyPoints_Error(t *testing.T) {
 	points := []BathymetryPoint{}
 

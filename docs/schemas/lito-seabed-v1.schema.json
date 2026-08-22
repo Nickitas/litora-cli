@@ -16,6 +16,8 @@
     "code_tables",
     "mesh",
     "sampling",
+    "reconciliation",
+    "cell_derivation",
     "quality",
     "outputs",
     "warnings"
@@ -54,6 +56,12 @@
     },
     "sampling": {
       "$ref": "#/$defs/samplingSummary"
+    },
+    "reconciliation": {
+      "$ref": "#/$defs/reconciliationSummary"
+    },
+    "cell_derivation": {
+      "$ref": "#/$defs/cellDerivation"
     },
     "quality": {
       "$ref": "#/$defs/qualitySummary"
@@ -752,6 +760,305 @@
         }
       }
     },
+    "boundaryCounts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "coastline",
+        "island",
+        "open_boundary"
+      ],
+      "properties": {
+        "coastline": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "island": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "open_boundary": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "correctionCounts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "coastline_zero",
+        "coast_transition",
+        "positive_inside_rejected",
+        "outside_aquatory_rejected"
+      ],
+      "properties": {
+        "coastline_zero": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "coast_transition": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "positive_inside_rejected": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "outside_aquatory_rejected": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "reconciliationSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "transition_width_m",
+        "boundary_counts",
+        "correction_counts",
+        "total_correction_count",
+        "deepened_node_count",
+        "max_abs_adjustment_m",
+        "correction_ledger_path"
+      ],
+      "properties": {
+        "transition_width_m": {
+          "type": "number",
+          "minimum": 0
+        },
+        "boundary_counts": {
+          "$ref": "#/$defs/boundaryCounts"
+        },
+        "correction_counts": {
+          "$ref": "#/$defs/correctionCounts"
+        },
+        "total_correction_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "deepened_node_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "max_abs_adjustment_m": {
+          "type": "number",
+          "minimum": 0
+        },
+        "correction_ledger_path": {
+          "$ref": "#/$defs/nullableString"
+        }
+      }
+    },
+    "regionThresholds": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "coast_max_depth_m",
+        "shelf_max_depth_m",
+        "slope_max_depth_m"
+      ],
+      "properties": {
+        "coast_max_depth_m": {
+          "type": "number",
+          "minimum": 0
+        },
+        "shelf_max_depth_m": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "slope_max_depth_m": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        }
+      }
+    },
+    "regionCounts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "coast",
+        "shelf",
+        "slope",
+        "basin",
+        "unclassified"
+      ],
+      "properties": {
+        "coast": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "shelf": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "slope": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "basin": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "unclassified": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "cellQualityCounts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "verified",
+        "mixed",
+        "fallback"
+      ],
+      "properties": {
+        "verified": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "mixed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "fallback": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "cellSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "total_cell_count",
+        "assigned_cell_count",
+        "no_data_cell_count",
+        "coverage_percent",
+        "region_counts",
+        "quality_counts",
+        "mean_slope_deg",
+        "max_slope_deg",
+        "mean_roughness_m",
+        "max_roughness_m"
+      ],
+      "properties": {
+        "total_cell_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "assigned_cell_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "no_data_cell_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "coverage_percent": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "region_counts": {
+          "$ref": "#/$defs/regionCounts"
+        },
+        "quality_counts": {
+          "$ref": "#/$defs/cellQualityCounts"
+        },
+        "mean_slope_deg": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 90
+            }
+          ]
+        },
+        "max_slope_deg": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 90
+            }
+          ]
+        },
+        "mean_roughness_m": {
+          "$ref": "#/$defs/nullableNonNegativeNumber"
+        },
+        "max_roughness_m": {
+          "$ref": "#/$defs/nullableNonNegativeNumber"
+        }
+      }
+    },
+    "cellDerivation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "area_method",
+        "elevation_method",
+        "slope_aspect_method",
+        "roughness_method",
+        "region_method",
+        "horizontal_unit",
+        "elevation_unit",
+        "slope_unit",
+        "aspect_convention",
+        "region_thresholds",
+        "summary"
+      ],
+      "properties": {
+        "area_method": {
+          "type": "string",
+          "minLength": 1
+        },
+        "elevation_method": {
+          "type": "string",
+          "minLength": 1
+        },
+        "slope_aspect_method": {
+          "type": "string",
+          "minLength": 1
+        },
+        "roughness_method": {
+          "type": "string",
+          "minLength": 1
+        },
+        "region_method": {
+          "type": "string",
+          "minLength": 1
+        },
+        "horizontal_unit": {
+          "const": "m"
+        },
+        "elevation_unit": {
+          "const": "m"
+        },
+        "slope_unit": {
+          "const": "degree"
+        },
+        "aspect_convention": {
+          "type": "string",
+          "minLength": 1
+        },
+        "region_thresholds": {
+          "$ref": "#/$defs/regionThresholds"
+        },
+        "summary": {
+          "$ref": "#/$defs/cellSummary"
+        }
+      }
+    },
     "qualityCheck": {
       "type": "object",
       "additionalProperties": false,
@@ -833,6 +1140,7 @@
             "mesh_3d",
             "visualization_3d",
             "nodes_table",
+            "corrections_table",
             "cells_table",
             "quality_report",
             "overview_map",
