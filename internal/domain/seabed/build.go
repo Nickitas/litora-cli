@@ -43,12 +43,20 @@ func Build(source mesh.Mesh, sampler ElevationSampler, config BuildConfig) (Mode
 	}
 
 	model := Model{
-		Mesh:  source,
-		Nodes: make([]Node, len(source.Nodes)),
+		Mesh:          source,
+		Nodes:         make([]Node, len(source.Nodes)),
+		BoundaryEdges: make([]BoundaryEdge, 0, len(source.BoundaryEdges)),
 		Reconciliation: ReconciliationSummary{
 			TransitionWidthM: transitionWidthM,
 			Corrections:      make([]Correction, 0),
 		},
+	}
+	for _, edge := range source.BoundaryEdges {
+		kind, ok := boundaries.edgeKinds[normalizedEdge(edge[0], edge[1])]
+		if !ok {
+			return Model{}, fmt.Errorf("граничное ребро %d–%d не получило физический тип", edge[0], edge[1])
+		}
+		model.BoundaryEdges = append(model.BoundaryEdges, BoundaryEdge{NodeIDs: edge, Kind: kind})
 	}
 	for nodeID := 1; nodeID < len(source.Nodes); nodeID++ {
 		point := source.Nodes[nodeID]

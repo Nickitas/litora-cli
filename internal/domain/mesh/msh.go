@@ -67,8 +67,9 @@ func ReadMSH2(path string) (Mesh, error) {
 }
 
 // WriteMSH2 сохраняет фактическую итоговую сетку в текстовом формате Gmsh
-// MSH 2.2. Граничные рёбра и полные четырёхугольные ячейки записываются без
-// прореживания, поэтому файл пригоден для последующих численных расчётов.
+// MSH 2.2. Маркеры lito-mesh/v1 явно показывают, что Z = 0 является плоской
+// геометрией, а не достоверной батиметрией. Граничные рёбра и полные
+// четырёхугольные ячейки записываются без прореживания.
 func WriteMSH2(path string, generated Mesh) error {
 	if len(generated.Nodes) <= 1 {
 		return fmt.Errorf("итоговая сетка не содержит узлов")
@@ -79,7 +80,14 @@ func WriteMSH2(path string, generated Mesh) error {
 	}
 	writer := bufio.NewWriterSize(file, 1024*1024)
 	writeErr := func() error {
-		if _, err := fmt.Fprint(writer, "$MeshFormat\n2.2 0 8\n$EndMeshFormat\n$Nodes\n"); err != nil {
+		if _, err := fmt.Fprint(writer,
+			"$MeshFormat\n2.2 0 8\n$EndMeshFormat\n"+
+				"$Comments\n"+
+				"lito_model_kind=flat\n"+
+				"lito_schema_version=lito-mesh/v1\n"+
+				"$EndComments\n"+
+				"$Nodes\n",
+		); err != nil {
 			return err
 		}
 		if _, err := fmt.Fprintln(writer, len(generated.Nodes)-1); err != nil {

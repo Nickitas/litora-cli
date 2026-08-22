@@ -78,6 +78,13 @@
       "island": 2,
       "open_boundary": 3
     },
+    "cell_region": {
+      "unclassified": 0,
+      "coast": 1,
+      "shelf": 2,
+      "slope": 3,
+      "basin": 4
+    },
     "cell_quality_flag": {
       "fallback": 1,
       "mixed": 2,

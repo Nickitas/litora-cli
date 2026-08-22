@@ -433,6 +433,7 @@
         "sampling_method",
         "quality_flag",
         "boundary_kind",
+        "cell_region",
         "cell_quality_flag"
       ],
       "properties": {
@@ -517,6 +518,34 @@
             },
             "open_boundary": {
               "const": 3
+            }
+          }
+        },
+        "cell_region": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "unclassified",
+            "coast",
+            "shelf",
+            "slope",
+            "basin"
+          ],
+          "properties": {
+            "unclassified": {
+              "const": 0
+            },
+            "coast": {
+              "const": 1
+            },
+            "shelf": {
+              "const": 2
+            },
+            "slope": {
+              "const": 3
+            },
+            "basin": {
+              "const": 4
             }
           }
         },

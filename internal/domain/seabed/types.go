@@ -88,6 +88,14 @@ type BoundaryOverride struct {
 	Kind  BoundaryKind
 }
 
+// BoundaryEdge хранит граничное ребро вместе с его физической ролью. Отдельная
+// запись на уровне модели нужна для переноса групп берега, островов и открытых
+// границ в MSH без неоднозначного восстановления по узловым признакам.
+type BoundaryEdge struct {
+	NodeIDs [2]int       `json:"node_ids"`
+	Kind    BoundaryKind `json:"kind"`
+}
+
 // BuildConfig управляет привязкой глубины и береговой коррекцией.
 type BuildConfig struct {
 	MaxSourceDistanceM    float64
@@ -283,6 +291,7 @@ type Model struct {
 	Mesh           mesh.Mesh              `json:"-"`
 	Nodes          []Node                 `json:"-"`
 	Cells          []Cell                 `json:"-"`
+	BoundaryEdges  []BoundaryEdge         `json:"-"`
 	Sampling       SamplingSummary        `json:"sampling"`
 	Reconciliation ReconciliationSummary  `json:"reconciliation"`
 	CellDerivation CellDerivationMetadata `json:"cell_derivation"`

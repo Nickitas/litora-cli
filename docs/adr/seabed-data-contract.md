@@ -138,19 +138,27 @@ NoData никогда не заменяется нулём, средним зн�
 #### Gmsh MSH 2.2 ASCII
 
 - `$Nodes`: `X = x_m`, `Y = y_m`, `Z = elevation_m`;
+- `$Comments`: `lito_model_kind=seabed`, версия `lito-seabed/v1`, имя
+  вертикальной координаты, NoData sentinel и пороги морфометрических зон;
 - `$Elements`: четырёхугольная топология и физические группы границ;
 - отдельные `$NodeData`: `longitude_deg`, `latitude_deg` для связи каждого
   узла с WGS 84;
 - отдельные `$NodeData`: `elevation_m`, `water_depth_m`,
   `sampling_method_code`, `source_distance_m`, `quality_code`,
   `boundary_code`;
-- отдельные `$ElementData`: средняя/минимальная/максимальная отметка,
-  средняя глубина, уклон, экспозиция, шероховатость и `quality_score`.
+- отдельные `$ElementData`: площадь, средняя/минимальная/максимальная отметка,
+  средняя глубина, уклон, экспозиция, шероховатость, `region_code`,
+  `cell_quality_code` и `quality_score`.
 
 Строковые значения кодируются целыми числами; неизменяемые таблицы кодов
-`sampling_method`, `quality_flag`, `boundary_kind` и `cell_quality_flag`
-дублируются в JSON-отчёте. Плоский старый MSH остаётся входом команды
-`seabed build`, но нулевой `Z` в нём не считается батиметрией.
+`sampling_method`, `quality_flag`, `boundary_kind`, `cell_region` и
+`cell_quality_flag` дублируются в JSON-отчёте. Nullable-поля
+`source_distance_m` и `aspect_deg` используют в MSH отрицательный sentinel,
+явно записанный в `$Comments`; другие обязательные числовые поля не допускают
+NoData. Новая плоская сетка помечается `lito-mesh/v1`, а старый MSH без
+маркеров остаётся legacy-входом команды `seabed build`. В обоих случаях
+нулевой `Z` не считается батиметрией. Полное описание находится в
+[`docs/seabed-msh-export.md`](../seabed-msh-export.md).
 
 #### VTU
 
