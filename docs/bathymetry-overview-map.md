@@ -16,7 +16,8 @@
 `output/seabed/svg/mesh-details.svg`. Его фактические рёбра, локальные изобаты
 и карта качества описаны отдельно в
 [`bathymetry-mesh-details.md`](bathymetry-mesh-details.md). Машинный отчёт имеет
-общую схему `lito-bathymetry-visualization/v2` и содержит сводки обоих SVG.
+общую схему `lito-bathymetry-visualization/v3` и содержит сводки обзора,
+деталей сетки, 3D-рельефа и профилей.
 
 ## Построение
 

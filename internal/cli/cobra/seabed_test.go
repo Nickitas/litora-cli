@@ -13,12 +13,12 @@ func TestSeabedRenderCommandExposesReproducibleInputs(t *testing.T) {
 	if command != seabedRenderCmd {
 		t.Fatalf("найдена неверная команда: %s", command.CommandPath())
 	}
-	for _, flag := range []string{"input", "metadata", "source-metadata", "source", "output", "isobaths"} {
+	for _, flag := range []string{"input", "metadata", "source-metadata", "source", "output", "isobaths", "vertical-exaggeration", "control-points"} {
 		if command.Flags().Lookup(flag) == nil {
 			t.Fatalf("команда seabed render не содержит флаг --%s", flag)
 		}
 	}
-	for _, marker := range []string{"сложный берег", "шельф", "крутой материковый склон"} {
+	for _, marker := range []string{"непрореженных фрагмента сетки", "3D-рельеф", "профиля «берег → глубоководье»"} {
 		if !strings.Contains(command.Long, marker) {
 			t.Fatalf("описание seabed render не объясняет фрагмент %q", marker)
 		}

@@ -18,8 +18,10 @@
 
 - `output/seabed/svg/bathymetry-overview.svg` — обзор глубин;
 - `output/seabed/svg/mesh-details.svg` — три увеличенных участка;
+- `output/seabed/svg/seabed-3d.svg` — ортографический 3D-рельеф;
+- `output/seabed/svg/profiles.svg` и `output/seabed/profiles.csv` — разрезы;
 - `output/seabed/bathymetry-overview.json` — общий отчёт
-  `lito-bathymetry-visualization/v2`.
+  `lito-bathymetry-visualization/v3`.
 
 ## Как выбираются три участка
 

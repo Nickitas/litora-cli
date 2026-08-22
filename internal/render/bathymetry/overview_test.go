@@ -4,6 +4,7 @@ import (
 	"encoding/xml"
 	"errors"
 	"io"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -136,6 +137,109 @@ func TestWriteMeshDetailsSVGShowsUnthinnedCellsQualityAndLocalContours(t *testin
 		if _, err := decoder.Token(); err != nil {
 			if errors.Is(err, io.EOF) {
 				break
+			}
+			t.Fatalf("создан некорректный XML: %v", err)
+		}
+	}
+}
+
+func TestWriteReliefAndProfilesSVGPreserveMetricDepthAndShowControlPoints(t *testing.T) {
+	model := syntheticOverviewModel()
+	profiles := []seabed.Profile{
+		{ID: "profile-west", Name: "A · западный берег → глубоководье", NodeIDs: []int{1, 5}},
+		{ID: "profile-east", Name: "B · восточный берег → глубоководье", NodeIDs: []int{3, 5}},
+		{ID: "profile-north", Name: "C · северный берег → глубоководье", NodeIDs: []int{7, 5}},
+	}
+	selectionReports := make([]seabed.ProfileSelectionReport, 0, len(profiles))
+	for _, profile := range profiles {
+		selectionReports = append(selectionReports, seabed.ProfileSelectionReport{
+			ID: profile.ID, Name: profile.Name, SelectionBasis: "синтетический контроль",
+			StartNodeID: profile.NodeIDs[0], EndNodeID: profile.NodeIDs[1], PointCount: 2,
+			LengthM: 100 * math.Sqrt2, StartDepthM: 0, EndDepthM: 120, MaxDepthM: 120,
+		})
+	}
+	metadata := seabed.NewExportMetadata(
+		mesh.EqualAreaProjection{ReferenceLat: 44, ReferenceLon: 34},
+		"средний уровень моря по допущению GEBCO",
+		"В мелководье исходные вертикальные системы могут различаться.",
+	)
+
+	reliefPath := filepath.Join(t.TempDir(), "seabed-3d.svg")
+	reliefReport, err := WriteReliefSVG(reliefPath, model, ReliefConfig{
+		Source: "GEBCO 2026", Metadata: metadata, VerticalExaggeration: 35,
+		ControlPoints: true, Profiles: profiles,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reliefReport.VerticalExaggeration != 35 || !reliefReport.DataCoordinatesUnchanged || !reliefReport.ControlPointsShown || reliefReport.ControlPointCount != 9 {
+		t.Fatalf("неверный отчёт 3D-рельефа: %+v", reliefReport)
+	}
+	assertSVGContainsAndParses(t, reliefPath, []string{
+		`data-vertical-exaggeration="35"`, `data-coordinates-unchanged="true"`,
+		`class="relief-cell"`, `class="relief-control-point"`, `class="relief-profile"`,
+		"исходные X/Y/Z не изменены", "только преобразование SVG", "Источник:",
+	})
+
+	profilesPath := filepath.Join(t.TempDir(), "profiles.svg")
+	profilesReport, err := WriteProfilesSVG(profilesPath, model, ProfilesConfig{
+		Source: "GEBCO 2026", Metadata: metadata, Profiles: profiles, SelectionReports: selectionReports,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if profilesReport.VerticalExaggeration != 1 || !profilesReport.CommonDepthScale || profilesReport.ProfileCount != 3 {
+		t.Fatalf("неверный отчёт профилей: %+v", profilesReport)
+	}
+	assertSVGContainsAndParses(t, profilesPath, []string{
+		`data-vertical-exaggeration="1"`, `data-common-depth-scale="true"`,
+		`class="profile-map-path"`, `class="profile-chart"`, `class="profile-surface"`,
+		`class="profile-control-point"`, "Отметка, м", "Расстояние от берега, км",
+	})
+}
+
+func TestWriteReliefSVGMarksNaturalMetricMode(t *testing.T) {
+	model := syntheticOverviewModel()
+	profiles := []seabed.Profile{
+		{ID: "a", Name: "A", NodeIDs: []int{1, 5}},
+		{ID: "b", Name: "B", NodeIDs: []int{3, 5}},
+		{ID: "c", Name: "C", NodeIDs: []int{7, 5}},
+	}
+	path := filepath.Join(t.TempDir(), "metric.svg")
+	_, err := WriteReliefSVG(path, model, ReliefConfig{
+		Source:               "GEBCO 2026",
+		Metadata:             seabed.NewExportMetadata(mesh.EqualAreaProjection{ReferenceLat: 44, ReferenceLon: 34}, "средний уровень моря", "Оговорка."),
+		VerticalExaggeration: 1, Profiles: profiles,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	contents, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(contents), "×1 · метрический режим") {
+		t.Fatal("режим без вертикального преувеличения должен быть подписан как метрический")
+	}
+}
+
+func assertSVGContainsAndParses(t *testing.T, path string, markers []string) {
+	t.Helper()
+	contents, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(contents)
+	for _, marker := range markers {
+		if !strings.Contains(text, marker) {
+			t.Fatalf("SVG %q не содержит обязательный элемент %q", path, marker)
+		}
+	}
+	decoder := xml.NewDecoder(strings.NewReader(text))
+	for {
+		if _, err := decoder.Token(); err != nil {
+			if errors.Is(err, io.EOF) {
+				return
 			}
 			t.Fatalf("создан некорректный XML: %v", err)
 		}
