@@ -56,7 +56,7 @@ func adaptiveGridParameters(points []geometry.LatLon) (cellSizeMeters, bufferKM,
 }
 
 // buildEnhancedOptions создаёт расширенные настройки SVG из конфигурации
-// Функция формирует опции для отображения сетки, компаса, маркеров и изолиний
+// Функция формирует опции для отображения сетки, компаса и маркеров.
 func buildEnhancedOptions(cfg config, points []geometry.LatLon, waveDir float64) *svgrender.EnhancedDocument {
 	if !cfg.EnableEnhanced {
 		return nil
@@ -133,26 +133,10 @@ func buildEnhancedOptions(cfg config, points []geometry.LatLon, waveDir float64)
 		}
 	}
 
-	var isolineOpts *svgrender.IsolineOptions
-	if cfg.ShowIsolines {
-		isolineOpts = &svgrender.IsolineOptions{
-			Show:          true,
-			DepthStep:     50,
-			MinDepth:      -200,
-			MaxDepth:      0,
-			LineColor:     "#4a90b8",
-			LabelColor:    "#2c5f7a",
-			LineWidth:     1.0,
-			Opacity:       0.4,
-			LabelInterval: 2,
-		}
-	}
-
 	return &svgrender.EnhancedDocument{
 		GridOptions:    gridOpts,
 		CompassOptions: compassOpts,
 		MarkerOptions:  markerOpts,
-		IsolineOptions: isolineOpts,
 	}
 }
 
@@ -184,7 +168,6 @@ func wrapDocumentForEnhanced(doc svgrender.Document, cfg config, points []geomet
 		enhancedDoc.GridOptions = enhanced.GridOptions
 		enhancedDoc.CompassOptions = enhanced.CompassOptions
 		enhancedDoc.MarkerOptions = enhanced.MarkerOptions
-		enhancedDoc.IsolineOptions = enhanced.IsolineOptions
 	}
 	enhancedDoc.MinimalMap = cfg.Command == cmdDimension || cfg.Command == cmdKochDemo || cfg.Command == cmdErosion
 	if enhancedDoc.MinimalMap {

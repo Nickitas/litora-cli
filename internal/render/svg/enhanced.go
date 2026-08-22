@@ -19,7 +19,6 @@ type EnhancedDocument struct {
 	GridOptions              *GridOptions
 	CompassOptions           *CompassOptions
 	MarkerOptions            *MarkerOptions
-	IsolineOptions           *IsolineOptions
 	SedimentTransportOptions *SedimentTransportOptions
 	BoxCountingGridOptions   *BoxCountingGridOptions
 	ErosionGridOptions       *ErosionGridOptions
@@ -71,22 +70,6 @@ type Marker struct {
 	Size    float64
 	Shape   string // "circle", "square", "diamond", "triangle"
 	Tooltip string
-}
-
-// IsolineOptions configures depth/height contour lines
-type IsolineOptions struct {
-	Show           bool
-	BathymetryGrid interface {
-		GetIsolinePoints(depthStep float64) []Isoline
-	}
-	DepthStep     float64 // meters between contour lines
-	MinDepth      float64
-	MaxDepth      float64
-	LineColor     string
-	LabelColor    string
-	LineWidth     float64
-	Opacity       float64
-	LabelInterval int // label every N lines
 }
 
 // SedimentTransportOptions configures sediment transport visualization
@@ -181,15 +164,6 @@ type ErosionControlPoint struct {
 type ErosionControlOptions struct {
 	Show   bool
 	Points []ErosionControlPoint
-}
-
-// Isoline represents a contour line
-type Isoline struct {
-	Depth  float64
-	Points []struct {
-		Lat float64
-		Lon float64
-	}
 }
 
 // DrawEnhancedSVG creates an SVG with additional map elements
@@ -287,7 +261,7 @@ func DrawEnhancedSVG(doc EnhancedDocument, filename string) error {
 	}
 
 	// Build additional elements
-	var gridElements, compassElements, markerElements, isolineElements, sedimentElements, boxCountingGridElements, erosionGridElements, erosionChangeElements, erosionControlElements, axisElements, gridAnnotationElements string
+	var gridElements, compassElements, markerElements, sedimentElements, boxCountingGridElements, erosionGridElements, erosionChangeElements, erosionControlElements, axisElements, gridAnnotationElements string
 
 	if !minimalMap && doc.GridOptions != nil && doc.GridOptions.Show {
 		gridElements = buildCoordinateGrid(*doc.GridOptions, minLat, maxLat, minLon, maxLon, originX, originY, contentWidth, contentHeight, scale)
@@ -299,10 +273,6 @@ func DrawEnhancedSVG(doc EnhancedDocument, filename string) error {
 
 	if doc.MarkerOptions != nil && doc.MarkerOptions.Show {
 		markerElements = buildMarkers(*doc.MarkerOptions, doc.MarkerOptions.Markers, minLat, minLon, originX, originY, contentHeight, scale)
-	}
-
-	if doc.IsolineOptions != nil && doc.IsolineOptions.Show {
-		isolineElements = buildIsolines(*doc.IsolineOptions, minLat, minLon, originX, originY, contentHeight, scale)
 	}
 
 	if doc.SedimentTransportOptions != nil && doc.SedimentTransportOptions.Show {
@@ -388,8 +358,6 @@ func DrawEnhancedSVG(doc EnhancedDocument, filename string) error {
 %s  </g>
   <g clip-path="url(#map-clip)">
 %s  </g>
-  <g clip-path="url(#map-clip)">
-%s  </g>
   <g>
 %s  </g>
   <g clip-path="url(#map-clip)">
@@ -433,7 +401,6 @@ func DrawEnhancedSVG(doc EnhancedDocument, filename string) error {
 		axisElements,
 		gridAnnotationElements,
 		gridElements,
-		isolineElements,
 		layers.String(),
 		highlights.String(),
 		markerElements,
@@ -939,87 +906,6 @@ func buildMarkers(opts MarkerOptions, markers []Marker, minLat, minLon, originX,
 			out.WriteString(fmt.Sprintf(
 				`    <text x="%.2f" y="%.2f" font-family="Helvetica, Arial, sans-serif" font-size="11" font-weight="600" fill="#16324f" text-anchor="middle">%s</text>`+"\n",
 				labelX, labelY, escapeText(m.Label),
-			))
-		}
-	}
-
-	return out.String()
-}
-
-// buildIsolines creates depth contour lines
-func buildIsolines(opts IsolineOptions, minLat, minLon, originX, originY, contentHeight, scale float64) string {
-	var out strings.Builder
-
-	lineColor := opts.LineColor
-	if lineColor == "" {
-		lineColor = "#8794a0"
-	}
-
-	labelColor := opts.LabelColor
-	if labelColor == "" {
-		labelColor = "#2c5f7a"
-	}
-
-	lineWidth := opts.LineWidth
-	if lineWidth <= 0 {
-		lineWidth = 1.2
-	}
-
-	opacity := opts.Opacity
-	if opacity <= 0 {
-		opacity = 0.5
-	}
-
-	depthStep := opts.DepthStep
-	if depthStep <= 0 {
-		depthStep = 50 // 50 meters
-	}
-
-	// Get isolines from bathymetry grid
-	if opts.BathymetryGrid == nil {
-		return ""
-	}
-
-	isolines := opts.BathymetryGrid.GetIsolinePoints(depthStep)
-
-	labelInterval := opts.LabelInterval
-	if labelInterval <= 0 {
-		labelInterval = 2 // Label every 2nd line
-	}
-
-	for i, iso := range isolines {
-		if len(iso.Points) < 2 {
-			continue
-		}
-
-		// Build polyline points
-		var polylinePoints strings.Builder
-		for j, p := range iso.Points {
-			if j > 0 {
-				polylinePoints.WriteByte(' ')
-			}
-			px := originX + (p.Lon-minLon)*scale
-			py := originY + contentHeight - (p.Lat-minLat)*scale
-			polylinePoints.WriteString(fmt.Sprintf("%.2f,%.2f", px, py))
-		}
-
-		// Draw contour line
-		out.WriteString(fmt.Sprintf(
-			`    <polyline fill="none" stroke="%s" stroke-width="%.2f" stroke-opacity="%.2f" stroke-linejoin="round" points="%s"/>`+"\n",
-			lineColor, lineWidth, opacity, polylinePoints.String(),
-		))
-
-		// Add depth label at interval
-		if i%labelInterval == 0 && len(iso.Points) > 10 {
-			midIdx := len(iso.Points) / 2
-			midPoint := iso.Points[midIdx]
-			labelX := originX + (midPoint.Lon-minLon)*scale
-			labelY := originY + contentHeight - (midPoint.Lat-minLat)*scale
-
-			depthLabel := fmt.Sprintf("%.0fm", iso.Depth)
-			out.WriteString(fmt.Sprintf(
-				`    <text x="%.2f" y="%.2f" font-family="Helvetica, Arial, sans-serif" font-size="9" fill="%s" text-anchor="middle" transform="rotate(-15, %.2f, %.2f)">%s</text>`+"\n",
-				labelX, labelY, labelColor, labelX, labelY, depthLabel,
 			))
 		}
 	}

@@ -81,6 +81,24 @@ func WriteExportMetadataJSON(path string, metadata ExportMetadata) error {
 	return nil
 }
 
+// ReadExportMetadataJSON читает и проверяет паспорт пространственных данных,
+// созданный EXPORT-02. Неполная вертикальная система, другая акватория или
+// несовместимая версия схемы отклоняются до визуализации.
+func ReadExportMetadataJSON(path string) (ExportMetadata, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return ExportMetadata{}, fmt.Errorf("чтение метаданных экспорта %q: %w", path, err)
+	}
+	var metadata ExportMetadata
+	if err := json.Unmarshal(data, &metadata); err != nil {
+		return ExportMetadata{}, fmt.Errorf("разбор метаданных экспорта %q: %w", path, err)
+	}
+	if err := validateExportMetadata(metadata); err != nil {
+		return ExportMetadata{}, fmt.Errorf("проверка метаданных экспорта %q: %w", path, err)
+	}
+	return metadata, nil
+}
+
 func normalizeExportMetadata(metadata ExportMetadata, model Model) (ExportMetadata, error) {
 	if metadata.SchemaVersion == "" {
 		metadata.SchemaVersion = SeabedMSHSchemaVersion

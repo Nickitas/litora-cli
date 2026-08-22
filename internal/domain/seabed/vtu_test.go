@@ -207,6 +207,21 @@ func testExportMetadata() ExportMetadata {
 	)
 }
 
+func TestExportMetadataJSONCanBeReadForVisualization(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "export-metadata.json")
+	expected := testExportMetadata()
+	if err := WriteExportMetadataJSON(path, expected); err != nil {
+		t.Fatal(err)
+	}
+	actual, err := ReadExportMetadataJSON(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(actual, expected) {
+		t.Fatalf("паспорт изменился после чтения: %+v != %+v", actual, expected)
+	}
+}
+
 func readCSVRows(t *testing.T, path string) [][]string {
 	t.Helper()
 	file, err := os.Open(path)

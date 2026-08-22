@@ -10,6 +10,8 @@ GEO/MSH-сеток, отчётов, метрик и журналов. Расчё
 он должен иметь схему `lito-seabed/v1`, а не плоскую `lito-mesh/v1`.
 EXPORT-02 добавляет рядом `black-sea-depth.vtu`, `nodes.csv`, `cells.csv`,
 `profiles.csv` и `export-metadata.json`.
+VIEW-01 создаёт `seabed/svg/bathymetry-overview.svg` и машинный отчёт
+`seabed/bathymetry-overview.json`; внутренние рёбра на обзорной карте скрыты.
 
 Для публикации результата используйте отдельный согласованный каталог или
 репозиторий данных; не добавляйте производные файлы в основной научный контур.

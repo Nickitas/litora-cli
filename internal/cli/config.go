@@ -20,7 +20,6 @@ type config struct {
 	ShowGrid       bool
 	ShowCompass    bool
 	ShowMarkers    bool
-	ShowIsolines   bool
 	GridStep       float64
 	CompassSize    int
 	CompassStyle   string
