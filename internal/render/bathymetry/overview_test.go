@@ -79,6 +79,69 @@ func TestWriteOverviewSVGRejectsUnacceptedModel(t *testing.T) {
 	}
 }
 
+func TestWriteMeshDetailsSVGShowsUnthinnedCellsQualityAndLocalContours(t *testing.T) {
+	model := syntheticOverviewModel()
+	model.Cells[0].Region = seabed.RegionCoast
+	model.Cells[0].SlopeDeg = 0.5
+	model.Cells[1].Region = seabed.RegionShelf
+	model.Cells[1].WaterDepthMeanM = 90
+	model.Cells[2].Region = seabed.RegionSlope
+	model.Cells[2].SlopeDeg = 4
+	model.Cells[3].Region = seabed.RegionSlope
+	model.Cells[3].SlopeDeg = 8
+	path := filepath.Join(t.TempDir(), "mesh-details.svg")
+	metadata := seabed.NewExportMetadata(
+		mesh.EqualAreaProjection{ReferenceLat: 44, ReferenceLon: 34},
+		"средний уровень моря по допущению GEBCO",
+		"В мелководье исходные вертикальные системы могут различаться.",
+	)
+	report, err := WriteMeshDetailsSVG(path, model, MeshDetailsConfig{
+		Source:   "GEBCO Bathymetric Compilation Group 2026, DOI 10.5285/example",
+		Metadata: metadata,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !report.Unthinned || report.FullMeshCellCount != 4 || len(report.Fragments) != 3 {
+		t.Fatalf("неверная сводка детальных фрагментов: %+v", report)
+	}
+	for _, fragment := range report.Fragments {
+		if fragment.CellCount == 0 || fragment.EdgeMinM <= 0 || fragment.EdgeMinM > fragment.EdgeMeanM || fragment.EdgeMeanM > fragment.EdgeMaxM {
+			t.Fatalf("некорректные метрики фрагмента %+v", fragment)
+		}
+		if fragment.QualityMin <= 0 || fragment.QualityMin > fragment.QualityMean || fragment.QualityMean > fragment.QualityMax {
+			t.Fatalf("некорректное качество фрагмента %+v", fragment)
+		}
+	}
+
+	contents, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(contents)
+	for _, marker := range []string{
+		`data-unthinned="true"`, `class="mesh-detail-panel"`, `class="detail-cell"`,
+		`class="detail-isobath`, "1. Сложный берег", "2. Шельф", "3. Крутой склон",
+		"Рёбра: мин", "без прореживания", "Геометрическое качество Q", "Источник:",
+	} {
+		if !strings.Contains(text, marker) {
+			t.Fatalf("детальная карта не содержит обязательный элемент %q", marker)
+		}
+	}
+	if strings.Count(text, `class="mesh-detail-panel"`) != 3 {
+		t.Fatalf("ожидалось три фрагмента, получено %d", strings.Count(text, `class="mesh-detail-panel"`))
+	}
+	decoder := xml.NewDecoder(strings.NewReader(text))
+	for {
+		if _, err := decoder.Token(); err != nil {
+			if errors.Is(err, io.EOF) {
+				break
+			}
+			t.Fatalf("создан некорректный XML: %v", err)
+		}
+	}
+}
+
 func syntheticOverviewModel() seabed.Model {
 	depths := []float64{0, 0, 0, 0, 120, 0, 0, 0, 0}
 	nodes := make([]seabed.Node, 10)

@@ -125,7 +125,7 @@ func WriteOverviewSVG(path string, model seabed.Model, config OverviewConfig) (O
 %s%s%s%s  </g>
   <rect x="54" y="128" width="1170" height="760" fill="none" stroke="#a9a195"/>
 %s%s%s
-  <text x="54" y="930" font-family="Helvetica, Arial, sans-serif" font-size="11" fill="#5d6b73">Обзорный масштаб: внутренняя сетка скрыта; фактические четырёхугольники доступны в MSH/VTU и будут показаны отдельно в VIEW-02.</text>
+  <text x="54" y="930" font-family="Helvetica, Arial, sans-serif" font-size="11" fill="#5d6b73">Обзорный масштаб: внутренняя сетка скрыта; фактические четырёхугольники показаны в mesh-details.svg.</text>
   <text x="54" y="952" font-family="Helvetica, Arial, sans-serif" font-size="11" fill="#5d6b73">Не использовать для навигации или задач безопасности на море.</text>
 </svg>
 `, escape(title), renderGradient(maxDepthM), escape(title), escape(subtitle), cells.String(), contours, labels, boundaries, legend, scaleBar, metadata)

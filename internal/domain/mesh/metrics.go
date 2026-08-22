@@ -35,7 +35,7 @@ func EvaluateQuality(domain PreparedDomain, generated Mesh, targetEdgeMeters flo
 				metrics.MaxEdgeMeters = length
 			}
 		}
-		quality := cellQuality(points)
+		quality := quadrilateralQuality(points)
 		qualitySum += quality
 		qualityCount++
 		bucket := int(math.Round(quality * 100))
@@ -89,7 +89,15 @@ func cellPoints(nodes []Point, cell Cell) []Point {
 	return result
 }
 
-func cellQuality(points []Point) float64 {
+// QuadrilateralQuality возвращает безразмерное геометрическое качество
+// четырёхугольной ячейки в диапазоне [0, 1]. Единица соответствует квадрату;
+// оценка уменьшается при разбросе длин рёбер и отклонении углов от 90 градусов.
+// Нечетырёхугольная или повреждённая ячейка получает нулевую оценку.
+func QuadrilateralQuality(nodes []Point, cell Cell) float64 {
+	return quadrilateralQuality(cellPoints(nodes, cell))
+}
+
+func quadrilateralQuality(points []Point) float64 {
 	if len(points) != 4 {
 		return 0
 	}

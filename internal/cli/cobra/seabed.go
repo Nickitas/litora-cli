@@ -27,17 +27,18 @@ var seabedCmd = &cobra.Command{
 	Use:   "seabed",
 	Short: "Работать с батиметрической моделью Чёрного моря",
 	Long: `Команды подготовки, проверки и визуализации рельефа дна Чёрного моря.
-На текущем этапе доступно повторное построение обзорной карты из принятого
-MSH lito-seabed/v1 без пересчёта глубин.`,
+Доступно повторное построение обзорной карты и увеличенных фрагментов
+фактической сетки из принятого MSH lito-seabed/v1 без пересчёта глубин.`,
 }
 
 var seabedRenderCmd = &cobra.Command{
 	Use:   "render",
-	Short: "Построить обзорную батиметрическую карту",
+	Short: "Построить обзорную карту и фрагменты сетки",
 	Long: `Читает батиметрический MSH и паспорт EXPORT-02, затем строит обзорную
 SVG-карту с непрерывной цветовой шкалой глубины, реальными изобатами,
 береговой линией, масштабом, источником, вертикальной системой и долей NoData.
-Внутренние рёбра сетки на обзорной карте не рисуются.`,
+Внутренние рёбра на обзорной карте не рисуются. Второй SVG показывает три
+непрореженных фрагмента: сложный берег, шельф и крутой материковый склон.`,
 	RunE: runSeabedRender,
 }
 
@@ -49,7 +50,7 @@ func init() {
 	seabedRenderCmd.Flags().StringVar(&seabedRenderMetadata, "metadata", "", "паспорт EXPORT-02; по умолчанию рядом с входным MSH")
 	seabedRenderCmd.Flags().StringVar(&seabedRenderSourceMetadata, "source-metadata", "data/black-sea-bathymetry-source.metadata.json", "паспорт исходного набора батиметрии")
 	seabedRenderCmd.Flags().StringVar(&seabedRenderSource, "source", "", "явная атрибуция источника вместо --source-metadata")
-	seabedRenderCmd.Flags().StringVar(&seabedRenderOutput, "output", "output", "корневой каталог результатов; карта сохраняется в seabed/svg")
+	seabedRenderCmd.Flags().StringVar(&seabedRenderOutput, "output", "output", "корневой каталог результатов; карты сохраняются в seabed/svg")
 	seabedRenderCmd.Flags().StringVar(&seabedRenderIsobaths, "isobaths", "20,50,100,200,500,1000,1500,2000", "положительные глубины изобат в метрах через запятую")
 }
 
@@ -59,16 +60,18 @@ type bathymetrySourcePassport struct {
 }
 
 type seabedRenderRunReport struct {
-	SchemaVersion     string                          `json:"schema_version"`
-	GeneratedAt       string                          `json:"generated_at"`
-	InputMSH          string                          `json:"input_msh"`
-	ExportMetadata    string                          `json:"export_metadata"`
-	SourceMetadata    string                          `json:"source_metadata,omitempty"`
-	SVG               string                          `json:"svg"`
-	Source            string                          `json:"source"`
-	VerticalReference string                          `json:"vertical_reference"`
-	VerticalCaveat    string                          `json:"vertical_caveat"`
-	Overview          bathymetryrender.OverviewReport `json:"overview"`
+	SchemaVersion     string                             `json:"schema_version"`
+	GeneratedAt       string                             `json:"generated_at"`
+	InputMSH          string                             `json:"input_msh"`
+	ExportMetadata    string                             `json:"export_metadata"`
+	SourceMetadata    string                             `json:"source_metadata,omitempty"`
+	OverviewSVG       string                             `json:"overview_svg"`
+	MeshDetailsSVG    string                             `json:"mesh_details_svg"`
+	Source            string                             `json:"source"`
+	VerticalReference string                             `json:"vertical_reference"`
+	VerticalCaveat    string                             `json:"vertical_caveat"`
+	Overview          bathymetryrender.OverviewReport    `json:"overview"`
+	MeshDetails       bathymetryrender.MeshDetailsReport `json:"mesh_details"`
 }
 
 func runSeabedRender(_ *cobra.Command, _ []string) error {
@@ -105,9 +108,17 @@ func runSeabedRender(_ *cobra.Command, _ []string) error {
 		return err
 	}
 	outputDir := filepath.Join(seabedRenderOutput, "seabed")
-	svgPath := filepath.Join(outputDir, "svg", "bathymetry-overview.svg")
-	overview, err := bathymetryrender.WriteOverviewSVG(svgPath, document.Model, bathymetryrender.OverviewConfig{
+	overviewSVGPath := filepath.Join(outputDir, "svg", "bathymetry-overview.svg")
+	overview, err := bathymetryrender.WriteOverviewSVG(overviewSVGPath, document.Model, bathymetryrender.OverviewConfig{
 		Title: "Батиметрия Чёрного моря", Source: source, SourceChecksum: checksum,
+		Metadata: metadata, IsobathsM: isobaths,
+	})
+	if err != nil {
+		return err
+	}
+	meshDetailsSVGPath := filepath.Join(outputDir, "svg", "mesh-details.svg")
+	meshDetails, err := bathymetryrender.WriteMeshDetailsSVG(meshDetailsSVGPath, document.Model, bathymetryrender.MeshDetailsConfig{
+		Title: "Фактическая сетка Чёрного моря: контрольные фрагменты", Source: source, SourceChecksum: checksum,
 		Metadata: metadata, IsobathsM: isobaths,
 	})
 	if err != nil {
@@ -115,10 +126,11 @@ func runSeabedRender(_ *cobra.Command, _ []string) error {
 	}
 
 	runReport := seabedRenderRunReport{
-		SchemaVersion: "lito-bathymetry-overview/v1", GeneratedAt: time.Now().UTC().Format(time.RFC3339),
+		SchemaVersion: "lito-bathymetry-visualization/v2", GeneratedAt: time.Now().UTC().Format(time.RFC3339),
 		InputMSH: inputPath, ExportMetadata: metadataPath, SourceMetadata: sourceMetadataPath,
-		SVG: svgPath, Source: source, VerticalReference: metadata.VerticalReference,
-		VerticalCaveat: metadata.VerticalCaveat, Overview: overview,
+		OverviewSVG: overviewSVGPath, MeshDetailsSVG: meshDetailsSVGPath,
+		Source: source, VerticalReference: metadata.VerticalReference,
+		VerticalCaveat: metadata.VerticalCaveat, Overview: overview, MeshDetails: meshDetails,
 	}
 	reportPath := filepath.Join(outputDir, "bathymetry-overview.json")
 	if err := writeSeabedRenderReport(reportPath, runReport); err != nil {
@@ -126,10 +138,15 @@ func runSeabedRender(_ *cobra.Command, _ []string) error {
 	}
 
 	if !quiet {
-		fmt.Printf("Обзорная батиметрическая карта: %s\n", svgPath)
+		fmt.Printf("Обзорная батиметрическая карта: %s\n", overviewSVGPath)
+		fmt.Printf("Фрагменты фактической сетки: %s\n", meshDetailsSVGPath)
 		fmt.Printf("Отчёт построения: %s\n", reportPath)
 		fmt.Printf("Глубина: 0–%.1f м; изобат: %d; NoData узлов: %.2f%%; NoData ячеек: %.2f%%\n",
 			overview.MaxDepthM, len(overview.RenderedIsobathsM), overview.NoDataNodePercent, overview.NoDataCellPercent)
+		for _, fragment := range meshDetails.Fragments {
+			fmt.Printf("%s: ячеек %d; рёбра %.0f/%.0f/%.0f м; Qср=%.3f\n",
+				fragment.Title, fragment.CellCount, fragment.EdgeMinM, fragment.EdgeMeanM, fragment.EdgeMaxM, fragment.QualityMean)
+		}
 	}
 	return nil
 }
@@ -159,14 +176,14 @@ func resolveBathymetryAttribution() (source, checksum, metadataPath string, err 
 func writeSeabedRenderReport(path string, report seabedRenderRunReport) error {
 	data, err := json.MarshalIndent(report, "", "  ")
 	if err != nil {
-		return fmt.Errorf("кодирование отчёта обзорной карты: %w", err)
+		return fmt.Errorf("кодирование отчёта батиметрической визуализации: %w", err)
 	}
 	data = append(data, '\n')
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return fmt.Errorf("создание каталога отчёта обзорной карты: %w", err)
+		return fmt.Errorf("создание каталога отчёта батиметрической визуализации: %w", err)
 	}
 	if err := os.WriteFile(path, data, 0o644); err != nil {
-		return fmt.Errorf("сохранение отчёта обзорной карты %q: %w", path, err)
+		return fmt.Errorf("сохранение отчёта батиметрической визуализации %q: %w", path, err)
 	}
 	return nil
 }

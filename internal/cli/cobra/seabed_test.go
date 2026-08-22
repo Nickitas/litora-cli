@@ -18,6 +18,11 @@ func TestSeabedRenderCommandExposesReproducibleInputs(t *testing.T) {
 			t.Fatalf("команда seabed render не содержит флаг --%s", flag)
 		}
 	}
+	for _, marker := range []string{"сложный берег", "шельф", "крутой материковый склон"} {
+		if !strings.Contains(command.Long, marker) {
+			t.Fatalf("описание seabed render не объясняет фрагмент %q", marker)
+		}
+	}
 }
 
 func TestHelpForSeabedRenderIsRussian(t *testing.T) {

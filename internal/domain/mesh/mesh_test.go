@@ -71,6 +71,25 @@ func TestSubdivideToFullQuads(t *testing.T) {
 	}
 }
 
+func TestQuadrilateralQualityDistinguishesSquareAndDistortedCell(t *testing.T) {
+	squareNodes := []Point{{}, {X: 0, Y: 0}, {X: 100, Y: 0}, {X: 100, Y: 100}, {X: 0, Y: 100}}
+	cell := Cell{Nodes: [4]int{1, 2, 3, 4}, NodeCount: 4}
+	if quality := QuadrilateralQuality(squareNodes, cell); math.Abs(quality-1) > 1e-12 {
+		t.Fatalf("квадрат должен иметь качество 1, получено %.12f", quality)
+	}
+
+	distortedNodes := []Point{{}, {X: 0, Y: 0}, {X: 250, Y: 0}, {X: 180, Y: 40}, {X: 0, Y: 60}}
+	distorted := QuadrilateralQuality(distortedNodes, cell)
+	if distorted <= 0 || distorted >= 0.7 {
+		t.Fatalf("искажённая ячейка должна иметь пониженное качество, получено %.6f", distorted)
+	}
+
+	invalid := Cell{Nodes: [4]int{1, 2, 3}, NodeCount: 3}
+	if quality := QuadrilateralQuality(squareNodes, invalid); quality != 0 {
+		t.Fatalf("нечетырёхугольная ячейка должна иметь качество 0, получено %.6f", quality)
+	}
+}
+
 func TestBuildGeoContainsIndependentAlgorithmAndHole(t *testing.T) {
 	domain := PreparedDomain{SimplifiedRings: [][]Point{
 		{{X: 0, Y: 0}, {X: 10, Y: 0}, {X: 10, Y: 10}, {X: 0, Y: 10}, {X: 0, Y: 0}},
