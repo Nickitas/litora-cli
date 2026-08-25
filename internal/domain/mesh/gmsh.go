@@ -137,6 +137,7 @@ func buildGeo(domain PreparedDomain, algorithm Algorithm, edgeMeters float64) ([
 	fmt.Fprintf(&out, "lc = %.12g;\n", edgeMeters)
 	pointID, lineID := 1, 1
 	loopIDs := make([]int, 0, len(domain.SimplifiedRings))
+	boundaryLineIDs := make([][]int, 0, len(domain.SimplifiedRings))
 	for ringIndex, sourceRing := range domain.SimplifiedRings {
 		ring := append([]Point(nil), openMetricRing(sourceRing)...)
 		if len(ring) < 3 {
@@ -162,10 +163,19 @@ func buildGeo(domain PreparedDomain, algorithm Algorithm, edgeMeters float64) ([
 		}
 		loopID := ringIndex + 1
 		loopIDs = append(loopIDs, loopID)
+		boundaryLineIDs = append(boundaryLineIDs, lineIDs)
 		fmt.Fprintf(&out, "Curve Loop(%d) = {%s};\n", loopID, joinIntegers(lineIDs))
 	}
 	fmt.Fprintf(&out, "Plane Surface(1) = {%s};\n", joinIntegers(loopIDs))
-	fmt.Fprintln(&out, "Physical Surface(\"Водоём\") = {1};")
+	fmt.Fprintf(&out, "Physical Surface(\"Водоём\", %d) = {1};\n", PhysicalWaterSurface)
+	fmt.Fprintf(&out, "Physical Curve(\"Внешний берег\", %d) = {%s};\n", PhysicalCoastline, joinIntegers(boundaryLineIDs[0]))
+	if len(boundaryLineIDs) > 1 {
+		islandLines := make([]int, 0)
+		for _, lines := range boundaryLineIDs[1:] {
+			islandLines = append(islandLines, lines...)
+		}
+		fmt.Fprintf(&out, "Physical Curve(\"Острова\", %d) = {%s};\n", PhysicalIsland, joinIntegers(islandLines))
+	}
 	fmt.Fprintf(&out, "Mesh.Algorithm = %d;\n", options.MeshAlgorithm)
 	fmt.Fprintln(&out, "Mesh.AlgorithmSwitchOnFailure = 0;")
 	// Gmsh строит согласованную исходную сетку выбранным алгоритмом. Единое
@@ -174,6 +184,7 @@ func buildGeo(domain PreparedDomain, algorithm Algorithm, edgeMeters float64) ([
 	fmt.Fprintln(&out, "Mesh.RecombineAll = 0;")
 	fmt.Fprintln(&out, "Mesh.MeshSizeMin = lc;")
 	fmt.Fprintln(&out, "Mesh.MeshSizeMax = lc;")
+	fmt.Fprintln(&out, "Mesh.MeshSizeFromPoints = 0;")
 	fmt.Fprintln(&out, "Mesh.MeshSizeFromCurvature = 0;")
 	fmt.Fprintln(&out, "Mesh.MeshSizeExtendFromBoundary = 0;")
 	fmt.Fprintln(&out, "Mesh.Smoothing = 10;")
@@ -181,7 +192,9 @@ func buildGeo(domain PreparedDomain, algorithm Algorithm, edgeMeters float64) ([
 	fmt.Fprintln(&out, "Mesh.Reproducible = 1;")
 	fmt.Fprintln(&out, "Mesh.MshFileVersion = 2.2;")
 	fmt.Fprintln(&out, "Mesh.Binary = 0;")
-	fmt.Fprintln(&out, "Mesh.SaveAll = 1;")
+	// Все сущности входят в физические группы. SaveAll=0 сохраняет их метки в
+	// MSH 2.2; SaveAll=1 у этого формата отбрасывает определения групп.
+	fmt.Fprintln(&out, "Mesh.SaveAll = 0;")
 	return out.Bytes(), nil
 }
 

@@ -135,3 +135,19 @@ type Field struct {
 	Nodes  []NodeValue `json:"-"`
 	Report Report      `json:"report"`
 }
+
+// TargetSizeField — минимальное представление результата ADAPT-01, которое
+// требуется генератору ADAPT-02. Индекс с нулём не используется, поэтому
+// идентификатор узла совпадает с индексом в TargetSizeM и Zones.
+type TargetSizeField struct {
+	TargetSizeM []float64
+	Zones       []string
+	NodeCount   int
+	MinSizeM    float64
+	MaxSizeM    float64
+}
+
+// ZoneRussianName возвращает устойчивое русское название зоны ADAPT-01.
+func ZoneRussianName(id string) string {
+	return zoneName(id)
+}

@@ -23,7 +23,10 @@ ADAPT-01 создаёт узловое поле будущего размера 
 `seabed/adaptive/size-field.json` и карту `seabed/svg/size-field.svg`.
 Внутренние рёбра исходного каркаса на карте скрыты, а
 `adaptive_mesh_generated=false` не позволяет принять поле за уже созданную
-адаптивную сетку. Фактический адаптивный MSH относится к ADAPT-02.
+адаптивную сетку. ADAPT-02 создаёт в `seabed/adaptive/gmsh/` воспроизводимый
+`background-field.pos`, `black-sea-adaptive.geo`, полный
+`black-sea-adaptive.msh`, журнал Gmsh, `edge-statistics.tsv` и отчёт
+`generation-report.json` схемы `lito-adaptive-gmsh/v1`.
 
 Для публикации результата используйте отдельный согласованный каталог или
 репозиторий данных; не добавляйте производные файлы в основной научный контур.

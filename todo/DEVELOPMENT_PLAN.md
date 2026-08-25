@@ -431,18 +431,39 @@ flowchart LR
 
 #### ADAPT-02 — Передать поле размера в Gmsh
 
+- Статус: **выполнено 2026-08-25**.
 - Приоритет: P1.
 - Зависимости: `ADAPT-01`.
 - Размер: L.
 - Работы:
-  - создать воспроизводимый Gmsh Background Field;
-  - сохранить full-quad преобразование и граничные метки;
-  - контролировать число ячеек до запуска;
-  - добавить потоковую обработку для многомиллионных сеток.
+  - [x] создать воспроизводимый Gmsh Background Field;
+  - [x] сохранить full-quad преобразование и граничные метки;
+  - [x] контролировать число ячеек до запуска;
+  - [x] добавить потоковую обработку для многомиллионных сеток.
+- Реализация:
+  - [`internal/domain/adaptive/input.go`](../internal/domain/adaptive/input.go)
+    построчно читает CSV ADAPT-01 и проверяет идентификаторы и координаты
+    против входного `lito-seabed/v1`;
+  - [`internal/domain/mesh/adaptive_gmsh.go`](../internal/domain/mesh/adaptive_gmsh.go)
+    создаёт scalar-quadrangle PostView, подключает его как единственный
+    Background Field и выполняет full-quad постобработку;
+  - [`internal/domain/mesh/validate.go`](../internal/domain/mesh/validate.go)
+    проверяет кратность рёбер, вырожденность, физические группы и отсутствие
+    треугольников;
+  - [`internal/domain/mesh/adaptive_stats.go`](../internal/domain/mesh/adaptive_stats.go)
+    оценивает объём до запуска и потоково считает зональные гистограммы рёбер;
+  - [`docs/adaptive-gmsh.md`](../docs/adaptive-gmsh.md) описывает формат,
+    ограничения и контрольный запуск.
+- Артефакты:
+  - [x] `output/seabed/adaptive/gmsh/background-field.pos`;
+  - [x] `output/seabed/adaptive/gmsh/black-sea-adaptive.geo`;
+  - [x] `output/seabed/adaptive/gmsh/black-sea-adaptive.msh`;
+  - [x] `output/seabed/adaptive/gmsh/edge-statistics.tsv`;
+  - [x] `output/seabed/adaptive/gmsh/generation-report.json`.
 - Готово, когда:
-  - целевые диапазоны подтверждены статистикой рёбер по зонам;
-  - полный MSH не содержит треугольников и висячих узлов;
-  - память и время отражены в отчёте.
+  - [x] целевые диапазоны подтверждены статистикой рёбер по зонам;
+  - [x] полный MSH не содержит треугольников и висячих узлов;
+  - [x] память и время отражены в отчёте.
 
 #### ADAPT-03 — Сравнить генераторы на адаптивной сетке
 

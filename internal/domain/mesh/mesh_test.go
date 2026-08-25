@@ -51,10 +51,12 @@ func TestValidDomainTopologyRejectsCrossingRing(t *testing.T) {
 
 func TestSubdivideToFullQuads(t *testing.T) {
 	source := Mesh{
-		Nodes:         []Point{{}, {X: 0, Y: 0}, {X: 2, Y: 0}, {X: 0, Y: 2}},
-		Cells:         []Cell{{Nodes: [4]int{1, 2, 3}, NodeCount: 3}},
-		BoundaryEdges: [][2]int{{1, 2}, {2, 3}, {3, 1}},
-		TriangleCount: 1,
+		Nodes:                []Point{{}, {X: 0, Y: 0}, {X: 2, Y: 0}, {X: 0, Y: 2}},
+		Cells:                []Cell{{Nodes: [4]int{1, 2, 3}, NodeCount: 3}},
+		BoundaryEdges:        [][2]int{{1, 2}, {2, 3}, {3, 1}},
+		BoundaryPhysicalTags: []int{PhysicalCoastline, PhysicalCoastline, PhysicalIsland},
+		SurfacePhysicalTag:   PhysicalWaterSurface,
+		TriangleCount:        1,
 	}
 
 	result := SubdivideToFullQuads(source)
@@ -63,6 +65,9 @@ func TestSubdivideToFullQuads(t *testing.T) {
 	}
 	if len(result.BoundaryEdges) != 6 {
 		t.Fatalf("каждое граничное ребро должно разделиться надвое, получено %d", len(result.BoundaryEdges))
+	}
+	if len(result.BoundaryPhysicalTags) != 6 || result.BoundaryPhysicalTags[4] != PhysicalIsland || result.SurfacePhysicalTag != PhysicalWaterSurface {
+		t.Fatalf("физические метки должны пройти через деление: %+v", result.BoundaryPhysicalTags)
 	}
 	for _, cell := range result.Cells {
 		if cell.NodeCount != 4 {
@@ -100,7 +105,7 @@ func TestBuildGeoContainsIndependentAlgorithmAndHole(t *testing.T) {
 		t.Fatal(err)
 	}
 	text := string(data)
-	for _, expected := range []string{"Plane Surface(1) = {1, 2};", "Mesh.Algorithm = 8;", "Mesh.RecombineAll = 0;"} {
+	for _, expected := range []string{"Plane Surface(1) = {1, 2};", "Physical Surface(\"Водоём\", 10)", "Physical Curve(\"Внешний берег\", 1)", "Physical Curve(\"Острова\", 2)", "Mesh.Algorithm = 8;", "Mesh.RecombineAll = 0;", "Mesh.SaveAll = 0;"} {
 		if !strings.Contains(text, expected) {
 			t.Fatalf("GEO не содержит %q\n%s", expected, text)
 		}
@@ -141,10 +146,12 @@ $EndElements
 func TestWriteMSH2PreservesFullQuadMesh(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "full-quad.msh")
 	source := Mesh{
-		Nodes:         []Point{{}, {X: 0, Y: 0}, {X: 1, Y: 0}, {X: 1, Y: 1}, {X: 0, Y: 1}},
-		Cells:         []Cell{{Nodes: [4]int{1, 2, 3, 4}, NodeCount: 4}},
-		BoundaryEdges: [][2]int{{1, 2}, {2, 3}, {3, 4}, {4, 1}},
-		QuadCount:     1,
+		Nodes:                []Point{{}, {X: 0, Y: 0}, {X: 1, Y: 0}, {X: 1, Y: 1}, {X: 0, Y: 1}},
+		Cells:                []Cell{{Nodes: [4]int{1, 2, 3, 4}, NodeCount: 4}},
+		BoundaryEdges:        [][2]int{{1, 2}, {2, 3}, {3, 4}, {4, 1}},
+		BoundaryPhysicalTags: []int{PhysicalCoastline, PhysicalCoastline, PhysicalIsland, PhysicalIsland},
+		SurfacePhysicalTag:   PhysicalWaterSurface,
+		QuadCount:            1,
 	}
 	if err := WriteMSH2(path, source); err != nil {
 		t.Fatal(err)
@@ -155,6 +162,46 @@ func TestWriteMSH2PreservesFullQuadMesh(t *testing.T) {
 	}
 	if result.TriangleCount != 0 || result.QuadCount != 1 || len(result.BoundaryEdges) != 4 {
 		t.Fatalf("итоговая сетка повреждена при записи: %+v", result)
+	}
+	if result.SurfacePhysicalTag != PhysicalWaterSurface || len(result.BoundaryPhysicalTags) != 4 || result.BoundaryPhysicalTags[2] != PhysicalIsland {
+		t.Fatalf("физические группы потеряны при round-trip: %+v", result)
+	}
+}
+
+func TestAdaptiveBackgroundAndTopology(t *testing.T) {
+	support := Mesh{
+		Nodes:                []Point{{}, {X: 0, Y: 0}, {X: 1000, Y: 0}, {X: 1000, Y: 1000}, {X: 0, Y: 1000}},
+		Cells:                []Cell{{Nodes: [4]int{1, 2, 3, 4}, NodeCount: 4}},
+		BoundaryEdges:        [][2]int{{1, 2}, {2, 3}, {3, 4}, {4, 1}},
+		BoundaryPhysicalTags: []int{PhysicalCoastline, PhysicalCoastline, PhysicalIsland, PhysicalIsland},
+		SurfacePhysicalTag:   PhysicalWaterSurface,
+		QuadCount:            1,
+	}
+	field := []float64{0, 200, 300, 500, 1000}
+	posPath := filepath.Join(t.TempDir(), "field.pos")
+	if err := WriteBackgroundFieldPOS(posPath, support, field, 2.5); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(posPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), "SQ(0,0,0,1000,0,0,1000,1000,0,0,1000,0){500,750,1250,2500};") {
+		t.Fatalf("POS не содержит масштабированные скалярные значения:\n%s", data)
+	}
+	estimate, err := EstimateAdaptiveSize(support, field)
+	if err != nil || estimate.EstimatedCellCount <= 0 {
+		t.Fatalf("некорректная оценка адаптивной сетки: %+v, %v", estimate, err)
+	}
+	validation := ValidateFullQuadMesh(support)
+	if !validation.Accepted || validation.UnmatchedInteriorEdgeCount != 0 {
+		t.Fatalf("согласованная full-quad сетка должна быть принята: %+v", validation)
+	}
+	broken := support
+	broken.BoundaryEdges = broken.BoundaryEdges[:3]
+	broken.BoundaryPhysicalTags = broken.BoundaryPhysicalTags[:3]
+	if result := ValidateFullQuadMesh(broken); result.Accepted || result.UnmatchedInteriorEdgeCount != 1 {
+		t.Fatalf("пропущенная сторона должна быть обнаружена: %+v", result)
 	}
 }
 

@@ -85,9 +85,19 @@ func WriteMSH2(path string, generated Mesh) error {
 				"$Comments\n"+
 				"lito_model_kind=flat\n"+
 				"lito_schema_version=lito-mesh/v1\n"+
-				"$EndComments\n"+
-				"$Nodes\n",
+				"$EndComments\n",
 		); err != nil {
+			return err
+		}
+		if len(generated.BoundaryPhysicalTags) != 0 && len(generated.BoundaryPhysicalTags) != len(generated.BoundaryEdges) {
+			return fmt.Errorf("число физических меток границы не совпадает с числом рёбер")
+		}
+		if len(generated.BoundaryPhysicalTags) > 0 || generated.SurfacePhysicalTag != 0 {
+			if _, err := fmt.Fprint(writer, "$PhysicalNames\n4\n1 1 \"Внешний берег\"\n1 2 \"Острова\"\n1 3 \"Открытая граница\"\n2 10 \"Водоём\"\n$EndPhysicalNames\n"); err != nil {
+				return err
+			}
+		}
+		if _, err := fmt.Fprintln(writer, "$Nodes"); err != nil {
 			return err
 		}
 		if _, err := fmt.Fprintln(writer, len(generated.Nodes)-1); err != nil {
@@ -107,8 +117,16 @@ func WriteMSH2(path string, generated Mesh) error {
 			return err
 		}
 		elementID := 1
-		for _, edge := range generated.BoundaryEdges {
-			if _, err := fmt.Fprintf(writer, "%d 1 0 %d %d\n", elementID, edge[0], edge[1]); err != nil {
+		for edgeIndex, edge := range generated.BoundaryEdges {
+			tag := 0
+			if edgeIndex < len(generated.BoundaryPhysicalTags) {
+				tag = generated.BoundaryPhysicalTags[edgeIndex]
+			}
+			if tag == 0 {
+				if _, err := fmt.Fprintf(writer, "%d 1 0 %d %d\n", elementID, edge[0], edge[1]); err != nil {
+					return err
+				}
+			} else if _, err := fmt.Fprintf(writer, "%d 1 2 %d %d %d %d\n", elementID, tag, tag, edge[0], edge[1]); err != nil {
 				return err
 			}
 			elementID++
@@ -117,7 +135,11 @@ func WriteMSH2(path string, generated Mesh) error {
 			if cell.NodeCount != 4 {
 				return fmt.Errorf("итоговый MSH содержит ячейку не из четырёх узлов")
 			}
-			if _, err := fmt.Fprintf(writer, "%d 3 0 %d %d %d %d\n", elementID, cell.Nodes[0], cell.Nodes[1], cell.Nodes[2], cell.Nodes[3]); err != nil {
+			if generated.SurfacePhysicalTag == 0 {
+				if _, err := fmt.Fprintf(writer, "%d 3 0 %d %d %d %d\n", elementID, cell.Nodes[0], cell.Nodes[1], cell.Nodes[2], cell.Nodes[3]); err != nil {
+					return err
+				}
+			} else if _, err := fmt.Fprintf(writer, "%d 3 2 %d 1 %d %d %d %d\n", elementID, generated.SurfacePhysicalTag, cell.Nodes[0], cell.Nodes[1], cell.Nodes[2], cell.Nodes[3]); err != nil {
 				return err
 			}
 			elementID++
@@ -233,10 +255,18 @@ func readElements(scanner *bufio.Scanner, result *Mesh) error {
 			}
 			a, aErr := strconv.Atoi(fields[nodeStart])
 			b, bErr := strconv.Atoi(fields[nodeStart+1])
-			if aErr != nil || bErr != nil {
+			if aErr != nil || bErr != nil || a <= 0 || a >= len(result.Nodes) || b <= 0 || b >= len(result.Nodes) || a == b {
 				return fmt.Errorf("некорректные узлы граничного элемента")
 			}
 			result.BoundaryEdges = append(result.BoundaryEdges, [2]int{a, b})
+			physical := 0
+			if tagCount > 0 {
+				physical, err = strconv.Atoi(fields[3])
+				if err != nil || physical < 0 {
+					return fmt.Errorf("некорректная физическая метка граничного элемента")
+				}
+			}
+			result.BoundaryPhysicalTags = append(result.BoundaryPhysicalTags, physical)
 		case 2, 3:
 			nodeCount := 3
 			if elementType == 3 {
@@ -254,6 +284,17 @@ func readElements(scanner *bufio.Scanner, result *Mesh) error {
 				cell.Nodes[nodeIndex] = node
 			}
 			result.Cells = append(result.Cells, cell)
+			if tagCount > 0 {
+				physical, physicalErr := strconv.Atoi(fields[3])
+				if physicalErr != nil {
+					return fmt.Errorf("некорректная физическая метка поверхностного элемента")
+				}
+				if result.SurfacePhysicalTag == 0 {
+					result.SurfacePhysicalTag = physical
+				} else if physical != 0 && result.SurfacePhysicalTag != physical {
+					return fmt.Errorf("поверхностные элементы имеют разные физические метки")
+				}
+			}
 			if nodeCount == 4 {
 				result.QuadCount++
 			} else {

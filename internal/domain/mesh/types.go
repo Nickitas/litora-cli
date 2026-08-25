@@ -10,6 +10,15 @@ import (
 type Algorithm string
 
 const (
+	// PhysicalCoastline помечает внешний берег Чёрного моря в MSH.
+	PhysicalCoastline = 1
+	// PhysicalIsland помечает берег островного отверстия в MSH.
+	PhysicalIsland = 2
+	// PhysicalOpenBoundary зарезервирован для открытой границы локального участка.
+	PhysicalOpenBoundary = 3
+	// PhysicalWaterSurface помечает двумерную поверхность акватории.
+	PhysicalWaterSurface = 10
+
 	// AlgorithmDelaunay использует классическую 2D-триангуляцию Delaunay.
 	AlgorithmDelaunay Algorithm = "delaunay"
 	// AlgorithmFrontalQuad использует Frontal-Delaunay for Quads.
@@ -88,11 +97,13 @@ type Cell struct {
 
 // Mesh представляет прочитанную плоскую сетку Gmsh.
 type Mesh struct {
-	Nodes         []Point
-	Cells         []Cell
-	BoundaryEdges [][2]int
-	TriangleCount int
-	QuadCount     int
+	Nodes                []Point
+	Cells                []Cell
+	BoundaryEdges        [][2]int
+	BoundaryPhysicalTags []int
+	SurfacePhysicalTag   int
+	TriangleCount        int
+	QuadCount            int
 }
 
 // PreparedDomain содержит исходные и детализированные кольца в единой

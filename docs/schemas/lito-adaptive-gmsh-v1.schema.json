@@ -1,0 +1,115 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://lito.local/schemas/lito-adaptive-gmsh-v1.schema.json",
+  "title": "Отчёт передачи адаптивного поля в Gmsh",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "generated_at", "input_msh", "input_msh_sha256",
+    "export_metadata", "export_metadata_sha256", "size_field_csv",
+    "size_field_csv_sha256", "size_field_report", "size_field_report_sha256",
+    "coastline", "coastline_sha256", "boundary_detail_meters",
+    "effective_boundary_detail_meters", "projection", "algorithm",
+    "gmsh_path", "gmsh_version", "background_field", "preflight",
+    "resources", "topology", "edge_sampling_method", "zones", "artifacts",
+    "accepted", "reasons"
+  ],
+  "properties": {
+    "schema_version": {"const": "lito-adaptive-gmsh/v1"},
+    "generated_at": {"type": "string", "format": "date-time"},
+    "input_msh": {"type": "string", "minLength": 1},
+    "input_msh_sha256": {"$ref": "#/$defs/sha256"},
+    "export_metadata": {"type": "string", "minLength": 1},
+    "export_metadata_sha256": {"$ref": "#/$defs/sha256"},
+    "size_field_csv": {"type": "string", "minLength": 1},
+    "size_field_csv_sha256": {"$ref": "#/$defs/sha256"},
+    "size_field_report": {"type": "string", "minLength": 1},
+    "size_field_report_sha256": {"$ref": "#/$defs/sha256"},
+    "coastline": {"type": "string", "minLength": 1},
+    "coastline_sha256": {"$ref": "#/$defs/sha256"},
+    "boundary_detail_meters": {"type": "number", "exclusiveMinimum": 0},
+    "effective_boundary_detail_meters": {"type": "number", "exclusiveMinimum": 0},
+    "projection": {"type": "string", "minLength": 1},
+    "projection_round_trip_max_error_meters": {"type": "number", "minimum": 0},
+    "algorithm": {"enum": ["delaunay", "frontal-quad", "parallelograms"]},
+    "gmsh_path": {"type": "string", "minLength": 1},
+    "gmsh_version": {"type": "string", "minLength": 1},
+    "background_field": {"$ref": "#/$defs/background"},
+    "preflight": {"$ref": "#/$defs/preflight"},
+    "maximum_cell_count": {"type": "integer", "minimum": 0},
+    "large_run_allowed": {"type": "boolean"},
+    "resources": {"$ref": "#/$defs/resources"},
+    "topology": {"$ref": "#/$defs/topology"},
+    "edge_sampling_method": {"type": "string", "minLength": 1},
+    "zones": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/zone"}},
+    "artifacts": {"type": "object", "additionalProperties": {"type": "string"}},
+    "accepted": {"type": "boolean"},
+    "reasons": {"type": ["array", "null"], "items": {"type": "string"}}
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "background": {
+      "type": "object",
+      "required": ["format", "field_type", "use_closest", "support_node_count", "support_cell_count", "minimum_target_size_m", "maximum_target_size_m", "pre_subdivision_scale"],
+      "properties": {
+        "format": {"type": "string"}, "field_type": {"const": "PostView"},
+        "interpolation": {"type": "string"}, "use_closest": {"const": true},
+        "support_node_count": {"type": "integer", "minimum": 1},
+        "support_cell_count": {"type": "integer", "minimum": 1},
+        "minimum_target_size_m": {"type": "number", "exclusiveMinimum": 0},
+        "maximum_target_size_m": {"type": "number", "exclusiveMinimum": 0},
+        "pre_subdivision_scale": {"type": "number", "exclusiveMinimum": 0}
+      }
+    },
+    "preflight": {
+      "type": "object",
+      "required": ["estimated_cell_count", "estimated_memory_bytes", "estimated_disk_bytes", "method"],
+      "properties": {
+        "estimated_cell_count": {"type": "integer", "minimum": 1},
+        "estimated_memory_bytes": {"type": "integer", "minimum": 1},
+        "estimated_disk_bytes": {"type": "integer", "minimum": 1},
+        "method": {"type": "string"}
+      }
+    },
+    "resources": {
+      "type": "object",
+      "required": ["gmsh_duration_seconds", "postprocess_duration_seconds", "peak_rss_bytes", "lito_heap_in_use_bytes", "raw_node_count", "raw_cell_count", "final_node_count", "final_cell_count", "output_msh_bytes", "output_round_trip_verified"],
+      "properties": {
+        "gmsh_duration_seconds": {"type": "number", "minimum": 0},
+        "postprocess_duration_seconds": {"type": "number", "minimum": 0},
+        "peak_rss_bytes": {"type": "integer", "minimum": 0},
+        "lito_heap_in_use_bytes": {"type": "integer", "minimum": 0},
+        "raw_node_count": {"type": "integer", "minimum": 1},
+        "raw_cell_count": {"type": "integer", "minimum": 1},
+        "final_node_count": {"type": "integer", "minimum": 1},
+        "final_cell_count": {"type": "integer", "minimum": 1},
+        "output_msh_bytes": {"type": "integer", "minimum": 1},
+        "output_round_trip_verified": {"const": true}
+      }
+    },
+    "topology": {
+      "type": "object",
+      "required": ["node_count", "cell_count", "triangle_count", "non_quad_cell_count", "degenerate_cell_count", "non_manifold_edge_count", "unmatched_interior_edge_count", "boundary_edge_count", "untagged_boundary_edge_count", "invalid_boundary_tag_count", "boundary_tag_counts", "accepted", "reasons"],
+      "properties": {
+        "node_count": {"type": "integer", "minimum": 1}, "cell_count": {"type": "integer", "minimum": 1},
+        "triangle_count": {"type": "integer", "minimum": 0}, "non_quad_cell_count": {"type": "integer", "minimum": 0},
+        "degenerate_cell_count": {"type": "integer", "minimum": 0}, "non_manifold_edge_count": {"type": "integer", "minimum": 0},
+        "unmatched_interior_edge_count": {"type": "integer", "minimum": 0}, "boundary_edge_count": {"type": "integer", "minimum": 0},
+        "untagged_boundary_edge_count": {"type": "integer", "minimum": 0}, "invalid_boundary_tag_count": {"type": "integer", "minimum": 0}, "boundary_tag_counts": {"type": "object"},
+        "accepted": {"type": "boolean"}, "reasons": {"type": ["array", "null"], "items": {"type": "string"}}
+      }
+    },
+    "zone": {
+      "type": "object",
+      "required": ["zone", "name", "edge_observation_count", "target_min_m", "target_mean_m", "target_max_m", "actual_min_m", "actual_p05_m", "actual_mean_m", "actual_p95_m", "actual_max_m", "ratio_p05", "ratio_mean", "ratio_p95", "within_tolerance_percent"],
+      "properties": {
+        "zone": {"type": "string"}, "name": {"type": "string"},
+        "edge_observation_count": {"type": "integer", "minimum": 1},
+        "target_min_m": {"type": "number", "exclusiveMinimum": 0}, "target_mean_m": {"type": "number", "exclusiveMinimum": 0}, "target_max_m": {"type": "number", "exclusiveMinimum": 0},
+        "actual_min_m": {"type": "number", "exclusiveMinimum": 0}, "actual_p05_m": {"type": "number", "exclusiveMinimum": 0}, "actual_mean_m": {"type": "number", "exclusiveMinimum": 0}, "actual_p95_m": {"type": "number", "exclusiveMinimum": 0}, "actual_max_m": {"type": "number", "exclusiveMinimum": 0},
+        "ratio_p05": {"type": "number", "minimum": 0}, "ratio_mean": {"type": "number", "minimum": 0}, "ratio_p95": {"type": "number", "minimum": 0},
+        "within_tolerance_percent": {"type": "number", "minimum": 0, "maximum": 100}
+      }
+    }
+  }
+}

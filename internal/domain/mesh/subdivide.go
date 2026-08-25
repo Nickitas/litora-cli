@@ -4,7 +4,7 @@ package mesh
 // треугольника или четырёхугольника через общие середины рёбер и центр ячейки.
 // В результате не остаётся треугольников и не возникают висячие узлы.
 func SubdivideToFullQuads(source Mesh) Mesh {
-	result := Mesh{Nodes: append([]Point(nil), source.Nodes...)}
+	result := Mesh{Nodes: append([]Point(nil), source.Nodes...), SurfacePhysicalTag: source.SurfacePhysicalTag}
 	if len(source.Cells) == 0 {
 		return result
 	}
@@ -50,9 +50,13 @@ func SubdivideToFullQuads(source Mesh) Mesh {
 		}
 	}
 
-	for _, edge := range source.BoundaryEdges {
+	for edgeIndex, edge := range source.BoundaryEdges {
 		middle := midpoint(edge[0], edge[1])
 		result.BoundaryEdges = append(result.BoundaryEdges, [2]int{edge[0], middle}, [2]int{middle, edge[1]})
+		if edgeIndex < len(source.BoundaryPhysicalTags) {
+			tag := source.BoundaryPhysicalTags[edgeIndex]
+			result.BoundaryPhysicalTags = append(result.BoundaryPhysicalTags, tag, tag)
+		}
 	}
 	result.QuadCount = len(result.Cells)
 	return result
