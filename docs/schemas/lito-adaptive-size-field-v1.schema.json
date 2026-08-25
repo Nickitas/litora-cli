@@ -1,0 +1,138 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://lito.local/schemas/lito-adaptive-size-field-v1.schema.json",
+  "title": "Отчёт поля требуемого размера ячейки Чёрного моря",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "horizontal_reference",
+    "horizontal_unit",
+    "target_size_unit",
+    "adaptive_mesh_generated",
+    "config",
+    "formula",
+    "summary"
+  ],
+  "properties": {
+    "schema_version": { "const": "lito-adaptive-size-field/v1" },
+    "generated_at": { "type": "string", "format": "date-time" },
+    "input_msh": { "type": "string", "minLength": 1 },
+    "field_csv": { "type": "string", "minLength": 1 },
+    "map_svg": { "type": "string", "minLength": 1 },
+    "bathymetry_source": { "type": "string", "minLength": 1 },
+    "bathymetry_sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "horizontal_reference": { "type": "string", "minLength": 1 },
+    "horizontal_unit": { "const": "m" },
+    "target_size_unit": { "const": "m" },
+    "adaptive_mesh_generated": { "const": false },
+    "config": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "min_size_m",
+        "straight_coast_size_m",
+        "shelf_size_m",
+        "deep_size_m",
+        "coast_influence_m",
+        "curvature_reference_deg",
+        "slope_reference_deg",
+        "flat_deep_max_slope_deg",
+        "max_neighbour_ratio",
+        "max_size_gradient_per_m"
+      ],
+      "properties": {
+        "min_size_m": { "type": "number", "exclusiveMinimum": 0 },
+        "straight_coast_size_m": { "type": "number", "exclusiveMinimum": 0 },
+        "shelf_size_m": { "type": "number", "exclusiveMinimum": 0 },
+        "deep_size_m": { "type": "number", "exclusiveMinimum": 0 },
+        "coast_influence_m": { "type": "number", "exclusiveMinimum": 0 },
+        "curvature_reference_deg": { "type": "number", "exclusiveMinimum": 0 },
+        "slope_reference_deg": { "type": "number", "exclusiveMinimum": 0 },
+        "flat_deep_max_slope_deg": { "type": "number", "exclusiveMinimum": 0 },
+        "max_neighbour_ratio": { "type": "number", "exclusiveMinimum": 1 },
+        "max_size_gradient_per_m": { "type": "number", "exclusiveMinimum": 0 }
+      }
+    },
+    "formula": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["base_size", "coast_distance", "coast_curvature", "depth_gradient", "raw_target", "growth_limit"],
+      "properties": {
+        "base_size": { "type": "string", "minLength": 1 },
+        "coast_distance": { "type": "string", "minLength": 1 },
+        "coast_curvature": { "type": "string", "minLength": 1 },
+        "depth_gradient": { "type": "string", "minLength": 1 },
+        "raw_target": { "type": "string", "minLength": 1 },
+        "growth_limit": { "type": "string", "minLength": 1 }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "node_count",
+        "cell_count",
+        "coastline_segment_count",
+        "no_data_node_count",
+        "growth_limited_node_count",
+        "raw_target_size_m",
+        "target_size_m",
+        "raw_max_adjacent_ratio",
+        "final_max_adjacent_ratio",
+        "raw_max_size_gradient_per_m",
+        "final_max_size_gradient_per_m",
+        "max_distance_to_coast_m",
+        "max_coast_curvature_deg",
+        "max_depth_gradient_deg",
+        "zones"
+      ],
+      "properties": {
+        "node_count": { "type": "integer", "minimum": 1 },
+        "cell_count": { "type": "integer", "minimum": 1 },
+        "coastline_segment_count": { "type": "integer", "minimum": 1 },
+        "no_data_node_count": { "type": "integer", "minimum": 0 },
+        "growth_limited_node_count": { "type": "integer", "minimum": 0 },
+        "raw_target_size_m": { "$ref": "#/$defs/statistics" },
+        "target_size_m": { "$ref": "#/$defs/statistics" },
+        "raw_max_adjacent_ratio": { "type": "number", "minimum": 1 },
+        "final_max_adjacent_ratio": { "type": "number", "minimum": 1 },
+        "raw_max_size_gradient_per_m": { "type": "number", "minimum": 0 },
+        "final_max_size_gradient_per_m": { "type": "number", "minimum": 0 },
+        "max_distance_to_coast_m": { "type": "number", "minimum": 0 },
+        "max_coast_curvature_deg": { "type": "number", "minimum": 0, "maximum": 180 },
+        "max_depth_gradient_deg": { "type": "number", "minimum": 0 },
+        "zones": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "name", "node_count", "target_size_m"],
+            "properties": {
+              "id": { "type": "string", "minLength": 1 },
+              "name": { "type": "string", "minLength": 1 },
+              "node_count": { "type": "integer", "minimum": 1 },
+              "target_size_m": { "$ref": "#/$defs/statistics" }
+            }
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "statistics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["min_m", "p05_m", "median_m", "mean_m", "p95_m", "max_m"],
+      "properties": {
+        "min_m": { "type": "number", "exclusiveMinimum": 0 },
+        "p05_m": { "type": "number", "exclusiveMinimum": 0 },
+        "median_m": { "type": "number", "exclusiveMinimum": 0 },
+        "mean_m": { "type": "number", "exclusiveMinimum": 0 },
+        "p95_m": { "type": "number", "exclusiveMinimum": 0 },
+        "max_m": { "type": "number", "exclusiveMinimum": 0 }
+      }
+    }
+  }
+}

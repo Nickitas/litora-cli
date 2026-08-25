@@ -31,7 +31,8 @@ var seabedCmd = &cobra.Command{
 	Short: "Работать с батиметрической моделью Чёрного моря",
 	Long: `Команды подготовки, проверки и визуализации рельефа дна Чёрного моря.
 Доступно повторное построение обзорной карты, увеличенных фрагментов,
-3D-рельефа и профилей из принятого MSH lito-seabed/v1 без пересчёта глубин.`,
+3D-рельефа, профилей и поля требуемого размера будущей адаптивной сетки из
+принятого MSH lito-seabed/v1 без пересчёта глубин.`,
 }
 
 var seabedRenderCmd = &cobra.Command{
@@ -117,7 +118,7 @@ func runSeabedRender(_ *cobra.Command, _ []string) error {
 		return fmt.Errorf("пороги морфометрических зон MSH и паспорта экспорта не совпадают")
 	}
 
-	source, checksum, sourceMetadataPath, err := resolveBathymetryAttribution()
+	source, checksum, sourceMetadataPath, err := resolveBathymetryAttribution(seabedRenderSource, seabedRenderSourceMetadata)
 	if err != nil {
 		return err
 	}
@@ -201,11 +202,11 @@ func runSeabedRender(_ *cobra.Command, _ []string) error {
 	return nil
 }
 
-func resolveBathymetryAttribution() (source, checksum, metadataPath string, err error) {
-	if explicit := strings.TrimSpace(seabedRenderSource); explicit != "" {
+func resolveBathymetryAttribution(explicitSource, sourceMetadata string) (source, checksum, metadataPath string, err error) {
+	if explicit := strings.TrimSpace(explicitSource); explicit != "" {
 		return explicit, "", "", nil
 	}
-	metadataPath = strings.TrimSpace(seabedRenderSourceMetadata)
+	metadataPath = strings.TrimSpace(sourceMetadata)
 	if metadataPath == "" {
 		return "", "", "", fmt.Errorf("нужно задать --source или --source-metadata")
 	}
