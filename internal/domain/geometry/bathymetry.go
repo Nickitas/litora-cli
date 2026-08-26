@@ -9,6 +9,10 @@ import (
 	"coastal-geometry/internal/domain/blacksea"
 )
 
+// minimumBlackSeaElevationM задаёт нижнюю физически допустимую отметку
+// батиметрии с запасом относительно максимальной глубины Чёрного моря.
+const minimumBlackSeaElevationM = -3000.0
+
 // BathymetryPoint представляет одно измерение глубины в точке.
 // Глубина отрицательна для подводных участков (напр., -100 = 100 метров под уровнем моря).
 type BathymetryPoint struct {
@@ -95,8 +99,11 @@ func BuildGrid(points []BathymetryPoint, resolution float64) (*BathymetryGrid, e
 	if len(points) == 0 {
 		return nil, fmt.Errorf("невозможно построить сетку из пустых точек")
 	}
-	if resolution <= 0 {
-		return nil, fmt.Errorf("решение должно быть положительным, получено %f", resolution)
+	if math.IsNaN(resolution) || math.IsInf(resolution, 0) || resolution <= 0 {
+		return nil, fmt.Errorf("разрешение должно быть конечным положительным числом, получено %f", resolution)
+	}
+	if err := validateBathymetryValues(points); err != nil {
+		return nil, fmt.Errorf("недопустимые точки батиметрической сетки: %w", err)
 	}
 
 	grid := &BathymetryGrid{
@@ -302,10 +309,28 @@ func bilinearInterpolate1D(v0, v1, t float64) float64 {
 }
 
 func validateBathymetryPoints(points []BathymetryPoint) error {
-	// Предел выбран с запасом относительно максимальной глубины Чёрного моря.
-	// Значения хранятся как отрицательные отметки elevation_m.
-	const maxBlackSeaDepth = -3000.0
+	if err := validateBathymetryValues(points); err != nil {
+		return err
+	}
 
+	for i, p := range points {
+		if !blacksea.Contains(p.Lat, p.Lon) {
+			return fmt.Errorf(
+				"точка %d: координаты (%.4f, %.4f) вне области Чёрного моря [%.1f, %.1f] × [%.1f, %.1f]",
+				i, p.Lat, p.Lon,
+				blacksea.MinLatitude, blacksea.MaxLatitude,
+				blacksea.MinLongitude, blacksea.MaxLongitude,
+			)
+		}
+	}
+
+	return nil
+}
+
+// validateBathymetryValues проверяет числовой и физический контракт точек.
+// Проверка области Чёрного моря выполняется отдельно, чтобы BuildGrid оставался
+// пригоден для локальных синтетических сеток в тестах геометрических алгоритмов.
+func validateBathymetryValues(points []BathymetryPoint) error {
 	for i, p := range points {
 		if math.IsNaN(p.Lat) || math.IsInf(p.Lat, 0) {
 			return fmt.Errorf("точка %d: широта равна NaN/Inf", i)
@@ -322,21 +347,14 @@ func validateBathymetryPoints(points []BathymetryPoint) error {
 		if p.Lon < -180 || p.Lon > 180 {
 			return fmt.Errorf("точка %d: недопустимая долгота %.4f", i, p.Lon)
 		}
-		if !blacksea.Contains(p.Lat, p.Lon) {
-			return fmt.Errorf(
-				"точка %d: координаты (%.4f, %.4f) вне области Чёрного моря [%.1f, %.1f] × [%.1f, %.1f]",
-				i, p.Lat, p.Lon,
-				blacksea.MinLatitude, blacksea.MaxLatitude,
-				blacksea.MinLongitude, blacksea.MaxLongitude,
-			)
-		}
-
-		// Проверка глубины
 		if p.Depth > 0 {
 			return fmt.Errorf("точка %d: положительная глубина %.2f (должна быть под водой, отрицательная)", i, p.Depth)
 		}
-		if p.Depth < maxBlackSeaDepth {
-			return fmt.Errorf("точка %d: отметка %.2f м ниже допустимого предела Чёрного моря %.0f м", i, p.Depth, maxBlackSeaDepth)
+		if p.Depth < minimumBlackSeaElevationM {
+			return fmt.Errorf(
+				"точка %d: отметка %.2f м ниже допустимого предела Чёрного моря %.0f м",
+				i, p.Depth, minimumBlackSeaElevationM,
+			)
 		}
 	}
 
@@ -349,7 +367,7 @@ func validateBathymetryGrid(grid *BathymetryGrid) error {
 	}
 
 	// Проверка разрешения
-	if grid.Resolution <= 0 {
+	if math.IsNaN(grid.Resolution) || math.IsInf(grid.Resolution, 0) || grid.Resolution <= 0 {
 		return fmt.Errorf("недопустимое разрешение: %f", grid.Resolution)
 	}
 	if grid.Resolution > 0.1 {
