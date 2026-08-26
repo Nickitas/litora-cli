@@ -27,6 +27,12 @@ ADAPT-01 создаёт узловое поле будущего размера 
 `background-field.pos`, `black-sea-adaptive.geo`, полный
 `black-sea-adaptive.msh`, журнал Gmsh, `edge-statistics.tsv` и отчёт
 `generation-report.json` схемы `lito-adaptive-gmsh/v1`.
+ADAPT-03 сохраняет независимые каталоги каждого генератора и масштаба в
+`seabed/adaptive/comparison/`, а также сводные
+`adaptive-generator-comparison.json` схемы
+`lito-adaptive-generator-comparison/v1` и `adaptive-generator-comparison.tsv`.
+Неуспешный запуск остаётся в отчёте вместе с причиной и журналом; он не
+останавливает остальные варианты.
 
 Для публикации результата используйте отдельный согласованный каталог или
 репозиторий данных; не добавляйте производные файлы в основной научный контур.

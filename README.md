@@ -62,6 +62,7 @@ lito mesh                      # генерация и сравнение 2D-с�
 lito seabed render             # карты глубин, 3D-рельеф и профили дна
 lito seabed adapt              # поле размера адаптивной сетки 200–1000 м
 lito seabed generate-adaptive  # Gmsh Background Field и full-quad сетка
+lito seabed compare-adaptive   # рейтинг генераторов с учётом батиметрии
 lito erosion                   # геоморфологическое моделирование эрозии
 lito all                        # полный пайплайн: валидация + фрактальный + эрозия
 
@@ -343,8 +344,7 @@ Frontal-Delaunay for Quads и Packing of Parallelograms. Для каждого �
 3D-рельефа, адаптации размера ячеек и научной проверки описан в
 [`todo/DEVELOPMENT_PLAN.md`](todo/DEVELOPMENT_PLAN.md).
 Задачи `ARCH-01`, `DATA-01`, `DATA-02`, `GEO-01`, `BATHY-01`, `BATHY-02`,
-`BATHY-03`, `EXPORT-01`, `EXPORT-02`, `VIEW-01`–`VIEW-03`, `ADAPT-01` и
-`ADAPT-02`
+`BATHY-03`, `EXPORT-01`, `EXPORT-02`, `VIEW-01`–`VIEW-03` и `ADAPT-01`–`ADAPT-03`
 выполнены: соглашения о
 знаке, вертикальной системе, NoData, полях узлов/ячеек и форматах закреплены в
 [`docs/adr/seabed-data-contract.md`](docs/adr/seabed-data-contract.md), а
@@ -453,6 +453,33 @@ ADAPT-01, интегрирует `S/h²` для оценки числа ячее
 попадают в допуск `0.5–1.5`. Полный MSH, GEO, POS, журнал, JSON и TSV находятся
 в `output/seabed/adaptive/gmsh/`. Формат, критерии и интерпретация статистики
 описаны в [`docs/adaptive-gmsh.md`](docs/adaptive-gmsh.md).
+
+ADAPT-03 повторяет эксперимент на общих полях размера:
+
+```bash
+./lito seabed compare-adaptive
+```
+
+По умолчанию команда отдельно сравнивает диапазоны `200–1000 м` и
+`500–1000 м`, последовательно запускает Delaunay, Frontal-Delaunay for Quads
+и Packing of Parallelograms и продолжает эксперимент после ошибки отдельного
+генератора. Для каждой сетки рассчитываются сохранение площади береговых
+особенностей, MAE/RMSE/смещение/P95 глубины на центрах ячеек, отклонения
+объёма и площадей глубинных зон, ошибка уклона, геометрическое качество,
+соответствие полю размера, время и максимальная RSS. Итоговый рейтинг и все
+его составляющие сохраняются в
+`output/seabed/adaptive/comparison/adaptive-generator-comparison.json` и TSV;
+контрольные суммы входов позволяют воспроизвести сравнение без визуальной
+оценки. Методика, ограничения внутренней батиметрической проверки и формула
+рейтинга описаны в
+[`docs/adaptive-generator-comparison.md`](docs/adaptive-generator-comparison.md).
+
+В контрольном прогоне Delaunay занял первое место на обоих уровнях: `71,561`
+балла и `3 041 643` ячейки для `200–1000 м`, `72,237` балла и `1 191 504`
+ячейки для `500–1000 м`. Frontal-Delaunay for Quads занял второе место;
+Packing of Parallelograms превысил лимит 10 минут на обоих уровнях и сохранён
+в JSON как неуспешный запуск. Отчёт принят, одинаковость входной границы
+подтверждена машинными допусками.
 
 ### 3. Геоморфологическое моделирование эрозии
 
