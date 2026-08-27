@@ -153,23 +153,23 @@ func runSeabedAdaptiveGmsh(_ *cobra.Command, _ []string) error {
 	if err := adaptivemodel.WriteGmshEdgeTSV(edgeTSVPath, zones); err != nil {
 		return err
 	}
-	inputChecksum, err := adaptiveFileSHA256(paths.inputMSH)
+	inputChecksum, err := fileSHA256(paths.inputMSH)
 	if err != nil {
 		return err
 	}
-	fieldChecksum, err := adaptiveFileSHA256(paths.fieldCSV)
+	fieldChecksum, err := fileSHA256(paths.fieldCSV)
 	if err != nil {
 		return err
 	}
-	metadataChecksum, err := adaptiveFileSHA256(paths.metadata)
+	metadataChecksum, err := fileSHA256(paths.metadata)
 	if err != nil {
 		return err
 	}
-	fieldReportChecksum, err := adaptiveFileSHA256(paths.fieldReport)
+	fieldReportChecksum, err := fileSHA256(paths.fieldReport)
 	if err != nil {
 		return err
 	}
-	coastlineChecksum, err := adaptiveFileSHA256(paths.coastline)
+	coastlineChecksum, err := fileSHA256(paths.coastline)
 	if err != nil {
 		return err
 	}
@@ -254,7 +254,8 @@ func resolveAdaptiveGmshInputPaths() adaptiveGmshPaths {
 	return adaptiveGmshPaths{inputMSH: input, metadata: metadata, fieldCSV: field, fieldReport: fieldReport, coastline: strings.TrimSpace(seabedAdaptiveGmshCoastline)}
 }
 
-func adaptiveFileSHA256(path string) (string, error) {
+// fileSHA256 возвращает контрольную сумму входного или выходного артефакта.
+func fileSHA256(path string) (string, error) {
 	file, err := os.Open(path)
 	if err != nil {
 		return "", fmt.Errorf("открытие %q для SHA-256: %w", path, err)

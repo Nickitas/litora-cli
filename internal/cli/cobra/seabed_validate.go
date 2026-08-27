@@ -195,7 +195,7 @@ func buildSeabedValidateInputs(paths seabedValidatePaths) (seabed.ReliefQualityI
 	}
 	checksums := make([]string, len(files))
 	for index, path := range files {
-		checksum, err := adaptiveFileSHA256(path)
+		checksum, err := fileSHA256(path)
 		if err != nil {
 			return seabed.ReliefQualityInputs{}, err
 		}

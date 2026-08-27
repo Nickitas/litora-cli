@@ -333,7 +333,7 @@ func adaptiveComparisonChecksums(paths adaptiveComparePaths) (adaptiveCompareChe
 	values := []*string{&paths.inputMSH, &paths.metadata, &paths.fieldCSV, &paths.fieldReport, &paths.coastline}
 	resultValues := make([]string, len(values))
 	for index, path := range values {
-		checksum, err := adaptiveFileSHA256(*path)
+		checksum, err := fileSHA256(*path)
 		if err != nil {
 			return adaptiveCompareChecksums{}, err
 		}

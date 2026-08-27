@@ -34,7 +34,9 @@ var seabedCmd = &cobra.Command{
 3D-рельефа, профилей, поля требуемого размера и фактической адаптивной
 full-quad сетки из принятого MSH lito-seabed/v1 без пересчёта глубин, а также
 воспроизводимое сравнение трёх генераторов на общих контрольных полях и
-научная проверка сохранения рельефа по отдельной опорной модели.`,
+научная проверка сохранения рельефа по отдельной опорной модели. QA-03 одной
+командой проверяет полный контур 1000 м, экспортирует модель и фиксирует
+топологию, интегральные ориентиры и ресурсы.`,
 }
 
 var seabedRenderCmd = &cobra.Command{
@@ -88,6 +90,20 @@ type seabedRenderRunReport struct {
 	Profiles          bathymetryrender.ProfilesReport    `json:"profiles"`
 }
 
+type seabedVisualizationOptions struct {
+	InputPath          string
+	MetadataPath       string
+	SourceMetadataPath string
+	OutputDirectory    string
+	Source             string
+	SourceChecksum     string
+	IsobathsM          []float64
+	VerticalScale      float64
+	ControlPoints      bool
+	Profiles           []seabedmodel.Profile
+	ProfileSelections  []seabedmodel.ProfileSelectionReport
+}
+
 func runSeabedRender(_ *cobra.Command, _ []string) error {
 	inputPath := strings.TrimSpace(seabedRenderInput)
 	if inputPath == "" {
@@ -124,61 +140,77 @@ func runSeabedRender(_ *cobra.Command, _ []string) error {
 	if err != nil {
 		return err
 	}
-	outputDir := filepath.Join(seabedRenderOutput, "seabed")
 	profiles, profileSelections, err := seabedmodel.SelectCoastToDeepProfiles(document.Model)
 	if err != nil {
 		return err
 	}
+	_, err = writeSeabedVisualizations(document.Model, metadata, seabedVisualizationOptions{
+		InputPath: inputPath, MetadataPath: metadataPath, SourceMetadataPath: sourceMetadataPath,
+		OutputDirectory: filepath.Join(seabedRenderOutput, "seabed"), Source: source, SourceChecksum: checksum,
+		IsobathsM: isobaths, VerticalScale: seabedRenderVerticalScale, ControlPoints: seabedRenderControlPoints,
+		Profiles: profiles, ProfileSelections: profileSelections,
+	})
+	return err
+}
+
+func writeSeabedVisualizations(model seabedmodel.Model, metadata seabedmodel.ExportMetadata, options seabedVisualizationOptions) (seabedRenderRunReport, error) {
+	outputDir := strings.TrimSpace(options.OutputDirectory)
+	if outputDir == "" {
+		return seabedRenderRunReport{}, fmt.Errorf("каталог батиметрической визуализации не задан")
+	}
+	if len(options.Profiles) == 0 || len(options.ProfileSelections) == 0 {
+		return seabedRenderRunReport{}, fmt.Errorf("профили рельефа для визуализации не подготовлены")
+	}
 	overviewSVGPath := filepath.Join(outputDir, "svg", "bathymetry-overview.svg")
-	overview, err := bathymetryrender.WriteOverviewSVG(overviewSVGPath, document.Model, bathymetryrender.OverviewConfig{
-		Title: "Батиметрия Чёрного моря", Source: source, SourceChecksum: checksum,
-		Metadata: metadata, IsobathsM: isobaths,
+	overview, err := bathymetryrender.WriteOverviewSVG(overviewSVGPath, model, bathymetryrender.OverviewConfig{
+		Title: "Батиметрия Чёрного моря", Source: options.Source, SourceChecksum: options.SourceChecksum,
+		Metadata: metadata, IsobathsM: options.IsobathsM,
 	})
 	if err != nil {
-		return err
+		return seabedRenderRunReport{}, err
 	}
 	meshDetailsSVGPath := filepath.Join(outputDir, "svg", "mesh-details.svg")
-	meshDetails, err := bathymetryrender.WriteMeshDetailsSVG(meshDetailsSVGPath, document.Model, bathymetryrender.MeshDetailsConfig{
-		Title: "Фактическая сетка Чёрного моря: контрольные фрагменты", Source: source, SourceChecksum: checksum,
-		Metadata: metadata, IsobathsM: isobaths,
+	meshDetails, err := bathymetryrender.WriteMeshDetailsSVG(meshDetailsSVGPath, model, bathymetryrender.MeshDetailsConfig{
+		Title: "Фактическая сетка Чёрного моря: контрольные фрагменты", Source: options.Source, SourceChecksum: options.SourceChecksum,
+		Metadata: metadata, IsobathsM: options.IsobathsM,
 	})
 	if err != nil {
-		return err
+		return seabedRenderRunReport{}, err
 	}
 	profilesCSVPath := filepath.Join(outputDir, "profiles.csv")
-	if err := seabedmodel.WriteProfilesCSV(profilesCSVPath, document.Model, profiles, metadata); err != nil {
-		return err
+	if err := seabedmodel.WriteProfilesCSV(profilesCSVPath, model, options.Profiles, metadata); err != nil {
+		return seabedRenderRunReport{}, err
 	}
 	relief3DSVGPath := filepath.Join(outputDir, "svg", "seabed-3d.svg")
-	relief3D, err := bathymetryrender.WriteReliefSVG(relief3DSVGPath, document.Model, bathymetryrender.ReliefConfig{
-		Title: "3D-рельеф дна Чёрного моря", Source: source, SourceChecksum: checksum,
-		Metadata: metadata, VerticalExaggeration: seabedRenderVerticalScale,
-		ControlPoints: seabedRenderControlPoints, Profiles: profiles,
+	relief3D, err := bathymetryrender.WriteReliefSVG(relief3DSVGPath, model, bathymetryrender.ReliefConfig{
+		Title: "3D-рельеф дна Чёрного моря", Source: options.Source, SourceChecksum: options.SourceChecksum,
+		Metadata: metadata, VerticalExaggeration: options.VerticalScale,
+		ControlPoints: options.ControlPoints, Profiles: options.Profiles,
 	})
 	if err != nil {
-		return err
+		return seabedRenderRunReport{}, err
 	}
 	profilesSVGPath := filepath.Join(outputDir, "svg", "profiles.svg")
-	profilesReport, err := bathymetryrender.WriteProfilesSVG(profilesSVGPath, document.Model, bathymetryrender.ProfilesConfig{
-		Title: "Профили рельефа дна Чёрного моря", Source: source, SourceChecksum: checksum,
-		Metadata: metadata, Profiles: profiles, SelectionReports: profileSelections,
+	profilesReport, err := bathymetryrender.WriteProfilesSVG(profilesSVGPath, model, bathymetryrender.ProfilesConfig{
+		Title: "Профили рельефа дна Чёрного моря", Source: options.Source, SourceChecksum: options.SourceChecksum,
+		Metadata: metadata, Profiles: options.Profiles, SelectionReports: options.ProfileSelections,
 	})
 	if err != nil {
-		return err
+		return seabedRenderRunReport{}, err
 	}
 
 	runReport := seabedRenderRunReport{
 		SchemaVersion: "lito-bathymetry-visualization/v3", GeneratedAt: time.Now().UTC().Format(time.RFC3339),
-		InputMSH: inputPath, ExportMetadata: metadataPath, SourceMetadata: sourceMetadataPath,
+		InputMSH: options.InputPath, ExportMetadata: options.MetadataPath, SourceMetadata: options.SourceMetadataPath,
 		OverviewSVG: overviewSVGPath, MeshDetailsSVG: meshDetailsSVGPath,
 		Relief3DSVG: relief3DSVGPath, ProfilesSVG: profilesSVGPath, ProfilesCSV: profilesCSVPath,
-		Source: source, VerticalReference: metadata.VerticalReference,
+		Source: options.Source, VerticalReference: metadata.VerticalReference,
 		VerticalCaveat: metadata.VerticalCaveat, Overview: overview, MeshDetails: meshDetails,
 		Relief3D: relief3D, Profiles: profilesReport,
 	}
 	reportPath := filepath.Join(outputDir, "bathymetry-overview.json")
 	if err := writeSeabedRenderReport(reportPath, runReport); err != nil {
-		return err
+		return seabedRenderRunReport{}, err
 	}
 
 	if !quiet {
@@ -201,7 +233,7 @@ func runSeabedRender(_ *cobra.Command, _ []string) error {
 				profile.Name, profile.LengthM/1000, profile.PointCount, profile.EndDepthM)
 		}
 	}
-	return nil
+	return runReport, nil
 }
 
 func resolveBathymetryAttribution(explicitSource, sourceMetadata string) (source, checksum, metadataPath string, err error) {
