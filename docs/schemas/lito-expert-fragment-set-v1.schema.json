@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.org/lito/schemas/lito-expert-fragment-set-v1.schema.json",
+  "title": "Закрытый ключ экспертного набора фрагментов Lito",
+  "description": "Воспроизводимый контракт AI-01; содержит анонимные карточки и закрытое соответствие генераторам.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "generated_at",
+    "comparison_report",
+    "comparison_report_sha256",
+    "seed",
+    "fragments",
+    "cards",
+    "excluded_runs",
+    "participant_instruction",
+    "limitation"
+  ],
+  "properties": {
+    "schema_version": { "const": "lito-expert-fragment-set/v1" },
+    "generated_at": { "type": "string", "format": "date-time" },
+    "comparison_report": { "type": "string", "minLength": 1 },
+    "comparison_report_sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "seed": { "type": "string", "minLength": 1 },
+    "fragments": { "type": "array", "minItems": 8, "items": { "$ref": "#/$defs/fragment" } },
+    "cards": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/card" } },
+    "excluded_runs": { "type": "array", "items": { "$ref": "#/$defs/excludedRun" } },
+    "participant_instruction": { "type": "string", "minLength": 1 },
+    "limitation": { "type": "string", "minLength": 1 }
+  },
+  "$defs": {
+    "fragment": {
+      "type": "object",
+      "required": ["id", "name", "feature", "region_id", "split", "latitude_deg", "longitude_deg", "width_m", "height_m", "reference_isobaths_m"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
+        "name": { "type": "string", "minLength": 1 },
+        "feature": { "enum": ["коса", "залив", "остров", "изобаты"] },
+        "region_id": { "type": "string", "minLength": 1 },
+        "split": { "enum": ["training", "evaluation"] },
+        "latitude_deg": { "type": "number", "minimum": -90, "maximum": 90 },
+        "longitude_deg": { "type": "number", "minimum": -180, "maximum": 180 },
+        "width_m": { "type": "number", "minimum": 1000, "maximum": 100000 },
+        "height_m": { "type": "number", "minimum": 1000, "maximum": 100000 },
+        "reference_isobaths_m": { "type": "array", "minItems": 1, "items": { "type": "number", "exclusiveMinimum": 0 } }
+      },
+      "additionalProperties": false
+    },
+    "card": {
+      "type": "object",
+      "required": ["presentation_id", "fragment_id", "feature", "region_id", "split", "level_id", "algorithm", "mesh_sha256", "svg_path", "visible_cells", "visible_contours"],
+      "properties": {
+        "presentation_id": { "type": "string", "pattern": "^E-[0-9]{3,}$" },
+        "fragment_id": { "type": "string", "minLength": 1 },
+        "feature": { "enum": ["коса", "залив", "остров", "изобаты"] },
+        "region_id": { "type": "string", "minLength": 1 },
+        "split": { "enum": ["training", "evaluation"] },
+        "level_id": { "type": "string", "minLength": 1 },
+        "algorithm": { "type": "string", "minLength": 1 },
+        "mesh_sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "svg_path": { "type": "string", "pattern": "^cards/E-[0-9]{3,}\\.svg$" },
+        "visible_cells": { "type": "integer", "minimum": 1 },
+        "visible_contours": { "type": "integer", "minimum": 0 }
+      },
+      "additionalProperties": false
+    },
+    "excludedRun": {
+      "type": "object",
+      "required": ["level_id", "algorithm", "reason"],
+      "properties": {
+        "level_id": { "type": "string", "minLength": 1 },
+        "algorithm": { "type": "string", "minLength": 1 },
+        "reason": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}
