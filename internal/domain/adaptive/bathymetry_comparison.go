@@ -70,33 +70,6 @@ type BathymetryPreservationMetrics struct {
 	DurationSeconds             float64               `json:"duration_seconds"`
 }
 
-type depthSample struct {
-	depthM      float64
-	gradientX   float64
-	gradientY   float64
-	gradientSet bool
-	fallback    bool
-}
-
-type depthTriangle struct {
-	nodeIDs    [3]int
-	minX, minY float64
-	maxX, maxY float64
-	gradientX  float64
-	gradientY  float64
-}
-
-type depthGridIndex struct {
-	nodes         []seabed.Node
-	triangles     []depthTriangle
-	bins          [][]int
-	columns, rows int
-	minX, minY    float64
-	maxX, maxY    float64
-	stepX, stepY  float64
-	nearest       *depthKDNode
-}
-
 // EvaluateBathymetryPreservation переносит глубины опорной модели на узлы
 // новой сетки, а затем использует центры ячеек как независимые от её узлов
 // контрольные точки. Все генераторы проходят одну и ту же процедуру.
@@ -111,7 +84,7 @@ func EvaluateBathymetryPreservation(reference seabed.Model, generated mesh.Mesh,
 	if config.WorstCellCount <= 0 {
 		config.WorstCellCount = DefaultBathymetryComparisonConfig().WorstCellCount
 	}
-	index, err := newDepthGridIndex(reference)
+	index, err := seabed.NewModelDepthSampler(reference)
 	if err != nil {
 		return BathymetryPreservationMetrics{}, err
 	}
@@ -122,9 +95,12 @@ func EvaluateBathymetryPreservation(reference seabed.Model, generated mesh.Mesh,
 	}
 	for nodeID := 1; nodeID < len(generated.Nodes); nodeID++ {
 		point := generated.Nodes[nodeID]
-		sample := index.sample(point.X, point.Y)
-		nodeDepths[nodeID] = sample.depthM
-		if sample.fallback {
+		sample, sampleErr := index.Sample(point.X, point.Y, math.MaxFloat64)
+		if sampleErr != nil {
+			return BathymetryPreservationMetrics{}, sampleErr
+		}
+		nodeDepths[nodeID] = sample.WaterDepthM
+		if sample.NearestFallback {
 			metrics.NearestFallbackNodeCount++
 		}
 	}
@@ -164,8 +140,11 @@ func EvaluateBathymetryPreservation(reference seabed.Model, generated mesh.Mesh,
 		longitudeDeg /= 4
 		latitudeDeg /= 4
 		reconstructedDepthM /= 4
-		referenceSample := index.sample(center.X, center.Y)
-		referenceDepthM := referenceSample.depthM
+		referenceSample, sampleErr := index.Sample(center.X, center.Y, math.MaxFloat64)
+		if sampleErr != nil {
+			return BathymetryPreservationMetrics{}, sampleErr
+		}
+		referenceDepthM := referenceSample.WaterDepthM
 		areaM2 := quadArea(generated.Nodes, cell)
 		if areaM2 <= 0 {
 			continue
@@ -191,9 +170,9 @@ func EvaluateBathymetryPreservation(reference seabed.Model, generated mesh.Mesh,
 				reconstructedIsobathArea[index] += areaM2
 			}
 		}
-		if referenceSample.gradientSet {
+		if referenceSample.GradientAvailable {
 			if gradientX, gradientY, ok := quadDepthGradient(generated.Nodes, cell, nodeDepths); ok {
-				referenceSlopeDeg := math.Atan(math.Hypot(referenceSample.gradientX, referenceSample.gradientY)) * 180 / math.Pi
+				referenceSlopeDeg := math.Atan(math.Hypot(referenceSample.GradientX, referenceSample.GradientY)) * 180 / math.Pi
 				reconstructedSlopeDeg := math.Atan(math.Hypot(gradientX, gradientY)) * 180 / math.Pi
 				slopeErrorDeg := math.Abs(reconstructedSlopeDeg - referenceSlopeDeg)
 				metrics.SlopeEvaluationCellCount++
@@ -247,174 +226,6 @@ func EvaluateBathymetryPreservation(reference seabed.Model, generated mesh.Mesh,
 	}
 	metrics.DurationSeconds = time.Since(started).Seconds()
 	return metrics, nil
-}
-
-func newDepthGridIndex(reference seabed.Model) (*depthGridIndex, error) {
-	if len(reference.Nodes) <= 1 || len(reference.Mesh.Cells) == 0 {
-		return nil, fmt.Errorf("опорная модель BATHY-03 не содержит узлов или ячеек")
-	}
-	index := &depthGridIndex{nodes: reference.Nodes, minX: math.Inf(1), minY: math.Inf(1), maxX: math.Inf(-1), maxY: math.Inf(-1)}
-	validNodeIDs := make([]int, 0, len(reference.Nodes)-1)
-	for nodeID := 1; nodeID < len(reference.Nodes); nodeID++ {
-		node := reference.Nodes[nodeID]
-		if node.WaterDepthM == nil || math.IsNaN(*node.WaterDepthM) || math.IsInf(*node.WaterDepthM, 0) || *node.WaterDepthM < 0 {
-			continue
-		}
-		validNodeIDs = append(validNodeIDs, nodeID)
-		index.minX, index.maxX = math.Min(index.minX, node.XM), math.Max(index.maxX, node.XM)
-		index.minY, index.maxY = math.Min(index.minY, node.YM), math.Max(index.maxY, node.YM)
-	}
-	if len(validNodeIDs) == 0 || index.maxX <= index.minX || index.maxY <= index.minY {
-		return nil, fmt.Errorf("опорная модель BATHY-03 не содержит пригодных глубин")
-	}
-	for _, cell := range reference.Mesh.Cells {
-		if cell.NodeCount != 4 {
-			continue
-		}
-		for _, ids := range [][3]int{{cell.Nodes[0], cell.Nodes[1], cell.Nodes[2]}, {cell.Nodes[0], cell.Nodes[2], cell.Nodes[3]}} {
-			triangle, ok := makeDepthTriangle(reference.Nodes, ids)
-			if ok {
-				index.triangles = append(index.triangles, triangle)
-			}
-		}
-	}
-	if len(index.triangles) == 0 {
-		return nil, fmt.Errorf("опорная модель BATHY-03 не содержит интерполируемых ячеек")
-	}
-	resolution := int(math.Ceil(math.Sqrt(float64(len(index.triangles)))))
-	if resolution < 16 {
-		resolution = 16
-	}
-	index.columns, index.rows = resolution, resolution
-	index.stepX = (index.maxX - index.minX) / float64(index.columns)
-	index.stepY = (index.maxY - index.minY) / float64(index.rows)
-	index.bins = make([][]int, index.columns*index.rows)
-	for triangleID, triangle := range index.triangles {
-		minColumn, minRow := index.binCoordinates(triangle.minX, triangle.minY)
-		maxColumn, maxRow := index.binCoordinates(triangle.maxX, triangle.maxY)
-		for row := minRow; row <= maxRow; row++ {
-			for column := minColumn; column <= maxColumn; column++ {
-				binID := row*index.columns + column
-				index.bins[binID] = append(index.bins[binID], triangleID)
-			}
-		}
-	}
-	index.nearest = buildDepthKDTree(reference.Nodes, validNodeIDs, 0)
-	return index, nil
-}
-
-func makeDepthTriangle(nodes []seabed.Node, ids [3]int) (depthTriangle, bool) {
-	triangle := depthTriangle{nodeIDs: ids, minX: math.Inf(1), minY: math.Inf(1), maxX: math.Inf(-1), maxY: math.Inf(-1)}
-	for _, nodeID := range ids {
-		if nodeID <= 0 || nodeID >= len(nodes) || nodes[nodeID].WaterDepthM == nil {
-			return depthTriangle{}, false
-		}
-		node := nodes[nodeID]
-		triangle.minX, triangle.maxX = math.Min(triangle.minX, node.XM), math.Max(triangle.maxX, node.XM)
-		triangle.minY, triangle.maxY = math.Min(triangle.minY, node.YM), math.Max(triangle.maxY, node.YM)
-	}
-	a, b, c := nodes[ids[0]], nodes[ids[1]], nodes[ids[2]]
-	denominator := (b.XM-a.XM)*(c.YM-a.YM) - (c.XM-a.XM)*(b.YM-a.YM)
-	if math.Abs(denominator) <= 1e-12 {
-		return depthTriangle{}, false
-	}
-	az, bz, cz := *a.WaterDepthM, *b.WaterDepthM, *c.WaterDepthM
-	triangle.gradientX = ((bz-az)*(c.YM-a.YM) - (cz-az)*(b.YM-a.YM)) / denominator
-	triangle.gradientY = ((b.XM-a.XM)*(cz-az) - (c.XM-a.XM)*(bz-az)) / denominator
-	return triangle, true
-}
-
-func (index *depthGridIndex) sample(x, y float64) depthSample {
-	column, row := index.binCoordinates(x, y)
-	for _, triangleID := range index.bins[row*index.columns+column] {
-		triangle := index.triangles[triangleID]
-		if x < triangle.minX-1e-7 || x > triangle.maxX+1e-7 || y < triangle.minY-1e-7 || y > triangle.maxY+1e-7 {
-			continue
-		}
-		if sample, ok := interpolateDepthTriangle(index.nodes, triangle, x, y); ok {
-			return sample
-		}
-	}
-	nearestID := nearestDepthNode(index.nearest, index.nodes, x, y, 0, math.Inf(1))
-	if nearestID == 0 || index.nodes[nearestID].WaterDepthM == nil {
-		return depthSample{fallback: true}
-	}
-	return depthSample{depthM: *index.nodes[nearestID].WaterDepthM, fallback: true}
-}
-
-func (index *depthGridIndex) binCoordinates(x, y float64) (int, int) {
-	column := int(math.Floor((x - index.minX) / index.stepX))
-	row := int(math.Floor((y - index.minY) / index.stepY))
-	column = max(0, min(index.columns-1, column))
-	row = max(0, min(index.rows-1, row))
-	return column, row
-}
-
-func interpolateDepthTriangle(nodes []seabed.Node, triangle depthTriangle, x, y float64) (depthSample, bool) {
-	a, b, c := nodes[triangle.nodeIDs[0]], nodes[triangle.nodeIDs[1]], nodes[triangle.nodeIDs[2]]
-	denominator := (b.YM-c.YM)*(a.XM-c.XM) + (c.XM-b.XM)*(a.YM-c.YM)
-	if math.Abs(denominator) <= 1e-12 {
-		return depthSample{}, false
-	}
-	wA := ((b.YM-c.YM)*(x-c.XM) + (c.XM-b.XM)*(y-c.YM)) / denominator
-	wB := ((c.YM-a.YM)*(x-c.XM) + (a.XM-c.XM)*(y-c.YM)) / denominator
-	wC := 1 - wA - wB
-	if wA < -1e-9 || wB < -1e-9 || wC < -1e-9 {
-		return depthSample{}, false
-	}
-	depthM := wA**a.WaterDepthM + wB**b.WaterDepthM + wC**c.WaterDepthM
-	return depthSample{depthM: math.Max(0, depthM), gradientX: triangle.gradientX, gradientY: triangle.gradientY, gradientSet: true}, true
-}
-
-type depthKDNode struct {
-	id, axis    int
-	left, right *depthKDNode
-}
-
-func buildDepthKDTree(nodes []seabed.Node, ids []int, depth int) *depthKDNode {
-	if len(ids) == 0 {
-		return nil
-	}
-	axis := depth % 2
-	sort.Slice(ids, func(left, right int) bool {
-		if axis == 0 {
-			return nodes[ids[left]].XM < nodes[ids[right]].XM
-		}
-		return nodes[ids[left]].YM < nodes[ids[right]].YM
-	})
-	middle := len(ids) / 2
-	return &depthKDNode{
-		id: ids[middle], axis: axis,
-		left: buildDepthKDTree(nodes, ids[:middle], depth+1), right: buildDepthKDTree(nodes, ids[middle+1:], depth+1),
-	}
-}
-
-func nearestDepthNode(node *depthKDNode, points []seabed.Node, x, y float64, bestID int, bestSquared float64) int {
-	if node == nil {
-		return bestID
-	}
-	point := points[node.id]
-	distance := (point.XM-x)*(point.XM-x) + (point.YM-y)*(point.YM-y)
-	if distance < bestSquared {
-		bestSquared, bestID = distance, node.id
-	}
-	delta := point.XM - x
-	if node.axis == 1 {
-		delta = point.YM - y
-	}
-	near, far := node.left, node.right
-	if delta < 0 {
-		near, far = node.right, node.left
-	}
-	bestID = nearestDepthNode(near, points, x, y, bestID, bestSquared)
-	if bestID != 0 {
-		bestPoint := points[bestID]
-		bestSquared = (bestPoint.XM-x)*(bestPoint.XM-x) + (bestPoint.YM-y)*(bestPoint.YM-y)
-	}
-	if delta*delta < bestSquared {
-		bestID = nearestDepthNode(far, points, x, y, bestID, bestSquared)
-	}
-	return bestID
 }
 
 func quadArea(nodes []mesh.Point, cell mesh.Cell) float64 {

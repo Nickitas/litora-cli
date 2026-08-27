@@ -40,6 +40,47 @@ func TestHelpForSeabedRenderIsRussian(t *testing.T) {
 	}
 }
 
+func TestSeabedValidateCommandExposesScientificQualityInputs(t *testing.T) {
+	command, _, err := rootCmd.Find([]string{"seabed", "validate"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if command != seabedValidateCmd {
+		t.Fatalf("найдена неверная команда: %s", command.CommandPath())
+	}
+	for _, flag := range []string{
+		"input", "metadata", "reference", "reference-metadata", "reference-passport",
+		"size-field", "size-field-report", "output", "isobaths", "worst-cells", "max-nearest-distance",
+	} {
+		if command.Flags().Lookup(flag) == nil {
+			t.Fatalf("команда seabed validate не содержит флаг --%s", flag)
+		}
+	}
+	for _, marker := range []string{
+		"отложенные точки", "MAE/RMSE/смещение/P95", "расстояния изобат",
+		"вертикальной неопределённости", "Межпродуктовый контроль",
+	} {
+		if !strings.Contains(command.Long, marker) {
+			t.Fatalf("описание seabed validate не объясняет %q", marker)
+		}
+	}
+}
+
+func TestHelpForSeabedValidateIsRussian(t *testing.T) {
+	prepareRussianHelp()
+	usage := seabedValidateCmd.UsageString()
+	for _, marker := range []string{"Использование:", "Флаги:", "опорный MSH", "показать справку"} {
+		if !strings.Contains(usage, marker) {
+			t.Fatalf("русская справка seabed validate не содержит %q:\n%s", marker, usage)
+		}
+	}
+	for _, marker := range []string{"Usage:", "Flags:", "help for validate", "[flags]", "(default "} {
+		if strings.Contains(usage, marker) {
+			t.Fatalf("в справке seabed validate остался английский legacy-текст %q:\n%s", marker, usage)
+		}
+	}
+}
+
 func TestSeabedAdaptCommandExposesExplainableFieldParameters(t *testing.T) {
 	command, _, err := rootCmd.Find([]string{"seabed", "adapt"})
 	if err != nil {

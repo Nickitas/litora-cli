@@ -345,7 +345,7 @@ Frontal-Delaunay for Quads и Packing of Parallelograms. Для каждого �
 [`todo/DEVELOPMENT_PLAN.md`](todo/DEVELOPMENT_PLAN.md).
 Задачи `ARCH-01`, `DATA-01`, `DATA-02`, `GEO-01`, `BATHY-01`, `BATHY-02`,
 `BATHY-03`, `EXPORT-01`, `EXPORT-02`, `VIEW-01`–`VIEW-03`, `ADAPT-01`–`ADAPT-03`
-и `QA-01`
+и `QA-01`–`QA-02`
 выполнены: соглашения о
 знаке, вертикальной системе, NoData, полях узлов/ячеек и форматах закреплены в
 [`docs/adr/seabed-data-contract.md`](docs/adr/seabed-data-contract.md), а
@@ -490,6 +490,24 @@ Property-тест и Go fuzzing запрещают нечисловой резу
 `Inf`, положительные отметки, значения ниже `−3000 м` и некорректное
 разрешение. Подробная матрица проверок и команды воспроизведения находятся в
 [`docs/bathymetry-interpolation-quality.md`](docs/bathymetry-interpolation-quality.md).
+
+QA-02 добавляет отдельную проверку по опорной батиметрической модели:
+
+```bash
+./lito seabed validate \
+  --reference /путь/к/control/black-sea-reference.msh \
+  --reference-passport /путь/к/control/reference-passport.json
+```
+
+Центры опорных ячеек образуют отложенную выборку. JSON/TSV содержат
+MAE/RMSE/смещение/P95 глубины, объём, площади между изобатами, симметрические
+расстояния изобат, ошибку уклона, ближайшие замены, геометрическое качество и
+соответствие ADAPT-01 по зонам. Пороги выводятся из горизонтального разрешения
+и вертикальной неопределённости контрольного источника. Отчёт отдельно хранит
+`metrics_accepted` и `publication_ready`, поэтому межпродуктовый контроль
+GEBCO/EMODnet не выдаётся за независимую полевую валидацию. Методика и
+ограничения описаны в
+[`docs/relief-quality-validation.md`](docs/relief-quality-validation.md).
 
 ### 3. Геоморфологическое моделирование эрозии
 

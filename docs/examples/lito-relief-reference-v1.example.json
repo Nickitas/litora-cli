@@ -1,0 +1,16 @@
+{
+  "schema_version": "lito-relief-reference/v1",
+  "title": "Синтетическая контрольная модель для проверки конвейера QA-02",
+  "source_product": "аналитическая наклонная плоскость",
+  "source_version": "1",
+  "dataset_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "horizontal_resolution_m": 100,
+  "vertical_uncertainty_m": 4,
+  "vertical_reference": "Синтетический средний уровень моря",
+  "validation_class": "independent_measurements",
+  "sampling_design": "центры независимой регулярной сетки 100 м",
+  "excluded_sources": [],
+  "limitations": [
+    "Пример проверяет формат и математику, но не является данными Чёрного моря."
+  ]
+}
