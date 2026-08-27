@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://lito.local/schemas/lito-ai-necessity-v1.schema.json",
+  "title": "lito-ai-necessity/v1",
+  "description": "Воспроизводимый контракт AI-02 для решения о необходимости ML-кандидата.",
+  "type": "object",
+  "required": ["schema_version", "generated_at", "inputs", "config", "decision"],
+  "properties": {
+    "schema_version": { "const": "lito-ai-necessity/v1" },
+    "generated_at": { "type": "string", "format": "date-time" },
+    "inputs": {
+      "type": "object",
+      "required": ["organizer_key_sha256", "comparison_sha256", "ratings_sha256"]
+    },
+    "config": {
+      "type": "object",
+      "required": ["minimum_experts_per_card", "minimum_training_cards", "minimum_evaluation_cards", "ridge_lambda", "minimum_rmse_improvement", "maximum_deterministic_abs_rho"]
+    },
+    "decision": {
+      "type": "object",
+      "required": ["training_record_count", "evaluation_record_count", "baseline_model", "candidate_model", "baseline_evaluation", "candidate_evaluation", "ml_recommended", "reasons"]
+    }
+  }
+}

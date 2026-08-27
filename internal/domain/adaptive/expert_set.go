@@ -1,6 +1,7 @@
 package adaptive
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
 	"math"
@@ -8,7 +9,6 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
-	"text/tabwriter"
 )
 
 const (
@@ -190,6 +190,32 @@ func WriteExpertSetManifest(path string, manifest ExpertSetManifest) error {
 	return writeExpertSetFile(path, append(data, '\n'))
 }
 
+// ReadExpertSetManifest читает и проверяет закрытый ключ AI-01 перед
+// последующей оценкой AI-02.
+func ReadExpertSetManifest(path string) (ExpertSetManifest, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return ExpertSetManifest{}, fmt.Errorf("чтение закрытого ключа AI-01 %q: %w", path, err)
+	}
+	var manifest ExpertSetManifest
+	if err := json.Unmarshal(data, &manifest); err != nil {
+		return ExpertSetManifest{}, fmt.Errorf("разбор закрытого ключа AI-01 %q: %w", path, err)
+	}
+	if manifest.SchemaVersion != ExpertSetSchemaVersion {
+		return ExpertSetManifest{}, fmt.Errorf("закрытый ключ AI-01 имеет неподдерживаемую схему %q", manifest.SchemaVersion)
+	}
+	if err := ValidateExpertFragments(manifest.Fragments); err != nil {
+		return ExpertSetManifest{}, err
+	}
+	if len(manifest.Cards) == 0 {
+		return ExpertSetManifest{}, fmt.Errorf("закрытый ключ AI-01 не содержит карточек")
+	}
+	if err := validateExpertCards(manifest.Cards); err != nil {
+		return ExpertSetManifest{}, err
+	}
+	return manifest, nil
+}
+
 // WriteExpertAssignmentsTSV сохраняет открытый лист оценивания. В нём
 // намеренно отсутствуют генератор, уровень и географическая часть набора.
 func WriteExpertAssignmentsTSV(path string, cards []ExpertSetCard) error {
@@ -204,7 +230,7 @@ func WriteExpertAssignmentsTSV(path string, cards []ExpertSetCard) error {
 		return fmt.Errorf("создание листа оценивания AI-01 %q: %w", path, err)
 	}
 	defer func() { _ = file.Close() }()
-	writer := tabwriter.NewWriter(file, 0, 0, 2, ' ', 0)
+	writer := bufio.NewWriter(file)
 	if _, err := fmt.Fprintln(writer, "Идентификатор карточки\tОсобенность\tЭксперт\tБерег 1–5\tИзобаты 1–5\tСетка 1–5\tАртефакты 1–5\tКомментарий"); err != nil {
 		return err
 	}
