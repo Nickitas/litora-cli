@@ -59,6 +59,7 @@ lito map black-sea             # обзорная карта всего побе
 lito dimension                 # фрактальный анализ (box-counting)
 lito koch-demo                 # учебная синтетическая Кох-подобная серия
 lito mesh                      # генерация и сравнение 2D-сеток всей акватории
+lito seabed build              # MSH + GEBCO → модель дна, MSH/VTU/CSV/JSON
 lito seabed render             # карты глубин, 3D-рельеф и профили дна
 lito seabed check-full         # QA полного контура Чёрного моря на сетке 1000 м
 lito seabed adapt              # поле размера адаптивной сетки 200–1000 м
@@ -346,7 +347,7 @@ Frontal-Delaunay for Quads и Packing of Parallelograms. Для каждого �
 [`todo/DEVELOPMENT_PLAN.md`](todo/DEVELOPMENT_PLAN.md).
 Задачи `ARCH-01`, `DATA-01`, `DATA-02`, `GEO-01`, `BATHY-01`, `BATHY-02`,
 `BATHY-03`, `EXPORT-01`, `EXPORT-02`, `VIEW-01`–`VIEW-03`, `ADAPT-01`–`ADAPT-03`
-и `QA-01`–`QA-03`
+и `QA-01`–`QA-03`, `CLI-01`
 выполнены: соглашения о
 знаке, вертикальной системе, NoData, полях узлов/ячеек и форматах закреплены в
 [`docs/adr/seabed-data-contract.md`](docs/adr/seabed-data-contract.md), а
@@ -381,6 +382,32 @@ WGS 84; методика обратного преобразования и пр
 `cells.csv`, `profiles.csv` и `export-metadata.json`; идентификаторы узлов и
 ячеек проверяются обратным чтением. Формат описан в
 [`docs/seabed-vtu-csv-export.md`](docs/seabed-vtu-csv-export.md).
+
+CLI-01 объединяет эти артефакты в документированный путь `lito seabed`:
+
+```bash
+# 1. Выбрать фактическую full-quad сетку из output/mesh/.
+./lito seabed build \
+  --mesh output/mesh/msh/black-sea-edge-1000-detail-1000-frontal-quad.msh
+
+# 2. Построить карты и профили без повторного назначения глубин.
+./lito seabed render
+
+# 3. При наличии независимой опорной модели выполнить QA-02.
+./lito seabed validate --reference /путь/к/reference.msh \
+  --reference-passport /путь/к/reference-passport.json
+
+# 4. Воспроизводимо проверить весь контрольный контур 1000 м.
+./lito seabed check-full
+```
+
+`seabed build` принимает только плоский MSH, сверяет SHA-256 и паспорт GEBCO,
+при необходимости восстанавливает WGS 84 из LAEA, а затем сохраняет
+`black-sea-depth.msh`, `black-sea-depth.vtu`, CSV, журнал береговых поправок,
+`build-report.json` и `build.log` внутри `output/seabed/`. До запуска действуют
+лимиты на число узлов, ячеек и ожидаемый размер экспорта; флаг `--quiet`
+подавляет только вывод в терминал, но не отчёты. Полная спецификация команд,
+путей и ограничений находится в [`docs/seabed-cli.md`](docs/seabed-cli.md).
 
 VIEW-01, VIEW-02 и VIEW-03 используют одну воспроизводимую подкоманду:
 
