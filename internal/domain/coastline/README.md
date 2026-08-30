@@ -14,6 +14,7 @@
   - [Источники данных](#источники-данных)
   - [Алгоритм разрешения источника](#алгоритм-разрешения-источника)
   - [Парсинг GeoJSON](#парсинг-geojson)
+  - [Эталонные участки](#эталонные-участки)
 - [Валидация геометрии](#валидация-геометрии)
   - [Удаление дубликатов](#удаление-дубликатов)
   - [Выбор оптимального порядка обхода](#выбор-оптимального-порядка-обхода)
@@ -45,18 +46,20 @@
 
 ```
 internal/domain/coastline/
-├── source.go           # Загрузка из JSON/GeoJSON, HTTP, кэш
-├── validation.go       # Валидация геометрии, self-intersection
-├── validation_summary.go # Агрегация проблем валидации
-├── visualization.go    # Подсветка проблемных сегментов для SVG
-├── sanity.go           # Sanity check длины береговой линии
-├── metrics.go          # Консольный вывод метрик
-├── locations.go        # Справочник известных локаций
-├── data.go             # Константы, GeoBounds, LoadOptions
-├── data_test.go
-├── source_test.go
-├── validation_summary_test.go
-└── visualization_test.go
+├── constants.go           # Константы с русскими комментариями
+├── doc.go                 # Документация пакета (godoc)
+├── source.go              # Загрузка из JSON/GeoJSON, HTTP, кэш, инспекция источника
+├── validation.go          # Валидация геометрии, self-intersection
+├── validation_summary.go  # Агрегация проблем валидации
+├── visualization.go       # Подсветка проблемных сегментов для SVG
+├── sanity.go              # Sanity check длины береговой линии
+├── metrics.go             # Консольный вывод метрик
+├── locations.go           # Справочник известных локаций
+├── utils.go               # Вспомогательные функции для валидации строк
+├── data_test.go           # Тесты загрузки данных
+├── source_test.go         # Тесты источника данных
+├── validation_summary_test.go  # Тесты сводки валидации
+└── visualization_test.go      # Тесты визуализации
 ```
 
 Зависимости:
@@ -111,7 +114,60 @@ type LoadResult struct {
     Validation   ValidationReport  // Отчёт валидации
     Source       string            // Фактический источник данных
     DatasetName  string            // Имя набора (из метаданных или файла)
-    LoadWarnings []string          // Предупреждения при загрузке (fallback и т.д.)
+    LoadWarnings []string          // Предупреждения при загрузке кэша или удалённого источника
+}
+```
+
+### Константы модуля
+
+Основные константы определены в `constants.go`:
+
+```go
+// Пути к файлам
+const (
+    DefaultCoastlineJSONPath = "data/black-sea.json"
+    DefaultCoastlineCacheDir = "data/cache"
+    DefaultCoastlineSnapshotDir = "data/snapshots"
+)
+
+// Параметры HTTP
+const (
+    defaultHTTPTimeout = 12 * time.Second
+    marineRegionsWFSURL = "https://geo.vliz.be/geoserver/MarineRegions/wfs"
+    blackSeaMarineRegionID = 3319
+)
+
+// Валидация координат
+const (
+    minValidLatitude = -90.0
+    maxValidLatitude = 90.0
+    minValidLongitude = -180.0
+    maxValidLongitude = 180.0
+    pointPrecision = 6      // Точность для ключей точек
+    eps = 1e-9              // Эпсилон для сравнения float
+)
+
+// Анализ геометрии
+const (
+    longSegmentWarningKM = 450.0           // Порог длинных сегментов
+    locationMatchThreshold = 0.15           // Порог сопоставления локаций
+    maxConsolePoints = 30                   // Лимит точек для консоли
+    maxPointsForDuplicateCheck = 200       // Лимит для проверки дубликатов
+)
+
+// Права доступа
+const (
+    dirPermissions = 0o755
+    filePermissions = 0o644
+)
+```
+
+Границы Чёрного моря:
+
+```go
+var DefaultBlackSeaBounds = GeoBounds{
+    MinLat: 40.5, MaxLat: 46.8,
+    MinLon: 27.0, MaxLon: 42.2,
 }
 ```
 
@@ -121,11 +177,13 @@ type LoadResult struct {
 
 ### Источники данных
 
-Модуль поддерживает три уровня источников с приоритетом:
+Модуль поддерживает два взаимно однозначных режима:
 
-1. **Удалённый GeoJSON** — WFS-эндпоинт Marine Regions или произвольный URL
-2. **Локальный кэш** — `data/cache/black-sea.geojson` или хэш URL
-3. **Локальный fallback** — `data/black-sea.json`
+1. **Локальный режим** — если `LocalPath` задан, читается только этот файл.
+   Ошибка чтения немедленно возвращается вызывающему коду; кэш и URL не
+   используются.
+2. **Удалённый режим** — если `LocalPath` пуст, используется `RemoteURL` и его
+   кэш. Если URL также пуст, читается `data/black-sea.json`.
 
 Константы по умолчанию:
 
@@ -150,19 +208,16 @@ https://geo.vliz.be/geoserver/MarineRegions/wfs?
 
 ### Алгоритм разрешения источника
 
-Функция `resolveSourcePayload()` реализует стратегию загрузки с fallback:
+Функция `resolveSourcePayload()` реализует строгую стратегию выбора источника:
 
 ```
-1. Если RemoteURL пуст → читать из LocalPath
-2. Иначе:
-   2a. Если Refresh=false и кэш существует → вернуть кэш
-   2b. Попытаться скачать удалённый GeoJSON
-       - Успех → обновить кэш, вернуть удалённый
-       - Неудача → попробовать кэш
-         - Кэш есть → вернуть с warning
-         - Кэша нет → попробовать LocalPath
-           - Файл есть → вернуть с warning
-           - Файла нет → ошибка
+1. Если LocalPath задан → читать только LocalPath; ошибка сразу завершается
+2. Если LocalPath пуст и RemoteURL пуст → читать локальный файл по умолчанию
+3. Если LocalPath пуст и RemoteURL задан:
+   3a. Если Refresh=false и кэш существует → вернуть кэш
+   3b. Попытаться скачать удалённый GeoJSON
+       - Успех → обновить кэш и вернуть удалённый источник
+       - Неудача → попробовать кэш; при отсутствии кэша вернуть ошибку
 ```
 
 ### Парсинг GeoJSON
@@ -210,6 +265,13 @@ https://geo.vliz.be/geoserver/MarineRegions/wfs?
 ```
 
 Конвертация координат: GeoJSON хранит `[longitude, latitude]`, модуль преобразует в `LatLon{Lat, Lon}`.
+
+### Компактный локальный формат
+
+Локальный JSON-файл с полем `coastline` можно передать в `Load` и CLI через
+`--input`. Модуль извлечёт из него последовательность `LatLon`, что позволяет
+использовать собственный сегмент береговой линии без ручного копирования
+координат.
 
 ---
 
@@ -672,7 +734,7 @@ data/snapshots/
 
 | Константа | Значение | Описание |
 |-----------|----------|----------|
-| `DefaultCoastlineJSONPath` | `"data/black-sea.json"` | Путь к локальному fallback |
+| `DefaultCoastlineJSONPath` | `"data/black-sea.json"` | Локальный путь по умолчанию |
 | `DefaultCoastlineCacheDir` | `"data/cache"` | Директория кэша |
 | `DefaultCoastlineSnapshotDir` | `"data/snapshots"` | Директория snapshot-ов |
 | `EarthRadiusKM` | `6371.0` | Средний радиус Земли |
@@ -862,6 +924,28 @@ Sanity check **никогда не возвращает ошибку**. Вмес
 
 ---
 
+## Вспомогательные функции
+
+В модуле `utils.go` определены функции для валидации строковых параметров:
+
+```go
+// Проверка, что строка не пуста после удаления пробелов
+func isNotEmpty(s string) bool
+
+// Проверка, что строка пуста после удаления пробелов
+func isEmpty(s string) bool
+
+// Возвращает строку или значение по умолчанию, если строка пуста
+func orDefault(s, defaultValue string) string
+
+// Удаляет пробельные символы из начала и конца строки
+func trimSpace(s string) string
+```
+
+Эти функции используются во всём модуле для валидации пользовательского ввода и параметров конфигурации.
+
+---
+
 ## Тестирование
 
 Модуль покрыт unit-тестами. Запуск:
@@ -879,8 +963,8 @@ go test ./internal/domain/coastline/...
 | `findSelfIntersections` | ✅ Обнаружение пересекающихся сегментов |
 | `SanityCheck` |✅ Warning для известного набора с некорректной длиной<br>✅ Пропуск для неизвестного набора |
 | `FetchCoastlineData` | ✅ Парсинг GeoJSON Polygon с фильтрацией по bounds<br>✅ Сохранение замкнутого кольца |
-| `Load` | ✅ Использование удалённого GeoJSON<br>✅ Сохранение замкнутого кольца<br>✅ Fallback на локальный JSON при ошибке remote<br>✅ Использование кэша без remote-запроса<br>✅ Обновление кэша при `Refresh=true`<br>✅ Использование stale-кэша при ошибке refresh |
-| `InspectSource` | ✅ Сохранение snapshot + извлечение метаданных из GeoJSON<br>✅ Fallback на локальный + генерация `.json` snapshot |
+| `Load` | ✅ Приоритет явного локального файла<br>✅ Ошибка без локального fallback<br>✅ Использование удалённого GeoJSON<br>✅ Сохранение замкнутого кольца<br>✅ Использование кэша без remote-запроса<br>✅ Обновление кэша при `Refresh=true`<br>✅ Использование stale-кэша при ошибке refresh |
+| `InspectSource` | ✅ Строгий выбор локального или удалённого режима<br>✅ Сохранение snapshot + извлечение метаданных из GeoJSON |
 | `BuildValidationSummary` | ✅ Включение длинных сегментов и дубликатов<br>✅ Стабильные строки с count=0 для чистой геометрии |
 | `BuildVisualizationHints` | ✅ Обнаружение длинных сегментов с правильными индексами |
 

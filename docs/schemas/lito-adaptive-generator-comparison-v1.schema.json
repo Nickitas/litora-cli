@@ -1,0 +1,256 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.org/lito/schemas/lito-adaptive-generator-comparison-v1.schema.json",
+  "title": "Сравнение генераторов адаптивной сетки Lito",
+  "description": "Воспроизводимый отчёт ADAPT-03 для контрольных диапазонов поля размера Чёрного моря.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "generated_at",
+    "inputs",
+    "projection",
+    "gmsh_version",
+    "generator_timeout",
+    "criterion",
+    "levels",
+    "accepted",
+    "reasons"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "lito-adaptive-generator-comparison/v1"
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "inputs": {
+      "$ref": "#/$defs/inputs"
+    },
+    "projection": {
+      "type": "string",
+      "minLength": 1
+    },
+    "projection_round_trip_max_error_meters": {
+      "type": "number",
+      "minimum": 0
+    },
+    "boundary_detail_meters": {
+      "type": "number",
+      "exclusiveMinimum": 0
+    },
+    "effective_boundary_detail_meters": {
+      "type": "number",
+      "exclusiveMinimum": 0
+    },
+    "gmsh_path": {
+      "type": "string",
+      "minLength": 1
+    },
+    "gmsh_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "generator_timeout": {
+      "type": "string",
+      "minLength": 1
+    },
+    "maximum_cell_count": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "large_run_allowed": {
+      "type": "boolean"
+    },
+    "criterion": {
+      "$ref": "#/$defs/criterion"
+    },
+    "levels": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/level"
+      }
+    },
+    "accepted": {
+      "type": "boolean"
+    },
+    "reasons": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "inputs": {
+      "type": "object",
+      "required": [
+        "input_msh",
+        "input_msh_sha256",
+        "export_metadata",
+        "export_metadata_sha256",
+        "size_field_csv",
+        "size_field_csv_sha256",
+        "size_field_report",
+        "size_field_report_sha256",
+        "coastline",
+        "coastline_sha256"
+      ],
+      "properties": {
+        "input_msh": { "type": "string", "minLength": 1 },
+        "input_msh_sha256": { "$ref": "#/$defs/sha256" },
+        "export_metadata": { "type": "string", "minLength": 1 },
+        "export_metadata_sha256": { "$ref": "#/$defs/sha256" },
+        "size_field_csv": { "type": "string", "minLength": 1 },
+        "size_field_csv_sha256": { "$ref": "#/$defs/sha256" },
+        "size_field_report": { "type": "string", "minLength": 1 },
+        "size_field_report_sha256": { "$ref": "#/$defs/sha256" },
+        "coastline": { "type": "string", "minLength": 1 },
+        "coastline_sha256": { "$ref": "#/$defs/sha256" }
+      },
+      "additionalProperties": false
+    },
+    "criterion": {
+      "type": "object",
+      "required": [
+        "method",
+        "weights",
+        "coastline_score",
+        "bathymetry_score",
+        "geometry_score",
+        "target_size_score",
+        "efficiency_score",
+        "limitation"
+      ],
+      "properties": {
+        "method": { "type": "string" },
+        "weights": {
+          "type": "object",
+          "additionalProperties": { "type": "number", "minimum": 0, "maximum": 1 }
+        },
+        "coastline_score": { "type": "string" },
+        "bathymetry_score": { "type": "string" },
+        "geometry_score": { "type": "string" },
+        "target_size_score": { "type": "string" },
+        "efficiency_score": { "type": "string" },
+        "limitation": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "level": {
+      "type": "object",
+      "required": [
+        "level",
+        "transformation",
+        "preflight",
+        "successful_generator_count",
+        "failed_generator_count",
+        "coastline_deviation_spread_percent",
+        "boundary_rms_spread_m",
+        "common_boundary_confirmed",
+        "runs"
+      ],
+      "properties": {
+        "level": {
+          "type": "object",
+          "required": ["id", "name", "minimum_size_m", "maximum_size_m"],
+          "properties": {
+            "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
+            "name": { "type": "string", "minLength": 1 },
+            "minimum_size_m": { "type": "number", "exclusiveMinimum": 0 },
+            "maximum_size_m": { "type": "number", "exclusiveMinimum": 0 }
+          },
+          "additionalProperties": false
+        },
+        "transformation": { "type": "string", "minLength": 1 },
+        "preflight": { "type": "object" },
+        "best_generator": { "type": "string" },
+        "successful_generator_count": { "type": "integer", "minimum": 0 },
+        "failed_generator_count": { "type": "integer", "minimum": 0 },
+        "coastline_deviation_spread_percent": { "type": "number", "minimum": 0 },
+        "boundary_rms_spread_m": { "type": "number", "minimum": 0 },
+        "common_boundary_confirmed": { "type": "boolean" },
+        "runs": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/run" }
+        }
+      },
+      "additionalProperties": false
+    },
+    "run": {
+      "type": "object",
+      "required": [
+        "algorithm",
+        "success",
+        "resources",
+        "topology",
+        "geometry",
+        "edge_zones",
+        "bathymetry",
+        "score",
+        "artifacts"
+      ],
+      "properties": {
+        "rank": { "type": "integer", "minimum": 1 },
+        "algorithm": {
+          "enum": ["delaunay", "frontal-quad", "parallelograms"]
+        },
+        "success": { "type": "boolean" },
+        "error": { "type": "string" },
+        "resources": { "type": "object" },
+        "topology": { "type": "object" },
+        "geometry": { "type": "object" },
+        "edge_zones": { "type": "array", "items": { "type": "object" } },
+        "bathymetry": { "$ref": "#/$defs/bathymetry" },
+        "score": { "$ref": "#/$defs/score" },
+        "artifacts": { "type": "object" }
+      },
+      "additionalProperties": false
+    },
+    "bathymetry": {
+      "type": "object",
+      "properties": {
+        "method": { "type": "string" },
+        "evaluation_cell_count": { "type": "integer", "minimum": 0 },
+        "depth_bias_m": { "type": "number" },
+        "depth_mae_m": { "type": "number", "minimum": 0 },
+        "depth_rmse_m": { "type": "number", "minimum": 0 },
+        "depth_p95_absolute_error_m": { "type": "number", "minimum": 0 },
+        "water_volume_deviation_percent": { "type": "number" },
+        "slope_rmse_deg": { "type": "number", "minimum": 0 },
+        "nearest_fallback_node_percent": { "type": "number", "minimum": 0, "maximum": 100 },
+        "mean_isobath_area_deviation_percent": { "type": "number", "minimum": 0 },
+        "isobaths": { "type": "array", "items": { "type": "object" } },
+        "worst_cells": { "type": "array", "items": { "type": "object" } }
+      },
+      "additionalProperties": true
+    },
+    "score": {
+      "type": "object",
+      "required": [
+        "coastline",
+        "bathymetry",
+        "cell_geometry",
+        "target_size_compliance",
+        "efficiency",
+        "overall"
+      ],
+      "properties": {
+        "coastline": { "type": "number", "minimum": 0, "maximum": 100 },
+        "bathymetry": { "type": "number", "minimum": 0, "maximum": 100 },
+        "cell_geometry": { "type": "number", "minimum": 0, "maximum": 100 },
+        "target_size_compliance": { "type": "number", "minimum": 0, "maximum": 100 },
+        "efficiency": { "type": "number", "minimum": 0, "maximum": 100 },
+        "overall": { "type": "number", "minimum": 0, "maximum": 100 }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

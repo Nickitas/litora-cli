@@ -57,7 +57,28 @@ func TestLoadFromJSONRejectsInvalidLatitude(t *testing.T) {
 		t.Fatal("expected error for invalid latitude, got nil")
 	}
 
-	if !strings.Contains(err.Error(), "invalid latitude") {
+	if !strings.Contains(err.Error(), "недопустимую широту") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestLoadFromJSONRejectsCoordinatesOutsideBlackSea(t *testing.T) {
+	dir := t.TempDir()
+	filename := filepath.Join(dir, "outside-black-sea.json")
+	content := `[
+		{"lat": 53.2, "lon": 107.4},
+		{"lat": 53.3, "lon": 107.5}
+	]`
+
+	if err := os.WriteFile(filename, []byte(content), 0o644); err != nil {
+		t.Fatalf("write temp json: %v", err)
+	}
+
+	_, _, err := LoadFromJSON(filename)
+	if err == nil {
+		t.Fatal("expected error for coordinates outside Black Sea, got nil")
+	}
+	if !strings.Contains(err.Error(), "вне области Чёрного моря") {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
@@ -152,7 +173,7 @@ func TestSanityCheckWarningForBlackSea(t *testing.T) {
 	if result.Valid {
 		t.Fatalf("expected invalid sanity result, got %+v", result)
 	}
-	if !strings.Contains(result.Warning, "WARNING: coastline length likely incorrect") {
+	if !strings.Contains(result.Warning, "ПРЕДУПРЕЖДЕНИЕ: длина береговой линии, вероятно, неверна") {
 		t.Fatalf("expected sanity warning, got %q", result.Warning)
 	}
 }

@@ -1,18 +1,22 @@
 #!/usr/bin/env python3
 """
-Сравнение климатических сценариев для Litora-CLI
+Сравнение параметрических сценариев усиления воздействия для Lito CLI.
 
 Сравнивает несколько CSV файлов с разными сценариями моделирования.
+Сам скрипт не загружает климатические траектории или распределения штормов.
 """
 
 import argparse
 import sys
 from pathlib import Path
 import pandas as pd
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
 import glob
+from cli_csv import read_erosion_csv
 
 
 class ScenarioComparator:
@@ -36,7 +40,7 @@ class ScenarioComparator:
         self.scenarios = {}
         for csv_path in self.csv_paths:
             scenario_name = csv_path.stem  # Имя файла без расширения
-            self.scenarios[scenario_name] = pd.read_csv(csv_path)
+            self.scenarios[scenario_name] = read_erosion_csv(csv_path)
 
         self._validate_data()
 
@@ -138,7 +142,7 @@ class ScenarioReport:
         """Генерация текстового отчета о сравнении"""
         lines = []
         lines.append("=" * 70)
-        lines.append("СРАВНЕНИЕ КЛИМАТИЧЕСКИХ СЦЕНАРИЕВ")
+        lines.append("СРАВНЕНИЕ ПАРАМЕТРИЧЕСКИХ СЦЕНАРИЕВ УСИЛЕНИЯ ВОЗДЕЙСТВИЯ")
         lines.append("=" * 70)
         lines.append("")
 
@@ -448,9 +452,9 @@ def main():
         epilog='''
 Примеры использования:
   python compare_scenarios.py output/csv/scenario_*.csv
-  python compare_scenarios.py output/csv/rcp45_scenario.csv output/csv/rcp85_scenario.csv
-  python compare_scenarios.py "output/csv/scenario_*.csv" --heatmap --output climate_comparison
-  python compare_scenarios.py output/csv/rcp*.csv --report --output comparison_report
+  python compare_scenarios.py output/csv/parametric_moderate.csv output/csv/parametric_high.csv
+  python compare_scenarios.py "output/csv/parametric_*.csv" --heatmap --output parametric_comparison
+  python compare_scenarios.py output/csv/parametric_*.csv --report --output comparison_report
         '''
     )
 

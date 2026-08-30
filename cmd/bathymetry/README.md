@@ -1,200 +1,58 @@
-# Батиметрические данные для Litora-CLI
+# Подготовка воспроизводимой батиметрии
 
-Инструменты для работы с батиметрическими данными через CLI и Python скрипты.
+Инструменты в этом каталоге сохраняют исходный NetCDF и создают
+ресэмплированный региональный JSON вместе с паспортом происхождения.
 
-## Быстрый старт
+## Быстрый запуск
 
-### Вариант 1: Через CLI команду (рекомендуется)
+Откройте официальный каталог и выгрузите зафиксированный продукт GEBCO_2026
+для границ Чёрного моря: 40,5–47,5° с. ш. и 27,0–42,5° в. д.
 
 ```bash
-# Загрузка данных (интерактивный мастер)
 go run cmd/bathymetry/main.go download
-
-# Конвертация NetCDF в JSON
-go run cmd/bathymetry/main.go convert \
-  --input gebco_2024_n40.5_s46.5_w27.5_e42.5.nc \
-  --output data/black-sea-bathymetry.json \
-  --resolution 0.01 \
-  --bounds 40.5 46.5 27.5 42.5
 ```
 
-### Вариант 2: Через bash скрипт
+После получения точного URL регионального NetCDF выполните:
 
 ```bash
-cd cmd/bathymetry/convert
-./download_bathymetry.sh
+cmd/bathymetry/convert/download_bathymetry.sh \
+  'ТОЧНЫЙ_URL_NETCDF_ИЗ_GEBCO' \
+  output/source/black-sea-bathymetry-gebco2026-0.01deg-derived.json
 ```
 
-### Вариант 3: Ручная конвертация
+Скрипт:
+
+1. сохраняет исходный NetCDF в `output/source/netcdf/`;
+2. вычисляет его SHA-256;
+3. ресэмплирует сетку ближайшим соседом до шага 0,01°;
+4. исключает сушу без инверсии знака высоты;
+5. сохраняет производный JSON и его SHA-256;
+6. создаёт рядом `*.metadata.json` с датой, системами отсчёта, версиями ПО,
+   лицензией и ограничениями.
+
+## Ручная конвертация
+
+Установите фиксируемые проектом зависимости и посмотрите обязательные поля:
 
 ```bash
-# Установка зависимостей
 pip install -r cmd/bathymetry/convert/requirements.txt
-
-# Или через virtualenv
-python3 -m venv scripts/venv
-source scripts/venv/bin/activate
-pip install -r cmd/bathymetry/convert/requirements.txt
-
-# Конвертация
-python cmd/bathymetry/convert/convert_bathymetry.py \
-  --input gebco_2024_n40.5_s46.5_w27.5_e42.5.nc \
-  --output data/black-sea-bathymetry.json \
-  --resolution 0.01 \
-  --bounds 40.5 46.5 27.5 42.5
+python3 cmd/bathymetry/convert/convert_bathymetry.py --help
 ```
 
-## Структура директорий
+Границы Чёрного моря, версия GEBCO_2026, DOI, исходный шаг, системы отсчёта,
+лицензия и атрибуция жёстко зафиксированы в конвертере. Пользователь указывает
+только локальный NetCDF, выходной путь, точный официальный URL и дату загрузки;
+URL другого хоста отклоняется. Поэтому случайно создать файл с чужим продуктом
+под паспортом GEBCO_2026 нельзя.
 
-```
-bathymetry/
-├── cmd/
-│   └── bathymetry/
-│       ├── main.go                 # CLI команда
-│       ├── README.md              # Эта документация
-│       └── convert/               # Скрипты конвертации
-│           ├── convert_bathymetry.py
-│           ├── download_bathymetry.sh
-│           └── requirements.txt
-└── data/
-    └── black-sea-bathymetry.json  # Конвертированные данные
-```
+## Формат и ограничения
 
-## Источники данных для Чёрного моря
+Производный JSON остаётся массивом объектов `lat`, `lon`, `depth` для
+совместимости с Lito. Паспорт хранится в отдельном JSON рядом. Имя
+производного файла должно включать продукт, версию и целевой шаг, например
+`black-sea-bathymetry-gebco2026-0.01deg-derived.json`.
 
-### 1. GEBCO (рекомендуется)
-
-**Плюсы:**
-- Глобальное покрытие
-- Бесплатный
-- Высокое качество
-- Регулярно обновляется
-
-**Как скачать:**
-
-```bash
-# Вариант 1: CLI команда (автоматически откроет браузер)
-go run cmd/bathymetry/main.go download
-
-# Вариант 2: Вручную
-# Зайдите на: https://www.gebco.net/data_and_products/gridded_bathymetry_data/
-# Выберите регион: 40°N-47°N, 27°E-42°E
-
-# Вариант 3: Скачать глобальный dataset
-wget https://www.bodc.ac.uk/data/open_download/gebco/gebco_2024/zip/
-unzip gebco_2024.zip
-```
-
-**Конвертация:**
-```bash
-# Через CLI
-go run cmd/bathymetry/main.go convert \
-  --input gebco_2024_n40.5_s46.5_w27.5_e42.5.nc \
-  --output data/black-sea-bathymetry.json \
-  --resolution 0.01 \
-  --bounds 40.5 46.5 27.5 42.5
-
-# Или через Python
-pip install -r cmd/bathymetry/convert/requirements.txt
-python cmd/bathymetry/convert/convert_bathymetry.py \
-  --input gebco_2024_n40.5_s46.5_w27.5_e42.5.nc \
-  --output data/black-sea-bathymetry.json \
-  --resolution 0.01 \
-  --bounds 40.5 46.5 27.5 42.5
-```
-
-### 2. EMODnet (наилучшее покрытие для Чёрного моря)
-
-**Плюсы:**
-- Специализирован на европейских морях
-- Очень высокое разрешение
-- Актуальные данные
-
-**Как скачать:**
-
-1. Зайдите на: https://www.emodnet-bathymetry.eu/data-products/
-2. Выберите "Black Sea"
-3. Скачайте GeoTIFF или NetCDF
-4. Конвертируйте с помощью CLI или Python скрипта
-
-### 3. ETOPO1 (альтернатива)
-
-**Плюсы:**
-- Простой формат
-- Глобальное покрытие
-
-**Как скачать:**
-```bash
-wget https://www.ngdc.noaa.gov/mgg/global/relief/ETOPO1/data/ice_surface/grid_registered/netcdf/ETOPO1_Bed_g_gmt4.nc
-```
-
-## Рекомендации по выбору разрешения
-
-| Разрешение (градусы) | Метров (на широте 43°) | Использование |
-|---------------------|------------------------|---------------|
-| 0.001° | ~110 м | Детальные локальные модели |
-| 0.01° | ~1.1 км | Региональные модели (рекомендуется) |
-| 0.1° | ~11 км | Грубые оценки |
-
-**Рекомендация:** Используйте 0.01° для Чёрного моря — это баланс между точностью и производительностью.
-
-## Пример использования реальных данных
-
-```bash
-# После конвертации:
-./lito model erosion \
-  --steps 10 \
-  --erosion-strength 50 \
-  --wave-direction 0 \
-  --wind-speed 12 \
-  --bathymetry data/black-sea-bathymetry.json \
-  --output ./output/black-sea-erosion
-```
-
-## Валидация данных
-
-После конвертации проверьте JSON файл:
-
-```bash
-# Проверка валидности JSON
-python -m json.tool data/black-sea-bathymetry.json > /dev/null
-
-# Статистика по данным
-python3 << 'EOF'
-import json
-with open('data/black-sea-bathymetry.json') as f:
-    data = json.load(f)
-
-depths = [p['depth'] for p in data]
-print(f"Точек: {len(data)}")
-print(f"Мин. глубина: {min(depths):.1f} м")
-print(f"Макс. глубина: {max(depths):.1f} м")
-print(f"Средняя глубина: {sum(depths)/len(depths):.1f} м")
-EOF
-```
-
-## Troubleshooting
-
-### Ошибка "outside grid bounds"
-**Причина:** Береговая линия выходит за пределы батиметрической сетки
-**Решение:** Увеличьте bounds при конвертации
-
-### Ошибка "missing neighbor points"
-**Причина:** Слишком высокое разрешение сетки
-**Решение:** Увеличьте resolution до 0.01 или 0.02
-
-### Медленная работа
-**Причина:** Слишком много точек в сетке
-**Решение:** Увеличьте resolution или уменьшите область покрытия
-
-## Дополнительные ресурсы
-
-- [Основная документация проекта](../../README.md)
-- [Python скрипты анализа](../../scripts/README.md)
-- Документация по формату: см. internal/domain/geometry/bathymetry.go
-
-## Ссылки на источники данных
-
-- GEBCO: https://www.gebco.net/
-- EMODnet: https://www.emodnet-bathymetry.eu/
-- ETOPO1: https://www.ngdc.noaa.gov/mgg/global/
+Официальные продукты GEBCO имеют шаг 15 угловых секунд. Шаг 0,01° равен 36
+угловым секундам и является шагом производной сетки, а не разрешением исходных
+измерений. Подробный аудит прежнего файла, лицензионные условия и статус
+литологии приведены в [`docs/data-provenance.md`](../../docs/data-provenance.md).

@@ -1,0 +1,253 @@
+package mesh
+
+import (
+	"math"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"coastal-geometry/internal/domain/geometry"
+)
+
+func TestPrepareDomainAccountsForDroppedIsland(t *testing.T) {
+	outer := []geometry.LatLon{
+		{Lat: 43.0, Lon: 34.0}, {Lat: 43.0, Lon: 34.1},
+		{Lat: 43.1, Lon: 34.1}, {Lat: 43.1, Lon: 34.0}, {Lat: 43.0, Lon: 34.0},
+	}
+	hole := []geometry.LatLon{
+		{Lat: 43.0499, Lon: 34.0499}, {Lat: 43.0499, Lon: 34.0501},
+		{Lat: 43.0501, Lon: 34.0501}, {Lat: 43.0501, Lon: 34.0499}, {Lat: 43.0499, Lon: 34.0499},
+	}
+
+	domain, err := PrepareDomain(outer, [][]geometry.LatLon{hole}, 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(domain.OriginalRings) != 2 {
+		t.Fatalf("ожидались внешнее и островное кольца, получено %d", len(domain.OriginalRings))
+	}
+	if len(domain.SimplifiedRings) != 1 {
+		t.Fatalf("малый остров должен быть исключён на масштабе 100 м, колец %d", len(domain.SimplifiedRings))
+	}
+	if domain.CumulativeFeatureDeviationM2 <= 0 {
+		t.Fatal("площадь исключённого острова должна входить в отклонение")
+	}
+	if domain.ProjectionRoundTripMaxErrorMeters > 0.001 {
+		t.Fatalf("ошибка обратной проекции слишком велика: %.9f м", domain.ProjectionRoundTripMaxErrorMeters)
+	}
+}
+
+func TestValidDomainTopologyRejectsCrossingRing(t *testing.T) {
+	bowTie := []Point{{X: 0, Y: 0}, {X: 10, Y: 10}, {X: 0, Y: 10}, {X: 10, Y: 0}, {X: 0, Y: 0}}
+	if validDomainTopology([][]Point{bowTie}) {
+		t.Fatal("самопересекающееся кольцо не должно передаваться генератору сетки")
+	}
+	square := []Point{{X: 0, Y: 0}, {X: 10, Y: 0}, {X: 10, Y: 10}, {X: 0, Y: 10}, {X: 0, Y: 0}}
+	if !validDomainTopology([][]Point{square}) {
+		t.Fatal("простое замкнутое кольцо должно считаться корректным")
+	}
+}
+
+func TestSubdivideToFullQuads(t *testing.T) {
+	source := Mesh{
+		Nodes:                []Point{{}, {X: 0, Y: 0}, {X: 2, Y: 0}, {X: 0, Y: 2}},
+		Cells:                []Cell{{Nodes: [4]int{1, 2, 3}, NodeCount: 3}},
+		BoundaryEdges:        [][2]int{{1, 2}, {2, 3}, {3, 1}},
+		BoundaryPhysicalTags: []int{PhysicalCoastline, PhysicalCoastline, PhysicalIsland},
+		SurfacePhysicalTag:   PhysicalWaterSurface,
+		TriangleCount:        1,
+	}
+
+	result := SubdivideToFullQuads(source)
+	if result.TriangleCount != 0 || result.QuadCount != 3 || len(result.Cells) != 3 {
+		t.Fatalf("треугольник должен превратиться в три четырёхугольника: %+v", result)
+	}
+	if len(result.BoundaryEdges) != 6 {
+		t.Fatalf("каждое граничное ребро должно разделиться надвое, получено %d", len(result.BoundaryEdges))
+	}
+	if len(result.BoundaryPhysicalTags) != 6 || result.BoundaryPhysicalTags[4] != PhysicalIsland || result.SurfacePhysicalTag != PhysicalWaterSurface {
+		t.Fatalf("физические метки должны пройти через деление: %+v", result.BoundaryPhysicalTags)
+	}
+	for _, cell := range result.Cells {
+		if cell.NodeCount != 4 {
+			t.Fatalf("получена нечетырёхугольная ячейка: %+v", cell)
+		}
+	}
+}
+
+func TestQuadrilateralQualityDistinguishesSquareAndDistortedCell(t *testing.T) {
+	squareNodes := []Point{{}, {X: 0, Y: 0}, {X: 100, Y: 0}, {X: 100, Y: 100}, {X: 0, Y: 100}}
+	cell := Cell{Nodes: [4]int{1, 2, 3, 4}, NodeCount: 4}
+	if quality := QuadrilateralQuality(squareNodes, cell); math.Abs(quality-1) > 1e-12 {
+		t.Fatalf("квадрат должен иметь качество 1, получено %.12f", quality)
+	}
+
+	distortedNodes := []Point{{}, {X: 0, Y: 0}, {X: 250, Y: 0}, {X: 180, Y: 40}, {X: 0, Y: 60}}
+	distorted := QuadrilateralQuality(distortedNodes, cell)
+	if distorted <= 0 || distorted >= 0.7 {
+		t.Fatalf("искажённая ячейка должна иметь пониженное качество, получено %.6f", distorted)
+	}
+
+	invalid := Cell{Nodes: [4]int{1, 2, 3}, NodeCount: 3}
+	if quality := QuadrilateralQuality(squareNodes, invalid); quality != 0 {
+		t.Fatalf("нечетырёхугольная ячейка должна иметь качество 0, получено %.6f", quality)
+	}
+}
+
+func TestBuildGeoContainsIndependentAlgorithmAndHole(t *testing.T) {
+	domain := PreparedDomain{SimplifiedRings: [][]Point{
+		{{X: 0, Y: 0}, {X: 10, Y: 0}, {X: 10, Y: 10}, {X: 0, Y: 10}, {X: 0, Y: 0}},
+		{{X: 4, Y: 4}, {X: 4, Y: 6}, {X: 6, Y: 6}, {X: 6, Y: 4}, {X: 4, Y: 4}},
+	}}
+	data, err := buildGeo(domain, AlgorithmFrontalQuad, 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(data)
+	for _, expected := range []string{"Plane Surface(1) = {1, 2};", "Physical Surface(\"Водоём\", 10)", "Physical Curve(\"Внешний берег\", 1)", "Physical Curve(\"Острова\", 2)", "Mesh.Algorithm = 8;", "Mesh.RecombineAll = 0;", "Mesh.SaveAll = 0;"} {
+		if !strings.Contains(text, expected) {
+			t.Fatalf("GEO не содержит %q\n%s", expected, text)
+		}
+	}
+}
+
+func TestReadMSH2(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "test.msh")
+	content := `$MeshFormat
+2.2 0 8
+$EndMeshFormat
+$Nodes
+4
+1 0 0 0
+2 1 0 0
+3 1 1 0
+4 0 1 0
+$EndNodes
+$Elements
+3
+1 1 0 1 2
+2 2 0 1 2 3
+3 3 0 1 2 3 4
+$EndElements
+`
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	result, err := ReadMSH2(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.BoundaryEdges) != 1 || result.TriangleCount != 1 || result.QuadCount != 1 {
+		t.Fatalf("неверно прочитаны элементы: %+v", result)
+	}
+}
+
+func TestWriteMSH2PreservesFullQuadMesh(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "full-quad.msh")
+	source := Mesh{
+		Nodes:                []Point{{}, {X: 0, Y: 0}, {X: 1, Y: 0}, {X: 1, Y: 1}, {X: 0, Y: 1}},
+		Cells:                []Cell{{Nodes: [4]int{1, 2, 3, 4}, NodeCount: 4}},
+		BoundaryEdges:        [][2]int{{1, 2}, {2, 3}, {3, 4}, {4, 1}},
+		BoundaryPhysicalTags: []int{PhysicalCoastline, PhysicalCoastline, PhysicalIsland, PhysicalIsland},
+		SurfacePhysicalTag:   PhysicalWaterSurface,
+		QuadCount:            1,
+	}
+	if err := WriteMSH2(path, source); err != nil {
+		t.Fatal(err)
+	}
+	result, err := ReadMSH2(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.TriangleCount != 0 || result.QuadCount != 1 || len(result.BoundaryEdges) != 4 {
+		t.Fatalf("итоговая сетка повреждена при записи: %+v", result)
+	}
+	if result.SurfacePhysicalTag != PhysicalWaterSurface || len(result.BoundaryPhysicalTags) != 4 || result.BoundaryPhysicalTags[2] != PhysicalIsland {
+		t.Fatalf("физические группы потеряны при round-trip: %+v", result)
+	}
+}
+
+func TestAdaptiveBackgroundAndTopology(t *testing.T) {
+	support := Mesh{
+		Nodes:                []Point{{}, {X: 0, Y: 0}, {X: 1000, Y: 0}, {X: 1000, Y: 1000}, {X: 0, Y: 1000}},
+		Cells:                []Cell{{Nodes: [4]int{1, 2, 3, 4}, NodeCount: 4}},
+		BoundaryEdges:        [][2]int{{1, 2}, {2, 3}, {3, 4}, {4, 1}},
+		BoundaryPhysicalTags: []int{PhysicalCoastline, PhysicalCoastline, PhysicalIsland, PhysicalIsland},
+		SurfacePhysicalTag:   PhysicalWaterSurface,
+		QuadCount:            1,
+	}
+	field := []float64{0, 200, 300, 500, 1000}
+	posPath := filepath.Join(t.TempDir(), "field.pos")
+	if err := WriteBackgroundFieldPOS(posPath, support, field, 2.5); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(posPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), "SQ(0,0,0,1000,0,0,1000,1000,0,0,1000,0){500,750,1250,2500};") {
+		t.Fatalf("POS не содержит масштабированные скалярные значения:\n%s", data)
+	}
+	estimate, err := EstimateAdaptiveSize(support, field)
+	if err != nil || estimate.EstimatedCellCount <= 0 {
+		t.Fatalf("некорректная оценка адаптивной сетки: %+v, %v", estimate, err)
+	}
+	validation := ValidateFullQuadMesh(support)
+	if !validation.Accepted || validation.UnmatchedInteriorEdgeCount != 0 {
+		t.Fatalf("согласованная full-quad сетка должна быть принята: %+v", validation)
+	}
+	broken := support
+	broken.BoundaryEdges = broken.BoundaryEdges[:3]
+	broken.BoundaryPhysicalTags = broken.BoundaryPhysicalTags[:3]
+	if result := ValidateFullQuadMesh(broken); result.Accepted || result.UnmatchedInteriorEdgeCount != 1 {
+		t.Fatalf("пропущенная сторона должна быть обнаружена: %+v", result)
+	}
+}
+
+func TestWriteMSH2PreservesWGS84NodeData(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "georeferenced.msh")
+	projection := EqualAreaProjection{ReferenceLat: 43.05, ReferenceLon: 34.05}
+	geographic := []geometry.LatLon{
+		{Lat: 43.0, Lon: 34.0},
+		{Lat: 43.0, Lon: 34.1},
+		{Lat: 43.1, Lon: 34.1},
+		{Lat: 43.1, Lon: 34.0},
+	}
+	nodes := []Point{{}}
+	for _, coordinate := range geographic {
+		nodes = append(nodes, projection.Project(coordinate))
+	}
+	source := Mesh{
+		Nodes:         nodes,
+		Cells:         []Cell{{Nodes: [4]int{1, 2, 3, 4}, NodeCount: 4}},
+		BoundaryEdges: [][2]int{{1, 2}, {2, 3}, {3, 4}, {4, 1}},
+		QuadCount:     1,
+	}
+	if err := WriteMSH2(path, source); err != nil {
+		t.Fatal(err)
+	}
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{`"longitude_deg"`, `"latitude_deg"`} {
+		if !strings.Contains(string(content), name) {
+			t.Fatalf("MSH не содержит блок %s", name)
+		}
+	}
+
+	result, err := ReadMSH2(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for index, expected := range geographic {
+		actual := result.Nodes[index+1]
+		if !actual.GeographicCoordinatesSet {
+			t.Fatalf("узел %d потерял признак WGS 84", index+1)
+		}
+		if math.Abs(actual.LatitudeDeg-expected.Lat) > 1e-12 || math.Abs(actual.LongitudeDeg-expected.Lon) > 1e-12 {
+			t.Fatalf("узел %d потерял координаты WGS 84: %+v, ожидалось %+v", index+1, actual, expected)
+		}
+	}
+}

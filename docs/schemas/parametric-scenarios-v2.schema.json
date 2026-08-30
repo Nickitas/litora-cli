@@ -1,0 +1,197 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "parametric-scenarios-v2.schema.json",
+  "title": "Отчёт параметрических сценариев усиления воздействия Lito",
+  "description": "Версия 2.0. Описывает вручную заданные сценарии чувствительности, а не климатические траектории.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "schema_ref",
+    "scenario_type",
+    "method_note",
+    "site_id",
+    "baseline",
+    "results"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "2.0"
+    },
+    "schema_ref": {
+      "const": "docs/schemas/parametric-scenarios-v2.schema.json"
+    },
+    "scenario_type": {
+      "const": "parametric_impact_amplification"
+    },
+    "method_note": {
+      "type": "string",
+      "minLength": 1
+    },
+    "site_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "baseline": {
+      "$ref": "#/$defs/baselineResult"
+    },
+    "results": {
+      "type": "array",
+      "minItems": 1,
+      "prefixItems": [
+        {
+          "$ref": "#/$defs/baselineResult"
+        }
+      ],
+      "items": {
+        "$ref": "#/$defs/scenarioResult"
+      }
+    }
+  },
+  "$defs": {
+    "scenarioConfig": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "description",
+        "erosion_strength_m",
+        "wave_direction_deg",
+        "wind_speed_m_per_sec",
+        "sea_level_rise_proxy_m_per_year",
+        "storm_weight",
+        "storm_intensity_multiplier",
+        "parameter_basis",
+        "source",
+        "years_per_step",
+        "total_years"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1
+        },
+        "erosion_strength_m": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "wave_direction_deg": {
+          "type": "number",
+          "minimum": 0,
+          "exclusiveMaximum": 360
+        },
+        "wind_speed_m_per_sec": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "sea_level_rise_proxy_m_per_year": {
+          "type": "number",
+          "minimum": 0
+        },
+        "storm_weight": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "storm_intensity_multiplier": {
+          "type": "number",
+          "minimum": 1
+        },
+        "parameter_basis": {
+          "const": "manual"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "string",
+              "minLength": 1
+            }
+          ]
+        },
+        "years_per_step": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "total_years": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "scenarioResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "config",
+        "segment_retreats_m_per_year",
+        "total_eroded_km",
+        "mean_retreat_rate_m_per_year",
+        "max_retreat_rate_m_per_year",
+        "eroding_fraction",
+        "hotspot_count",
+        "coast_length_km",
+        "coast_change_km"
+      ],
+      "properties": {
+        "config": {
+          "$ref": "#/$defs/scenarioConfig"
+        },
+        "segment_retreats_m_per_year": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "total_eroded_km": {
+          "type": "number"
+        },
+        "mean_retreat_rate_m_per_year": {
+          "type": "number"
+        },
+        "max_retreat_rate_m_per_year": {
+          "type": "number"
+        },
+        "eroding_fraction": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "hotspot_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "coast_length_km": {
+          "type": "number"
+        },
+        "coast_change_km": {
+          "type": "number"
+        }
+      }
+    },
+    "baselineResult": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/scenarioResult"
+        },
+        {
+          "properties": {
+            "config": {
+              "properties": {
+                "name": {
+                  "const": "baseline"
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

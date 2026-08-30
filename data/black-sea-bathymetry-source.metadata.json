@@ -1,0 +1,33 @@
+{
+  "schema_version": "lito-bathymetry-raw-passport/v1",
+  "title": "Региональный исходный срез GEBCO_2026 для Чёрного моря",
+  "status": "verified_source_subset",
+  "selection_file": "data/black-sea-bathymetry-source.json",
+  "basin_id": "black-sea",
+  "dataset_file": "output/source/netcdf/GEBCO_2026_Black_Sea_40.5_47.5_27.0_42.5.nc",
+  "dataset_sha256": "c957981ff054f50d1cd87f730c1e6b08f948686f8342a8208655a512efaa77ac",
+  "tid_file": "output/source/netcdf/GEBCO_2026_TID_Black_Sea_40.5_47.5_27.0_42.5.nc",
+  "tid_sha256": "32e1a21859c0422553f7b3bb7f7fbb9c35c65f170e3cc0f5c32fbd572e239f9e",
+  "created_at": "2026-08-20T20:28:48Z",
+  "source_product": "GEBCO_2026 Grid and Type Identifier Grid",
+  "source_product_doi": "10.5285/4f68d5c7-45eb-f999-e063-7086abc036fa",
+  "source_grid_interval_arc_seconds": 15,
+  "requested_bounds": {
+    "min_lat": 40.5,
+    "max_lat": 47.5,
+    "min_lon": 27.0,
+    "max_lon": 42.5
+  },
+  "horizontal_reference": "WGS 84 (допущение GEBCO)",
+  "vertical_reference": "Высота относительно среднего уровня моря по допущению GEBCO",
+  "vertical_reference_caveat": "В мелководных областях часть исходных данных может относиться к иной вертикальной системе.",
+  "processing_method": "Региональная выборка OPeNDAP по координатам центров ячеек без интерполяции",
+  "license": "Public domain по условиям GEBCO с обязательной атрибуцией",
+  "license_url": "https://www.gebco.net/data-products/gridded-bathymetry-data/gebco2026-grid#terms-of-use-and-disclaimer",
+  "attribution": "GEBCO Bathymetric Compilation Group 2026 (2026). The GEBCO_2026 Grid - a continuous terrain model for oceans and land at 15 arc-second intervals. doi:10.5285/4f68d5c7-45eb-f999-e063-7086abc036fa",
+  "limitations": [
+    "Не предназначено для навигации или задач безопасности на море.",
+    "Перед расчётом обязательна маска полигона Чёрного моря Marine Regions MRGID 3319.",
+    "Паспорт производного JSON будет создан отдельно в DATA-02."
+  ]
+}

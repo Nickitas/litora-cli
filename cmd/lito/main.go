@@ -1,10 +1,9 @@
 package main
 
 import (
-	"coastal-geometry/internal/cli"
-	"os"
+	"coastal-geometry/internal/cli/cobra"
 )
 
 func main() {
-	cli.Run(os.Args[1:], os.Stdout, os.Stderr)
+	cobra.Execute()
 }

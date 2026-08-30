@@ -1,8 +1,10 @@
 {
   "metadata": {
-    "name": "Black Sea Lithology Profile",
+    "name": "Экспериментальный литологический профиль Чёрного моря",
     "version": "1.0-alpha",
-    "created": "2025-01-XX",
+    "status": "alpha_inferred",
+    "created": "неизвестно",
+    "repository_first_commit": "2026-06-13T14:02:33+03:00",
     "sources": [
       "EMODnet Geology (seabed_substrate, coastal_behaviour)",
       "DOORS Black Sea Program 2024",
@@ -24,7 +26,14 @@
       "bulgaria",
       "romania_danube"
     ],
-    "note": "Alpha version based on literature search. To be validated with EMODnet data."
+    "empirical_validation": "not_validated",
+    "contains_inferred_values": true,
+    "usage_limitations": [
+      "Набор не является подтверждённой эмпирической картой литологии.",
+      "Коэффициенты сопротивления нельзя использовать для научной калибровки без независимой полевой или картографической валидации.",
+      "Точки с source=inferred являются гипотетическими оценками."
+    ],
+    "note": "Alpha-профиль по литературному поиску; требует проверки по первичным данным и независимой валидации."
   },
 
   "points": [

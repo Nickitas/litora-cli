@@ -9,8 +9,7 @@ import (
 )
 
 const (
-	gebcoURL      = "https://www.gebco.net/data_and_products/gridded_bathymetry_data/"
-	blackSeaRegion = "40.5_46.5_27.5_42.5"
+	gebcoURL = "https://www.gebco.net/data-products/gridded-bathymetry-data/gebco2026-grid"
 )
 
 func main() {
@@ -36,7 +35,7 @@ func main() {
 }
 
 func printUsage() {
-	fmt.Println("Litora Bathymetry Tools")
+	fmt.Println("Инструменты подготовки батиметрии Lito")
 	fmt.Println("\nИспользование:")
 	fmt.Println("  bathymetry download    Загрузка батиметрических данных")
 	fmt.Println("  bathymetry convert     Конвертация NetCDF в JSON")
@@ -52,21 +51,22 @@ func downloadBathymetry() {
 	fmt.Println("\n1. Посетите GEBCO Data Viewer:")
 	fmt.Printf("   %s\n", gebcoURL)
 	fmt.Println("\n2. Выберите регион Чёрного моря:")
-	fmt.Println("   - Север: 46.5°N")
+	fmt.Println("   - Север: 47.5°N")
 	fmt.Println("   - Юг: 40.5°N")
-	fmt.Println("   - Запад: 27.5°E")
+	fmt.Println("   - Запад: 27.0°E")
 	fmt.Println("   - Восток: 42.5°E")
 	fmt.Println("\n3. Скачайте NetCDF файл (.nc)")
-	fmt.Println("\n4. Сохраните файл в директории data/")
-	fmt.Println("\n💡 После загрузки используйте 'bathymetry convert' для конвертации")
+	fmt.Println("\n4. Сохраните точный URL, название и DOI выбранной версии продукта")
+	fmt.Println("\n5. Не удаляйте исходный NetCDF: его SHA-256 записывается в паспорт")
+	fmt.Println("\nПосле загрузки используйте 'bathymetry convert' с полным набором полей происхождения")
 
 	// Попытка открыть браузер (если поддерживается системе)
 	if err := openBrowser(gebcoURL); err == nil {
 		fmt.Println("\n🌐 Открыт браузер с GEBCO Data Viewer")
 	}
 
-	fmt.Println("\n⚠️  Альтернатива: Используйте скрипт cmd/bathymetry/convert/download_bathymetry.sh")
-	fmt.Println("   для автоматизированной загрузки с конвертацией")
+	fmt.Println("\nАвтоматизированная загрузка и конвертация:")
+	fmt.Println("   cmd/bathymetry/convert/download_bathymetry.sh URL_GEBCO_2026 ВЫХОДНОЙ_JSON")
 }
 
 func convertBathymetry() {
@@ -137,7 +137,7 @@ func openBrowser(url string) error {
 	case filepath.Base(os.Getenv("SHELL")) == "zsh" || filepath.Base(os.Getenv("SHELL")) == "bash":
 		cmd = exec.Command("open", url) // macOS
 	default:
-		return fmt.Errorf("unsupported platform")
+		return fmt.Errorf("открытие браузера не поддерживается на этой платформе")
 	}
 
 	return cmd.Start()

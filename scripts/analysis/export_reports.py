@@ -11,6 +11,7 @@ from pathlib import Path
 import pandas as pd
 from datetime import datetime
 import json
+from cli_csv import read_erosion_csv
 
 
 class ReportGenerator:
@@ -28,7 +29,7 @@ class ReportGenerator:
         if not self.csv_path.exists():
             raise FileNotFoundError(f"CSV файл не найден: {csv_path}")
 
-        self.df = pd.read_csv(self.csv_path)
+        self.df = read_erosion_csv(self.csv_path)
 
         # Всегда используем output/report/ как базовую директорию
         if output_dir:

@@ -5,17 +5,23 @@ import (
 	"fmt"
 	"math"
 	"strconv"
+
+	"coastal-geometry/internal/domain/blacksea"
 )
 
-// BathymetryPoint represents a single depth measurement at a location.
-// Depth is negative for underwater (e.g., -100 = 100 meters below sea level).
+// minimumBlackSeaElevationM задаёт нижнюю физически допустимую отметку
+// батиметрии с запасом относительно максимальной глубины Чёрного моря.
+const minimumBlackSeaElevationM = -3000.0
+
+// BathymetryPoint представляет одно измерение глубины в точке.
+// Глубина отрицательна для подводных участков (напр., -100 = 100 метров под уровнем моря).
 type BathymetryPoint struct {
 	Lat   float64 `json:"lat"`
 	Lon   float64 `json:"lon"`
 	Depth float64 `json:"depth"`
 }
 
-// BathymetryGrid stores depth data in a regular latitude-longitude grid.
+// BathymetryGrid хранит данные глубин в регулярной сетке широта-долгота.
 type BathymetryGrid struct {
 	Points     map[string]BathymetryPoint
 	Resolution float64
@@ -25,7 +31,7 @@ type BathymetryGrid struct {
 	}
 }
 
-// BathymetryLoadOptions controls how bathymetry data is loaded.
+// BathymetryLoadOptions управляет загрузкой данных батиметрии.
 type BathymetryLoadOptions struct {
 	LocalPath  string
 	RemoteURL  string
@@ -34,7 +40,7 @@ type BathymetryLoadOptions struct {
 	Resolution float64
 }
 
-// BathymetryLoadResult contains metadata from loading bathymetry.
+// BathymetryLoadResult содержит метаданные из загрузки батиметрии.
 type BathymetryLoadResult struct {
 	Grid         *BathymetryGrid
 	PointCount   int
@@ -43,8 +49,19 @@ type BathymetryLoadResult struct {
 	LoadWarnings []string
 }
 
-// LoadBathymetryFromJSON loads bathymetry data from a JSON byte slice.
-// The JSON should be an array of objects with lat, lon, and depth fields.
+// BathymetrySampleDetails описывает происхождение одной выборки регулярной
+// батиметрии. SourceDistanceMeters — расстояние до ближайшей исходной точки,
+// участвовавшей в назначении значения, а не расстояние до узла сетки Lito.
+type BathymetrySampleDetails struct {
+	ElevationM           float64
+	SourceDistanceMeters float64
+	Exact                bool
+	Interpolated         bool
+}
+
+// LoadBathymetryFromJSON загружает данные батиметрии из JSON-массива байтов.
+// JSON должен быть массивом объектов с полями lat, lon и depth, а паспорт
+// происхождения должен храниться рядом в отдельном файле .metadata.json.
 func LoadBathymetryFromJSON(data []byte, options BathymetryLoadOptions) (*BathymetryGrid, error) {
 	if options.Resolution <= 0 {
 		options.Resolution = 0.01
@@ -52,38 +69,41 @@ func LoadBathymetryFromJSON(data []byte, options BathymetryLoadOptions) (*Bathym
 
 	var rawPoints []BathymetryPoint
 	if err := json.Unmarshal(data, &rawPoints); err != nil {
-		return nil, fmt.Errorf("unmarshal bathymetry JSON: %w", err)
+		return nil, fmt.Errorf("батиметрия без отмели JSON: %w", err)
 	}
 
 	if len(rawPoints) == 0 {
-		return nil, fmt.Errorf("bathymetry data is empty")
+		return nil, fmt.Errorf("данные батиметрии пусты")
 	}
 
 	// Валидация точек
 	if err := validateBathymetryPoints(rawPoints); err != nil {
-		return nil, fmt.Errorf("validation failed: %w", err)
+		return nil, fmt.Errorf("не удалось выполнить проверку: %w", err)
 	}
 
 	grid, err := BuildGrid(rawPoints, options.Resolution)
 	if err != nil {
-		return nil, fmt.Errorf("build bathymetry grid: %w", err)
+		return nil, fmt.Errorf("построение батиметрической сетки: %w", err)
 	}
 
 	// Валидация построенной сетки
 	if err := validateBathymetryGrid(grid); err != nil {
-		return nil, fmt.Errorf("grid validation failed: %w", err)
+		return nil, fmt.Errorf("не удалось выполнить проверку сетки: %w", err)
 	}
 
 	return grid, nil
 }
 
-// BuildGrid creates a BathymetryGrid from a slice of points.
+// BuildGrid создаёт BathymetryGrid из набора точек.
 func BuildGrid(points []BathymetryPoint, resolution float64) (*BathymetryGrid, error) {
 	if len(points) == 0 {
-		return nil, fmt.Errorf("cannot build grid from empty points")
+		return nil, fmt.Errorf("невозможно построить сетку из пустых точек")
 	}
-	if resolution <= 0 {
-		return nil, fmt.Errorf("resolution must be positive, got %f", resolution)
+	if math.IsNaN(resolution) || math.IsInf(resolution, 0) || resolution <= 0 {
+		return nil, fmt.Errorf("разрешение должно быть конечным положительным числом, получено %f", resolution)
+	}
+	if err := validateBathymetryValues(points); err != nil {
+		return nil, fmt.Errorf("недопустимые точки батиметрической сетки: %w", err)
 	}
 
 	grid := &BathymetryGrid{
@@ -117,12 +137,12 @@ func BuildGrid(points []BathymetryPoint, resolution float64) (*BathymetryGrid, e
 	return grid, nil
 }
 
-// InterpolateDepth returns the depth at a given location using bilinear interpolation.
-// Returns an error if the location is outside the grid bounds.
+// InterpolateDepth возвращает глубину в заданной точке с использованием билинейной интерполяции.
+// Возвращает ошибку, если точка находится за пределами сетки.
 func (g *BathymetryGrid) InterpolateDepth(lat, lon float64) (float64, error) {
 	if lat < g.bounds.MinLat || lat > g.bounds.MaxLat ||
 		lon < g.bounds.MinLon || lon > g.bounds.MaxLon {
-		return 0, fmt.Errorf("coordinates (%f, %f) outside grid bounds [%f, %f] x [%f, %f]",
+		return 0, fmt.Errorf("координаты (%f, %ff) вне границ сетки [%f, %ff] x [%f, %ff]",
 			lat, lon, g.bounds.MinLat, g.bounds.MaxLat, g.bounds.MinLon, g.bounds.MaxLon)
 	}
 
@@ -142,7 +162,7 @@ func (g *BathymetryGrid) InterpolateDepth(lat, lon float64) (float64, error) {
 	p11, ok11 := g.Points[key11]
 
 	if !ok00 || !ok01 || !ok10 || !ok11 {
-		return 0, fmt.Errorf("missing neighbor points for interpolation at (%f, %f)", lat, lon)
+		return 0, fmt.Errorf("недостающие соседние точки для интерполяции в (%f, %ff)", lat, lon)
 	}
 
 	fx := (lon - lon0) / g.Resolution
@@ -155,9 +175,132 @@ func (g *BathymetryGrid) InterpolateDepth(lat, lon float64) (float64, error) {
 	return depth, nil
 }
 
+// SampleDepth возвращает билинейно интерполированную глубину. Если около
+// береговой линии не хватает соседних ячеек, функция ищет ближайшее реальное
+// измерение, но только в пределах maxDistanceMeters. Расстояние 0 означает
+// интерполяцию; положительное значение должно быть учтено при анализе точности.
+func (g *BathymetryGrid) SampleDepth(lat, lon, maxDistanceMeters float64) (depth, distanceMeters float64, err error) {
+	if g == nil {
+		return 0, 0, fmt.Errorf("батиметрическая сетка не задана")
+	}
+	depth, err = g.InterpolateDepth(lat, lon)
+	if err == nil {
+		return depth, 0, nil
+	}
+	if maxDistanceMeters <= 0 || g.Resolution <= 0 {
+		return 0, 0, err
+	}
+
+	return g.nearestDepth(lat, lon, maxDistanceMeters, err)
+}
+
+// SampleDepthDetailed назначает отметку дна и явно различает точное значение,
+// билинейную интерполяцию и ближайшую замену. В отличие от SampleDepth,
+// расстояние для интерполяции не обнуляется: оно относится к ближайшей из
+// четырёх исходных точек и пригодно для отчёта качества сеточной модели дна.
+func (g *BathymetryGrid) SampleDepthDetailed(lat, lon, maxDistanceMeters float64) (BathymetrySampleDetails, error) {
+	if g == nil {
+		return BathymetrySampleDetails{}, fmt.Errorf("батиметрическая сетка не задана")
+	}
+	if point, ok := g.exactPoint(lat, lon); ok {
+		return BathymetrySampleDetails{ElevationM: point.Depth, Exact: true}, nil
+	}
+
+	elevation, interpolationErr := g.InterpolateDepth(lat, lon)
+	if interpolationErr == nil {
+		distance, err := g.interpolationSourceDistance(lat, lon)
+		if err != nil {
+			return BathymetrySampleDetails{}, err
+		}
+		return BathymetrySampleDetails{
+			ElevationM:           elevation,
+			SourceDistanceMeters: distance,
+			Interpolated:         true,
+		}, nil
+	}
+
+	elevation, distance, err := g.nearestDepth(lat, lon, maxDistanceMeters, interpolationErr)
+	if err != nil {
+		return BathymetrySampleDetails{}, err
+	}
+	return BathymetrySampleDetails{ElevationM: elevation, SourceDistanceMeters: distance}, nil
+}
+
+func (g *BathymetryGrid) exactPoint(lat, lon float64) (BathymetryPoint, bool) {
+	if g == nil || g.Resolution <= 0 {
+		return BathymetryPoint{}, false
+	}
+	point, ok := g.Points[gridKey(lat, lon, g.Resolution)]
+	if !ok || math.Abs(point.Lat-lat) > 1e-10 || math.Abs(point.Lon-lon) > 1e-10 {
+		return BathymetryPoint{}, false
+	}
+	return point, true
+}
+
+func (g *BathymetryGrid) interpolationSourceDistance(lat, lon float64) (float64, error) {
+	lat0 := math.Floor(lat/g.Resolution) * g.Resolution
+	lon0 := math.Floor(lon/g.Resolution) * g.Resolution
+	lat1 := lat0 + g.Resolution
+	lon1 := lon0 + g.Resolution
+	keys := []string{
+		gridKey(lat0, lon0, g.Resolution),
+		gridKey(lat0, lon1, g.Resolution),
+		gridKey(lat1, lon0, g.Resolution),
+		gridKey(lat1, lon1, g.Resolution),
+	}
+	bestDistance := math.Inf(1)
+	for _, key := range keys {
+		point, ok := g.Points[key]
+		if !ok {
+			return 0, fmt.Errorf("недостающая исходная точка для оценки расстояния интерполяции в (%f, %ff)", lat, lon)
+		}
+		distance := Haversine(LatLon{Lat: lat, Lon: lon}, LatLon{Lat: point.Lat, Lon: point.Lon}) * 1000
+		if distance < bestDistance {
+			bestDistance = distance
+		}
+	}
+	return bestDistance, nil
+}
+
+func (g *BathymetryGrid) nearestDepth(lat, lon, maxDistanceMeters float64, cause error) (depth, distanceMeters float64, err error) {
+	if maxDistanceMeters <= 0 || g.Resolution <= 0 {
+		return 0, 0, cause
+	}
+	latRadius := int(math.Ceil(maxDistanceMeters / metersPerDegLat / g.Resolution))
+	metersPerDegLon := metersPerDegLat * math.Cos(lat*math.Pi/180)
+	if math.Abs(metersPerDegLon) < 1e-9 {
+		metersPerDegLon = metersPerDegLat
+	}
+	lonRadius := int(math.Ceil(maxDistanceMeters / metersPerDegLon / g.Resolution))
+	latIndex := int(math.Floor(lat / g.Resolution))
+	lonIndex := int(math.Floor(lon / g.Resolution))
+	bestDistance := math.Inf(1)
+	bestDepth := 0.0
+	for latitude := latIndex - latRadius; latitude <= latIndex+latRadius; latitude++ {
+		for longitude := lonIndex - lonRadius; longitude <= lonIndex+lonRadius; longitude++ {
+			point, ok := g.Points[fmt.Sprintf("%d,%d", latitude, longitude)]
+			if !ok {
+				continue
+			}
+			distance := Haversine(LatLon{Lat: lat, Lon: lon}, LatLon{Lat: point.Lat, Lon: point.Lon}) * 1000
+			if distance < bestDistance {
+				bestDistance = distance
+				bestDepth = point.Depth
+			}
+		}
+	}
+	if bestDistance <= maxDistanceMeters {
+		return bestDepth, bestDistance, nil
+	}
+	return 0, 0, fmt.Errorf("%w; ближайшая точка не найдена в радиусе %.0f м", cause, maxDistanceMeters)
+}
+
 func gridKey(lat, lon, resolution float64) string {
-	latIdx := math.Floor(lat / resolution)
-	lonIdx := math.Floor(lon / resolution)
+	// Исходные точки регулярной сетки относятся к ближайшему целому индексу.
+	// Floor схлопывает соседние узлы для десятичных координат вроде 43.01 из-за
+	// двоичного представления float64 (4300.999999...), поэтому здесь нужен Round.
+	latIdx := math.Round(lat / resolution)
+	lonIdx := math.Round(lon / resolution)
 	return fmt.Sprintf("%s,%s", strconv.FormatFloat(latIdx, 'f', -1, 64), strconv.FormatFloat(lonIdx, 'f', -1, 64))
 }
 
@@ -166,42 +309,52 @@ func bilinearInterpolate1D(v0, v1, t float64) float64 {
 }
 
 func validateBathymetryPoints(points []BathymetryPoint) error {
-	// Константы для Чёрного моря с tolerant margin для учёта погрешности на границах
-	const (
-		minLat = 40.0
-		maxLat = 47.0
-		minLon = 27.0
-		maxLon = 42.5 // Расширено для GEBCO данных (формально 42.0)
-		margin = 0.1 // Tolerant margin для boundary issues (градусы)
-		maxDepth = -3000.0 // Максимальная глубина с запасом
-	)
+	if err := validateBathymetryValues(points); err != nil {
+		return err
+	}
 
 	for i, p := range points {
-		// Проверка координат с tolerant margin
-		if p.Lat < minLat-margin || p.Lat > maxLat+margin {
-			return fmt.Errorf("point %d: latitude %.4f outside Black Sea bounds [%.1f, %.1f]", i, p.Lat, minLat, maxLat)
+		if !blacksea.Contains(p.Lat, p.Lon) {
+			return fmt.Errorf(
+				"точка %d: координаты (%.4f, %.4f) вне области Чёрного моря [%.1f, %.1f] × [%.1f, %.1f]",
+				i, p.Lat, p.Lon,
+				blacksea.MinLatitude, blacksea.MaxLatitude,
+				blacksea.MinLongitude, blacksea.MaxLongitude,
+			)
 		}
-		if p.Lon < minLon-margin || p.Lon > maxLon+margin {
-			return fmt.Errorf("point %d: longitude %.4f outside Black Sea bounds [%.1f, %.1f]", i, p.Lon, minLon, maxLon)
-		}
+	}
 
-		// Проверка глубины
-		if p.Depth > 0 {
-			return fmt.Errorf("point %d: positive depth %.2f (should be underwater, negative)", i, p.Depth)
-		}
-		if p.Depth < maxDepth {
-			return fmt.Errorf("point %d: depth %.2f exceeds realistic Black Sea depth (max ~-2212m)", i, p.Depth)
-		}
+	return nil
+}
 
-		// Проверка на NaN/Inf
+// validateBathymetryValues проверяет числовой и физический контракт точек.
+// Проверка области Чёрного моря выполняется отдельно, чтобы BuildGrid оставался
+// пригоден для локальных синтетических сеток в тестах геометрических алгоритмов.
+func validateBathymetryValues(points []BathymetryPoint) error {
+	for i, p := range points {
 		if math.IsNaN(p.Lat) || math.IsInf(p.Lat, 0) {
-			return fmt.Errorf("point %d: latitude is NaN/Inf", i)
+			return fmt.Errorf("точка %d: широта равна NaN/Inf", i)
 		}
 		if math.IsNaN(p.Lon) || math.IsInf(p.Lon, 0) {
-			return fmt.Errorf("point %d: longitude is NaN/Inf", i)
+			return fmt.Errorf("точка %d: долгота равна NaN/Inf", i)
 		}
 		if math.IsNaN(p.Depth) || math.IsInf(p.Depth, 0) {
-			return fmt.Errorf("point %d: depth is NaN/Inf", i)
+			return fmt.Errorf("точка %d: глубина равна NaN/Inf", i)
+		}
+		if p.Lat < -90 || p.Lat > 90 {
+			return fmt.Errorf("точка %d: недопустимая широта %.4f", i, p.Lat)
+		}
+		if p.Lon < -180 || p.Lon > 180 {
+			return fmt.Errorf("точка %d: недопустимая долгота %.4f", i, p.Lon)
+		}
+		if p.Depth > 0 {
+			return fmt.Errorf("точка %d: положительная глубина %.2f (должна быть под водой, отрицательная)", i, p.Depth)
+		}
+		if p.Depth < minimumBlackSeaElevationM {
+			return fmt.Errorf(
+				"точка %d: отметка %.2f м ниже допустимого предела Чёрного моря %.0f м",
+				i, p.Depth, minimumBlackSeaElevationM,
+			)
 		}
 	}
 
@@ -210,23 +363,23 @@ func validateBathymetryPoints(points []BathymetryPoint) error {
 
 func validateBathymetryGrid(grid *BathymetryGrid) error {
 	if len(grid.Points) == 0 {
-		return fmt.Errorf("grid has no points")
+		return fmt.Errorf("сетка не имеет точек")
 	}
 
 	// Проверка разрешения
-	if grid.Resolution <= 0 {
-		return fmt.Errorf("invalid resolution: %f", grid.Resolution)
+	if math.IsNaN(grid.Resolution) || math.IsInf(grid.Resolution, 0) || grid.Resolution <= 0 {
+		return fmt.Errorf("недопустимое разрешение: %f", grid.Resolution)
 	}
 	if grid.Resolution > 0.1 {
-		return fmt.Errorf("resolution too coarse: %f (max 0.1°)", grid.Resolution)
+		return fmt.Errorf("слишком грубое разрешение: %f (не более 0,1°)", grid.Resolution)
 	}
 
 	return nil
 }
 
-// physicalDepthFactor calculates erosion factor based on water depth.
-// Deeper water allows more wave energy, resulting in higher erosion.
-// depthMeters: negative for underwater (e.g., -100 = 100m below sea level)
+// physicalDepthFactor рассчитывает коэффициент эрозии на основе глубины воды.
+// Более глубокие воды пропускают больше энергии волн, что приводит к более интенсивной эрозии.
+// Показания глубиномеров: отрицательные для подводных (например, -100 = 100 м ниже уровня моря).
 func physicalDepthFactor(depthMeters, fetchMeters, depthScale float64) float64 {
 	effectiveDepth := math.Max(0, -depthMeters)
 	return 1 - math.Exp(-effectiveDepth/depthScale)

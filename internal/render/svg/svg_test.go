@@ -74,6 +74,12 @@ func TestDrawDocumentIncludesLayersScaleAndLengths(t *testing.T) {
 	}
 
 	svg := string(content)
+	// Debug: print SVG content
+	t.Logf("SVG content length: %d", len(svg))
+	if len(svg) < 5000 {
+		t.Logf("SVG content: %s", svg)
+	}
+
 	for _, expected := range []string{
 		"Исходная полилиния",
 		"Итерация 1",
@@ -94,6 +100,76 @@ func TestDrawDocumentIncludesLayersScaleAndLengths(t *testing.T) {
 	} {
 		if !strings.Contains(svg, expected) {
 			t.Fatalf("expected SVG to contain %q", expected)
+		}
+	}
+}
+
+func TestDrawEnhancedScientificMapKeepsAxesOutsideClip(t *testing.T) {
+	filename := filepath.Join(t.TempDir(), "scientific.svg")
+	document := EnhancedDocument{
+		Document: Document{
+			Title:    "Фрактальная размерность",
+			Subtitle: "Модель: box-counting",
+			Layers: []Layer{{
+				Points: []geometry.LatLon{{Lat: 40, Lon: 30}, {Lat: 45, Lon: 36}, {Lat: 42, Lon: 40}},
+			}},
+		},
+		MinimalMap: true,
+	}
+
+	if err := DrawEnhancedSVG(document, filename); err != nil {
+		t.Fatalf("DrawEnhancedSVG returned error: %v", err)
+	}
+
+	content, err := os.ReadFile(filename)
+	if err != nil {
+		t.Fatalf("read svg: %v", err)
+	}
+	svg := string(content)
+	axisIndex := strings.Index(svg, "OX — долгота")
+	clipEnd := strings.Index(svg, "</clipPath>")
+	if axisIndex < 0 || clipEnd < 0 || axisIndex < clipEnd {
+		t.Fatalf("оси должны находиться после определения clipPath")
+	}
+	if !strings.Contains(svg, "OY — широта") || !strings.Contains(svg, "Масштаб") {
+		t.Fatal("научная карта должна содержать обе оси и масштаб")
+	}
+}
+
+func TestDrawEnhancedBoxCountingLegendAndLogLogLink(t *testing.T) {
+	filename := filepath.Join(t.TempDir(), "box-counting.svg")
+	points := []geometry.LatLon{{Lat: 40, Lon: 30}, {Lat: 41, Lon: 31}, {Lat: 40, Lon: 32}}
+	document := EnhancedDocument{
+		Document: Document{
+			Title:  "Фрактальная размерность",
+			Layers: []Layer{{Points: points}},
+		},
+		MinimalMap: true,
+		BoxCountingGridOptions: &BoxCountingGridOptions{
+			Show:               true,
+			Points:             points,
+			BoxSize:            10000,
+			ShowCoveredBoxes:   true,
+			ShowAllBoxes:       true,
+			ShowCoverageDegree: true,
+			RegressionWindow:   true,
+			RegressionMinBox:   5000,
+			RegressionMaxBox:   15000,
+			LogLogSVGFile:      "dimension_loglog_0.svg",
+		},
+	}
+
+	if err := DrawEnhancedSVG(document, filename); err != nil {
+		t.Fatalf("DrawEnhancedSVG returned error: %v", err)
+	}
+	content, err := os.ReadFile(filename)
+	if err != nil {
+		t.Fatalf("read svg: %v", err)
+	}
+	svg := string(content)
+	for _, expected := range []string{"плотность прохождения", "регрессионном окне", "dimension_loglog_0.svg"} {
+		if !strings.Contains(svg, expected) {
+			t.Fatalf("expected box-counting SVG to contain %q", expected)
 		}
 	}
 }

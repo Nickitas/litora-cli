@@ -1,7 +1,26 @@
-lito-*
-.cloude
+/lito-*
+lito.exe
+/lito
+
+# Воспроизводимые, но неверсируемые результаты запусков.
+/output/*
+!/output/.gitkeep
+!/output/README.md
+
+# Локальные данные источника и снимки coastline.
+/data/cache/
+/data/snapshots/
+
+# Локальная среда анализа и кэш Python.
+/scripts/venv/
+**/__pycache__/
+*.py[cod]
+
+# Резервные копии исходников не являются частью сборки.
+*.bak
+*.bak[0-9]*
+
 .DS_Store
-.claude
-DEVELOPMENT_PLAN.md
+AGENTS.md
 build/
 dist/

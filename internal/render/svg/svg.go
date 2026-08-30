@@ -275,7 +275,7 @@ func buildHeader(title, subtitle string, x, width float64) (string, float64) {
 		))
 	}
 
-	currentY += 22 + float64(max(len(subtitleLines)-1, 0))*18
+	currentY += 22 + float64(maxInt(len(subtitleLines)-1, 0))*18
 	for i, line := range noteLines {
 		y := currentY + 26 + float64(i)*16
 		out.WriteString(fmt.Sprintf(
@@ -620,7 +620,7 @@ func buildChart(chart Chart, x, y, width, height float64) string {
 	))
 	out.WriteString(fmt.Sprintf(
 		`    <text x="%.0f" y="%.0f" text-anchor="end" font-family="Helvetica, Arial, sans-serif" font-size="11" fill="#6b7a87">%d</text>`+"\n",
-		plotX+plotWidth, y+height-10, max(maxLen-1, 0),
+		plotX+plotWidth, y+height-10, maxInt(maxLen-1, 0),
 	))
 
 	for _, series := range chart.Series {
@@ -663,7 +663,7 @@ func chartPolyline(values []float64, minValue, maxValue, plotX, plotY, plotWidth
 
 	var polyline strings.Builder
 	points := make([]chartPoint, 0, validCount)
-	denominator := max(len(values)-1, 1)
+	denominator := maxInt(len(values)-1, 1)
 	valueSpan := maxValue - minValue
 	if valueSpan <= 0 {
 		valueSpan = 1
@@ -982,4 +982,25 @@ func escapeText(value string) string {
 		`'`, "&apos;",
 	)
 	return replacer.Replace(value)
+}
+
+func max(a, b float64) float64 {
+	if a > b {
+		return a
+	}
+	return b
+}
+
+func maxInt(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
+}
+
+func minInt(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }

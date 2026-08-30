@@ -1,9 +1,76 @@
 package geometry
 
 import (
+	"crypto/sha256"
+	"fmt"
 	"math"
+	"os"
+	"path/filepath"
 	"testing"
 )
+
+func TestBathymetryPassportVerifiedDerivedHasNoWarnings(t *testing.T) {
+	downloadedAt := "2026-08-19T12:00:00Z"
+	netcdf := "gebco_2026_black_sea.nc"
+	netcdfChecksum := fmt.Sprintf("%x", sha256.Sum256([]byte("netcdf")))
+	sourceResolution := 15.0
+	data := []byte(`[{"lat":44,"lon":34,"depth":-100}]`)
+	passport := BathymetryPassport{
+		SchemaVersion:                "1.0",
+		Title:                        "Проверяемый производный набор",
+		Status:                       BathymetryStatusVerifiedDerived,
+		DatasetFile:                  "bathymetry.json",
+		DatasetSHA256:                fmt.Sprintf("%x", sha256.Sum256(data)),
+		PointCount:                   1,
+		TargetResolutionDegrees:      0.01,
+		SourceProduct:                "GEBCO_2026",
+		SourceDownloadedAt:           &downloadedAt,
+		SourceNetCDF:                 &netcdf,
+		SourceNetCDFSHA256:           &netcdfChecksum,
+		SourceGridIntervalArcSeconds: &sourceResolution,
+		VerticalReference:            "Средний уровень моря по допущению GEBCO",
+		ResamplingMethod:             "ближайший сосед",
+		License:                      "Общественное достояние с обязательной атрибуцией",
+	}
+
+	if warnings := passport.ReproducibilityWarnings(); len(warnings) != 0 {
+		t.Fatalf("не ожидались предупреждения, получено: %v", warnings)
+	}
+	if err := passport.VerifyDataset(data); err != nil {
+		t.Fatalf("контрольная сумма должна совпадать: %v", err)
+	}
+	if err := passport.VerifyDataset([]byte("изменено")); err == nil {
+		t.Fatal("ожидалась ошибка для изменённого файла")
+	}
+}
+
+func TestLoadBathymetryPassportFromFile(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "bathymetry.metadata.json")
+	contents := `{
+  "schema_version":"1.0",
+  "title":"Legacy",
+  "status":"legacy_unverified_mixed",
+  "dataset_file":"bathymetry.json",
+  "dataset_sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "point_count":1,
+  "target_resolution_degrees":0.01,
+  "source_downloaded_at":null,
+  "source_netcdf":null,
+  "source_netcdf_sha256":null,
+  "source_grid_interval_arc_seconds":null
+}`
+	if err := os.WriteFile(path, []byte(contents), 0o600); err != nil {
+		t.Fatalf("запись паспорта: %v", err)
+	}
+
+	passport, err := LoadBathymetryPassportFromFile(path)
+	if err != nil {
+		t.Fatalf("загрузка паспорта: %v", err)
+	}
+	if len(passport.ReproducibilityWarnings()) == 0 {
+		t.Fatal("для legacy-паспорта ожидались предупреждения")
+	}
+}
 
 func TestLoadBathymetryFromJSON_ValidInput_Success(t *testing.T) {
 	data := []byte(`[
@@ -15,19 +82,19 @@ func TestLoadBathymetryFromJSON_ValidInput_Success(t *testing.T) {
 
 	grid, err := LoadBathymetryFromJSON(data, BathymetryLoadOptions{Resolution: 0.01})
 	if err != nil {
-		t.Fatalf("expected success, got error: %v", err)
+		t.Fatalf("ожидался успех, получена ошибка: %v", err)
 	}
 
 	if grid == nil {
-		t.Fatal("expected grid, got nil")
+		t.Fatal("ожидалась сетка, получен nil")
 	}
 
 	if grid.bounds.MinLat != 45.0 || grid.bounds.MaxLat != 45.01 {
-		t.Fatalf("expected lat bounds [45.0, 45.01], got [%f, %f]", grid.bounds.MinLat, grid.bounds.MaxLat)
+		t.Fatalf("ожидались границы широты [45.0, 45.01], получено [%f, %f]", grid.bounds.MinLat, grid.bounds.MaxLat)
 	}
 
 	if grid.bounds.MinLon != 30.0 || grid.bounds.MaxLon != 30.01 {
-		t.Fatalf("expected lon bounds [30.0, 30.01], got [%f, %f]", grid.bounds.MinLon, grid.bounds.MaxLon)
+		t.Fatalf("ожидались границы долготы [30.0, 30.01], получено [%f, %f]", grid.bounds.MinLon, grid.bounds.MaxLon)
 	}
 }
 
@@ -36,11 +103,18 @@ func TestLoadBathymetryFromJSON_EmptyArray_Error(t *testing.T) {
 
 	_, err := LoadBathymetryFromJSON(data, BathymetryLoadOptions{})
 	if err == nil {
-		t.Fatal("expected error for empty array, got nil")
+		t.Fatal("ожидалась ошибка для пустого массива, получен nil")
 	}
 
-	if !containsString(err.Error(), "empty") {
-		t.Fatalf("expected 'empty' in error message, got: %v", err)
+	if !containsString(err.Error(), "пусты") {
+		t.Fatalf("ожидалось слово 'пусты' в сообщении об ошибке, получено: %v", err)
+	}
+}
+
+func TestLoadBathymetryFromJSONRejectsCoordinatesOutsideBlackSea(t *testing.T) {
+	_, err := LoadBathymetryFromJSON([]byte(`[{"lat":53.2,"lon":107.4,"depth":-25}]`), BathymetryLoadOptions{Resolution: 0.01})
+	if err == nil || !containsString(err.Error(), "вне области Чёрного моря") {
+		t.Fatalf("ожидалось отклонение координат другой акватории, получено: %v", err)
 	}
 }
 
@@ -52,11 +126,11 @@ func TestLoadBathymetryFromJSON_InvalidCoordinates_Error(t *testing.T) {
 
 	_, err := LoadBathymetryFromJSON(data, BathymetryLoadOptions{})
 	if err == nil {
-		t.Fatal("expected error for invalid latitude, got nil")
+		t.Fatal("ожидалась ошибка для недопустимой широты, получен nil")
 	}
 
-	if !containsString(err.Error(), "latitude") {
-		t.Fatalf("expected 'latitude' in error message, got: %v", err)
+	if !containsString(err.Error(), "широт") {
+		t.Fatalf("ожидалось слово 'широт' в сообщении об ошибке, получено: %v", err)
 	}
 }
 
@@ -70,15 +144,38 @@ func TestBuildGrid_ValidPoints_Success(t *testing.T) {
 
 	grid, err := BuildGrid(points, 0.01)
 	if err != nil {
-		t.Fatalf("expected success, got error: %v", err)
+		t.Fatalf("ожидался успех, получена ошибка: %v", err)
 	}
 
 	if len(grid.Points) != 4 {
-		t.Fatalf("expected 4 points in grid, got %d", len(grid.Points))
+		t.Fatalf("ожидалось 4 точки в сетке, получено %d", len(grid.Points))
 	}
 
 	if grid.Resolution != 0.01 {
-		t.Fatalf("expected resolution 0.01, got %f", grid.Resolution)
+		t.Fatalf("ожидалось разрешение 0.01, получено %f", grid.Resolution)
+	}
+}
+
+func TestBuildGridDoesNotCollapseDecimalCoordinateNodes(t *testing.T) {
+	points := []BathymetryPoint{
+		{Lat: 43.0, Lon: 34.0, Depth: -10},
+		{Lat: 43.0, Lon: 34.01, Depth: -20},
+		{Lat: 43.01, Lon: 34.0, Depth: -30},
+		{Lat: 43.01, Lon: 34.01, Depth: -40},
+	}
+	grid, err := BuildGrid(points, 0.01)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(grid.Points) != len(points) {
+		t.Fatalf("десятичные координаты схлопнулись в %d узла вместо %d", len(grid.Points), len(points))
+	}
+	details, err := grid.SampleDepthDetailed(43.01, 34.01, 2_000)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !details.Exact || details.ElevationM != -40 {
+		t.Fatalf("крайний узел регулярной сетки должен читаться точно: %+v", details)
 	}
 }
 
@@ -87,7 +184,7 @@ func TestBuildGrid_EmptyPoints_Error(t *testing.T) {
 
 	_, err := BuildGrid(points, 0.01)
 	if err == nil {
-		t.Fatal("expected error for empty points, got nil")
+		t.Fatal("ожидалась ошибка для пустых точек, получен nil")
 	}
 }
 
@@ -98,7 +195,7 @@ func TestBuildGrid_ZeroResolution_Error(t *testing.T) {
 
 	_, err := BuildGrid(points, 0)
 	if err == nil {
-		t.Fatal("expected error for zero resolution, got nil")
+		t.Fatal("ожидалась ошибка для нулевого разрешения, получен nil")
 	}
 }
 
@@ -112,16 +209,16 @@ func TestInterpolateDepth_ExactMatch_ReturnsDepth(t *testing.T) {
 
 	grid, err := BuildGrid(points, 0.01)
 	if err != nil {
-		t.Fatalf("build grid: %v", err)
+		t.Fatalf("ошибка построения сетки: %v", err)
 	}
 
 	depth, err := grid.InterpolateDepth(45.0, 30.0)
 	if err != nil {
-		t.Fatalf("expected success, got error: %v", err)
+		t.Fatalf("ожидался успех, получена ошибка: %v", err)
 	}
 
 	if math.Abs(depth+100) > 0.01 {
-		t.Fatalf("expected depth -100, got %f", depth)
+		t.Fatalf("ожидалась глубина -100, получено %f", depth)
 	}
 }
 
@@ -135,17 +232,17 @@ func TestInterpolateDepth_Bilinear_Interpolates(t *testing.T) {
 
 	grid, err := BuildGrid(points, 0.01)
 	if err != nil {
-		t.Fatalf("build grid: %v", err)
+		t.Fatalf("ошибка построения сетки: %v", err)
 	}
 
 	depth, err := grid.InterpolateDepth(45.005, 30.005)
 	if err != nil {
-		t.Fatalf("expected success, got error: %v", err)
+		t.Fatalf("ожидался успех, получена ошибка: %v", err)
 	}
 
 	expected := -137.5
 	if math.Abs(depth-expected) > 0.1 {
-		t.Fatalf("expected depth ~%f, got %f", expected, depth)
+		t.Fatalf("ожидалась глубина ~%f, получено %f", expected, depth)
 	}
 }
 
@@ -156,16 +253,16 @@ func TestInterpolateDepth_OutsideBounds_Error(t *testing.T) {
 
 	grid, err := BuildGrid(points, 0.01)
 	if err != nil {
-		t.Fatalf("build grid: %v", err)
+		t.Fatalf("ошибка построения сетки: %v", err)
 	}
 
 	_, err = grid.InterpolateDepth(50.0, 30.0)
 	if err == nil {
-		t.Fatal("expected error for outside bounds, got nil")
+		t.Fatal("ожидалась ошибка для точки за пределами сетки, получен nil")
 	}
 
-	if !containsString(err.Error(), "outside grid bounds") {
-		t.Fatalf("expected 'outside grid bounds' in error, got: %v", err)
+	if !containsString(err.Error(), "границ сетки") {
+		t.Fatalf("ожидалось 'границ сетки' в ошибке, получено: %v", err)
 	}
 }
 
@@ -180,16 +277,16 @@ func TestInterpolateDepth_MissingNeighbors_Error(t *testing.T) {
 
 	grid, err := BuildGrid(points, 0.01)
 	if err != nil {
-		t.Fatalf("build grid: %v", err)
+		t.Fatalf("ошибка построения сетки: %v", err)
 	}
 
 	_, err = grid.InterpolateDepth(45.005, 30.015)
 	if err == nil {
-		t.Fatal("expected error for missing neighbors, got nil")
+		t.Fatal("ожидалась ошибка для отсутствующих соседей, получен nil")
 	}
 
-	if !containsString(err.Error(), "missing neighbor") {
-		t.Fatalf("expected 'missing neighbor' in error, got: %v", err)
+	if !containsString(err.Error(), "недостающие соседние") {
+		t.Fatalf("ожидалось 'недостающие соседние' в ошибке, получено: %v", err)
 	}
 }
 
@@ -201,7 +298,7 @@ func TestPhysicalDepthFactor_DeepWater_HighFactor(t *testing.T) {
 	factor := physicalDepthFactor(depth, fetch, depthScale)
 
 	if factor <= 0.8 {
-		t.Fatalf("expected high factor (>0.8) for deep water, got %f", factor)
+		t.Fatalf("ожидался высокий коэффициент (>0.8) для глубокой воды, получено %f", factor)
 	}
 }
 
@@ -213,7 +310,7 @@ func TestPhysicalDepthFactor_ShallowWater_LowFactor(t *testing.T) {
 	factor := physicalDepthFactor(depth, fetch, depthScale)
 
 	if factor >= 0.2 {
-		t.Fatalf("expected low factor (<0.2) for shallow water, got %f", factor)
+		t.Fatalf("ожидался низкий коэффициент (<0.2) для мелководья, получено %f", factor)
 	}
 }
 
@@ -225,7 +322,7 @@ func TestPhysicalDepthFactor_ZeroDepth_ZeroFactor(t *testing.T) {
 	factor := physicalDepthFactor(depth, fetch, depthScale)
 
 	if factor != 0 {
-		t.Fatalf("expected zero factor for zero depth, got %f", factor)
+		t.Fatalf("ожидался нулевой коэффициент для нулевой глубины, получено %f", factor)
 	}
 }
 
@@ -254,7 +351,7 @@ func TestWaveErosionWithBathymetry_Integration(t *testing.T) {
 
 	grid, err := LoadBathymetryFromJSON(bathyData, BathymetryLoadOptions{Resolution: 0.01})
 	if err != nil {
-		t.Fatalf("load bathymetry: %v", err)
+		t.Fatalf("ошибка загрузки батиметрии: %v", err)
 	}
 
 	options := WaveErosionOptions{
@@ -271,16 +368,16 @@ func TestWaveErosionWithBathymetry_Integration(t *testing.T) {
 
 	snapshots := SimulateWaveErosionWithSeed(points, 1, options, 42)
 	if len(snapshots) != 2 {
-		t.Fatalf("expected 2 snapshots, got %d", len(snapshots))
+		t.Fatalf("ожидалось 2 снимка, получено %d", len(snapshots))
 	}
 
 	eroded := snapshots[1]
 	if len(eroded) != len(points) {
-		t.Fatalf("expected %d points, got %d", len(points), len(eroded))
+		t.Fatalf("ожидалось %d точек, получено %d", len(points), len(eroded))
 	}
 
 	if eroded[0] != eroded[len(eroded)-1] {
-		t.Fatal("expected closed ring to remain closed")
+		t.Fatal("ожидалось, что замкнутое кольцо останется замкнутым")
 	}
 }
 

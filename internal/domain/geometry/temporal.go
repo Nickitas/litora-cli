@@ -38,43 +38,47 @@ type TemporalParameters struct {
 
 	// MaxYearsPerStep - максимальное значение для валидации
 	MaxYearsPerStep float64
+
+	// ProgressCallback - функция обратного вызова для отчёта о прогрессе
+	// Вызывается с (текущий_год, целевые_года) на каждом шаге
+	ProgressCallback func(year, totalYears int)
 }
 
 // TemporalState состояние временной динамики для одного шага
 type TemporalState struct {
-	Step           int       // номер шага
-	Year           float64   // текущий год
-	IsStorm        bool      // штормовое событие
-	StormIntensity float64   // интенсивность шторма [1.0+]
-	SeasonalFactor float64   // сезонный множитель [0.5-1.5]
-	SeaLevelOffset float64   // смещение уровня моря (м)
-	EffectiveYears float64   // эффективное число лет для этого шага
+	Step           int     // номер шага
+	Year           float64 // текущий год
+	IsStorm        bool    // штормовое событие
+	StormIntensity float64 // интенсивность шторма [1.0+]
+	SeasonalFactor float64 // сезонный множитель [0.5-1.5]
+	SeaLevelOffset float64 // смещение уровня моря (м)
+	EffectiveYears float64 // эффективное число лет для этого шага
 }
 
 // TemporalResult результат моделирования с временной динамикой
 type TemporalResult struct {
-	Snapshots       [][]LatLon       // состояния береговой линии по шагам
-	TemporalStates  []TemporalState  // временные состояния по шагам
-	TotalYears      float64          // общее число промоделированных лет
-	StormCount      int              // число штормовых событий
-	AccumulatedErosion float64       // накопленная эрозия (м)
-	FinalSeaLevelRise float64        // итоговый подъём уровня моря (м)
+	Snapshots          [][]LatLon      // состояния береговой линии по шагам
+	TemporalStates     []TemporalState // временные состояния по шагам
+	TotalYears         float64         // общее число промоделированных лет
+	StormCount         int             // число штормовых событий
+	AccumulatedErosion float64         // накопленная эрозия (м)
+	FinalSeaLevelRise  float64         // итоговый подъём уровня моря (м)
 }
 
 // ErosionMetrics метрики эрозии для каждого шага
 type ErosionMetrics struct {
-	Step                int      // номер шага
-	Year                float64  // год
-	LengthKm            float64  // длина береговой линии (км)
-	AreaKm2             float64  // площадь (км²)
-	ErodedM3            float64  // объём эрозии (м³)
-	DepositedM3         float64  // объём депозиции (м³)
-	NetChangeM3         float64  // баланс (м³)
-	FractalDimension    float64  // фрактальная размерность
-	MeanRetreatMeters   float64  // среднее отступание (м)
-	MaxRetreatMeters    float64  // максимальное отступание (м)
-	IsStorm             bool     // штормовое событие
-	SeasonalFactor       float64  // сезонный множитель
+	Step              int     // номер шага
+	Year              float64 // год
+	LengthKm          float64 // длина береговой линии (км)
+	AreaKm2           float64 // площадь (км²)
+	ErodedM3          float64 // объём эрозии (м³)
+	DepositedM3       float64 // объём депозиции (м³)
+	NetChangeM3       float64 // баланс (м³)
+	FractalDimension  float64 // фрактальная размерность
+	MeanRetreatMeters float64 // среднее отступание (м)
+	MaxRetreatMeters  float64 // максимальное отступание (м)
+	IsStorm           bool    // штормовое событие
+	SeasonalFactor    float64 // сезонный множитель
 }
 
 // normalizeTemporalParameters нормализует временные параметры
@@ -115,10 +119,10 @@ func normalizeTemporalParameters(params TemporalParameters) TemporalParameters {
 	return params
 }
 
-// calculateSeasonalFactor рассчитывает сезонный множитель
+// calculateTemporalSeasonalFactor рассчитывает сезонный множитель
 // Формула: seasonalFactor = 1.0 + 0.5×sin(2π × year + phase)
 // Результат: [0.5, 1.5] - сезонные колебания эрозии
-func calculateSeasonalFactor(year float64, phase float64) float64 {
+func calculateTemporalSeasonalFactor(year float64, phase float64) float64 {
 	// Нормализуем фазу
 	phase = math.Mod(phase, 2*math.Pi)
 
@@ -158,7 +162,7 @@ func calculateTemporalState(step int, params TemporalParameters, rng *rand.Rand)
 
 	// Сезонность
 	if params.Seasonality {
-		state.SeasonalFactor = calculateSeasonalFactor(state.Year, params.SeasonalPhase)
+		state.SeasonalFactor = calculateTemporalSeasonalFactor(state.Year, params.SeasonalPhase)
 	} else {
 		state.SeasonalFactor = 1.0
 	}
@@ -254,6 +258,12 @@ func SimulateErosionWithDurationSeed(
 			result.StormCount++
 		}
 
+		// Прогресс callback
+		if params.ProgressCallback != nil {
+			currentYear := int(math.Round(state.Year))
+			params.ProgressCallback(currentYear, targetYears)
+		}
+
 		// Модулированная эрозия
 		modulatedOptions := options
 
@@ -296,11 +306,11 @@ func CalculateErosionMetrics(result TemporalResult) []ErosionMetrics {
 		}
 
 		metric := ErosionMetrics{
-			Step:          i,
-			Year:          state.Year,
-			LengthKm:      PolylineLength(snapshot),
-			AreaKm2:       Area(snapshot),
-			IsStorm:       state.IsStorm,
+			Step:           i,
+			Year:           state.Year,
+			LengthKm:       PolylineLength(snapshot),
+			AreaKm2:        Area(snapshot),
+			IsStorm:        state.IsStorm,
 			SeasonalFactor: state.SeasonalFactor,
 		}
 
@@ -371,25 +381,25 @@ func ValidateTemporalParameters(params TemporalParameters) []string {
 
 	if params.YearsPerStep < params.MinYearsPerStep {
 		warnings = append(warnings,
-			fmt.Sprintf("YearsPerStep %.2f < minimum %.2f",
+			fmt.Sprintf("YearsPerStep %.2f меньше минимума %.2f",
 				params.YearsPerStep, params.MinYearsPerStep))
 	}
 
 	if params.YearsPerStep > params.MaxYearsPerStep {
 		warnings = append(warnings,
-			fmt.Sprintf("YearsPerStep %.2f > maximum %.2f",
+			fmt.Sprintf("YearsPerStep %.2f больше максимума %.2f",
 				params.YearsPerStep, params.MaxYearsPerStep))
 	}
 
 	if params.StormProbability > 0.5 {
 		warnings = append(warnings,
-			fmt.Sprintf("High storm probability %.2f (unrealistic for most climates)",
+			fmt.Sprintf("Высокая вручную заданная вероятность шторма %.2f (выше параметрического порога 0.50)",
 				params.StormProbability))
 	}
 
 	if params.SeaLevelRise > 0.01 {
 		warnings = append(warnings,
-			fmt.Sprintf("High sea level rise %.4f m/year (exceeds IPCC RCP8.5)",
+			fmt.Sprintf("Высокий вручную заданный подъём уровня моря %.4f м/год (выше параметрического порога 0.0100 м/год)",
 				params.SeaLevelRise))
 	}
 
@@ -421,7 +431,7 @@ func max(values []float64) float64 {
 	return maximum
 }
 
-// fractalDimensionBoxCounting calculates fractal dimension using box-counting
+// fractalDimensionBoxCounting рассчитывает фрактальную размерность методом box-counting
 func fractalDimensionBoxCounting(points []LatLon, maxScales int) float64 {
 	if len(points) < 4 {
 		return 1.0 // minimum dimension for line
@@ -469,6 +479,7 @@ func fractalDimensionBoxCounting(points []LatLon, maxScales int) float64 {
 	return math.Max(1.0, math.Min(dimension, 2.0)) // constrain to [1, 2]
 }
 
+// countBoxes подсчитывает количество занятых боксов для box-counting
 func countBoxes(points []LatLon, scale int) int {
 	if len(points) < 2 {
 		return 0

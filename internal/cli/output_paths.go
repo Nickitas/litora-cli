@@ -6,19 +6,25 @@ import (
 	"path/filepath"
 )
 
-// Output directory subdirectories
+// Подкаталоги выходного каталога
 const (
-	subdirSVG     = "svg"
-	subdirMetrics = "metrics"
-	subdirCSV     = "csv"
+	subdirSVG        = "svg"
+	subdirMetrics    = "metrics"
+	subdirCSV        = "csv"
+	subdirGIF        = "gif"
+	subdirErosion    = "erosion"
+	subdirMesh       = "mesh"
+	defaultOutputDir = "output"
 )
 
-// OutputPathManager manages output directory structure and paths
+// OutputPathManager управляет структурой выходных каталогов и путями
+// Автоматически создаёт необходимую структуру директорий и разрешает пути к файлам
 type OutputPathManager struct {
 	baseDir string
 }
 
-// NewOutputPathManager creates a new output path manager
+// NewOutputPathManager создаёт новый менеджер путей вывода
+// Если baseDir пуст, использует каталог "output" по умолчанию
 func NewOutputPathManager(baseDir string) *OutputPathManager {
 	if baseDir == "" {
 		baseDir = defaultOutputDir
@@ -28,74 +34,108 @@ func NewOutputPathManager(baseDir string) *OutputPathManager {
 	}
 }
 
-// EnsureDirectories creates all output subdirectories if they don't exist
+// EnsureDirectories создаёт все выходные подкаталоги, если они не существуют.
+// Создаёт каталоги SVG, метрик, CSV, GIF, эрозии и сеток.
 func (opm *OutputPathManager) EnsureDirectories() error {
 	dirs := []string{
 		opm.SVGDir(),
 		opm.MetricsDir(),
 		opm.CSVDir(),
+		opm.GIFDir(),
+		opm.ErosionDir(),
+		opm.MeshDir(),
 	}
 
 	for _, dir := range dirs {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
-			return fmt.Errorf("create directory %s: %w", dir, err)
+			return fmt.Errorf("создать каталог %s: %w", dir, err)
 		}
 	}
 
 	return nil
 }
 
-// BaseDir returns the base output directory
+// MeshDir возвращает каталог расчётных 2D-сеток и отчётов их сравнения.
+func (opm *OutputPathManager) MeshDir() string {
+	return filepath.Join(opm.baseDir, subdirMesh)
+}
+
+// MeshPath возвращает путь к файлу внутри каталога расчётных 2D-сеток.
+func (opm *OutputPathManager) MeshPath(filename string) string {
+	return filepath.Join(opm.MeshDir(), filename)
+}
+
+// BaseDir возвращает базовый выходной каталог
 func (opm *OutputPathManager) BaseDir() string {
 	return opm.baseDir
 }
 
-// SVGDir returns the SVG output directory
+// SVGDir возвращает каталог для вывода SVG файлов
 func (opm *OutputPathManager) SVGDir() string {
 	return filepath.Join(opm.baseDir, subdirSVG)
 }
 
-// MetricsDir returns the metrics output directory
+// MetricsDir возвращает каталог для вывода файлов метрик
 func (opm *OutputPathManager) MetricsDir() string {
 	return filepath.Join(opm.baseDir, subdirMetrics)
 }
 
-// CSVDir returns the CSV output directory
+// CSVDir возвращает каталог для вывода CSV файлов
 func (opm *OutputPathManager) CSVDir() string {
 	return filepath.Join(opm.baseDir, subdirCSV)
 }
 
-// SVGPath returns the full path for an SVG file
+// GIFDir возвращает каталог для вывода GIF-анимаций.
+func (opm *OutputPathManager) GIFDir() string {
+	return filepath.Join(opm.baseDir, subdirGIF)
+}
+
+// ErosionDir возвращает каталог расчётных результатов эрозии и транспорта.
+func (opm *OutputPathManager) ErosionDir() string {
+	return filepath.Join(opm.baseDir, subdirErosion)
+}
+
+// ErosionPath возвращает путь к файлу результатов расчёта эрозии.
+func (opm *OutputPathManager) ErosionPath(filename string) string {
+	return filepath.Join(opm.ErosionDir(), filename)
+}
+
+// SVGPath возвращает полный путь к SVG файлу
 func (opm *OutputPathManager) SVGPath(filename string) string {
 	return filepath.Join(opm.SVGDir(), filename)
 }
 
-// MetricsPath returns the full path for a metrics file
+// MetricsPath возвращает полный путь к файлу метрик
 func (opm *OutputPathManager) MetricsPath(filename string) string {
 	return filepath.Join(opm.MetricsDir(), filename)
 }
 
-// CSVPath returns the full path for a CSV file
+// CSVPath возвращает полный путь к CSV файлу
 func (opm *OutputPathManager) CSVPath(filename string) string {
 	return filepath.Join(opm.CSVDir(), filename)
 }
 
-// ResolveUserPath resolves a user-provided path to the appropriate subdirectory
-// If the path is absolute, it uses it as-is
-// If the path is relative and starts with a subdirectory name (svg/, metrics/, csv/),
-// it places it in the appropriate subdirectory
-// Otherwise, it uses the base directory
+// GIFPath возвращает полный путь к GIF-файлу.
+func (opm *OutputPathManager) GIFPath(filename string) string {
+	return filepath.Join(opm.GIFDir(), filename)
+}
+
+// ResolveUserPath преобразует пользовательский путь в соответствующий подкаталог
+// Если путь абсолютный, использует его как есть
+// Если путь относительный и начинается с имени подкаталога (svg/, metrics/, csv/, gif/),
+// помещает его в соответствующий подкаталог
+// Иначе использует базовый каталог
 func (opm *OutputPathManager) ResolveUserPath(userPath string, fileType string) string {
 	if userPath == "" {
 		return ""
 	}
 
-	// If absolute path, use as-is
+	// Если абсолютный путь, используем как есть
 	if filepath.IsAbs(userPath) {
 		return userPath
 	}
 
-	// If path already includes a subdirectory prefix, use as-is
+	// Если путь уже включает префикс подкаталога, используем как есть
 	base := filepath.Base(userPath)
 	dir := filepath.Dir(userPath)
 
@@ -115,13 +155,19 @@ func (opm *OutputPathManager) ResolveUserPath(userPath string, fileType string) 
 			return filepath.Join(opm.baseDir, userPath)
 		}
 		return opm.CSVPath(base)
+	case "gif":
+		if dir == subdirGIF {
+			return filepath.Join(opm.baseDir, userPath)
+		}
+		return opm.GIFPath(base)
 	default:
-		// Unknown file type, place in base directory
+		// Неизвестный тип файла, помещаем в базовый каталог
 		return filepath.Join(opm.baseDir, userPath)
 	}
 }
 
-// ParseFileType determines the file type from a filename/extension
+// ParseFileType определяет тип файла по имени/расширению
+// Возвращает: "svg", "metrics" (JSON), "csv", "gif" или "unknown"
 func ParseFileType(filename string) string {
 	ext := filepath.Ext(filename)
 	switch ext {
@@ -131,6 +177,8 @@ func ParseFileType(filename string) string {
 		return "metrics"
 	case ".csv":
 		return "csv"
+	case ".gif":
+		return "gif"
 	default:
 		return "unknown"
 	}

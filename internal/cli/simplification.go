@@ -6,26 +6,33 @@ import (
 )
 
 const (
-	coastlineSVGMaxPoints = 3200
-	seriesSVGMaxPoints    = 1800
+	// Максимальное количество точек для упрощения SVG береговой линии
+	coastlineSVGMaxPoints = 5000
+	// Максимальное количество точек для упрощения в серийных SVG
+	seriesSVGMaxPoints = 5000
+	// Ограничение на количество точек базовой модели
 	modelBaseMaxPointsCap = 3072
+	// Бudget точек для модельных кривых
 	modelCurvePointBudget = 400000
 )
 
+// geometryViews хранит различные представления геометрии для обработки
 type geometryViews struct {
-	RenderBase  []geometry.LatLon
-	ModelBase   []geometry.LatLon
-	ProcessInfo []string
+	RenderBase  []geometry.LatLon // База для рендеринга (упрощённая)
+	ModelBase   []geometry.LatLon // База для моделирования
+	ProcessInfo []string          // Информация о выполненных обработках
 }
 
-var currentConfig config
+var currentConfig config // текущая конфигурация, устанавливается через setCurrentConfig
 
+// setCurrentConfig устанавливает текущую конфигурацию для использования в prepareGeometryViews
 func setCurrentConfig(cfg config) {
 	currentConfig = cfg
 }
 
+// prepareGeometryViews подготавливает представления геометрии для рендеринга и моделирования
 func prepareGeometryViews(points []geometry.LatLon, command string, iterations int) geometryViews {
-	cfg := currentConfig // set via setter before prepareGeometryViews is called
+	cfg := currentConfig // устанавливается через setCurrentConfig перед вызовом prepareGeometryViews
 
 	views := geometryViews{
 		RenderBase: points,
@@ -37,10 +44,10 @@ func prepareGeometryViews(points []geometry.LatLon, command string, iterations i
 		views.RenderBase = renderResult.Points
 		if renderResult.Applied {
 			views.ProcessInfo = append(views.ProcessInfo, formatSimplificationNote(
-				"coastline SVG simplification",
+				"упрощение SVG-изображения береговой линии",
 				points,
 				renderResult.Points,
-				fmt.Sprintf("for rendering (max %d points)", coastlineSVGMaxPoints),
+				fmt.Sprintf("для рендеринга (max %d точек)", coastlineSVGMaxPoints),
 			))
 		}
 	}
@@ -57,10 +64,10 @@ func prepareGeometryViews(points []geometry.LatLon, command string, iterations i
 			views.ModelBase = modelResult.Points
 			if modelResult.Applied {
 				views.ProcessInfo = append(views.ProcessInfo, formatSimplificationNote(
-					"synthetic base simplification",
+					"упрощение синтетической основы",
 					points,
 					modelResult.Points,
-					fmt.Sprintf("for model stages (target %d points at iteration budget %d)", target, iterations),
+					fmt.Sprintf("для этапов модели (цель %d точек при бюджете итераций %d)", target, iterations),
 				))
 			}
 		}
@@ -69,12 +76,14 @@ func prepareGeometryViews(points []geometry.LatLon, command string, iterations i
 	return views
 }
 
+// simplifyForSeriesSVG упрощает геометрию для рендеринга в серийных SVG
 func simplifyForSeriesSVG(points []geometry.LatLon) geometry.SimplifyResult {
 	return geometry.SimplifyPolyline(points, geometry.SimplifyOptions{MaxPoints: seriesSVGMaxPoints})
 }
 
+// formatSimplificationNote форматирует заметку об упрощении геометрии
 func formatSimplificationNote(label string, original, simplified []geometry.LatLon, suffix string) string {
-	return fmt.Sprintf("%s: %d -> %d points, %.0f -> %.0f km %s",
+	return fmt.Sprintf("%s: %d -> %d точек, %.0f -> %.0f км %s",
 		label,
 		len(original),
 		len(simplified),
@@ -95,7 +104,7 @@ func commandUsesCoastlineSVG(command string) bool {
 
 func commandUsesModelBase(command string) bool {
 	switch command {
-	case cmdAll, cmdDimension:
+	case cmdAll:
 		return true
 	default:
 		return false
@@ -118,6 +127,7 @@ func modelBaseTargetPoints(iterations int) int {
 	return target
 }
 
+// powInt возводит целое число в степень (base^exponent)
 func powInt(base, exponent int) int {
 	if exponent <= 0 {
 		return 1

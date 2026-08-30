@@ -3,7 +3,6 @@ package cli
 import (
 	"coastal-geometry/internal/domain/coastline"
 	"coastal-geometry/internal/domain/fractal"
-	"coastal-geometry/internal/domain/generators/koch"
 	"coastal-geometry/internal/domain/geometry"
 	svgrender "coastal-geometry/internal/render/svg"
 	"fmt"
@@ -11,7 +10,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 )
 
 type fractalSeriesOptions struct {
@@ -21,9 +19,6 @@ type fractalSeriesOptions struct {
 	Iterations       int
 	OriginalBase     []geometry.LatLon
 	ModelBase        []geometry.LatLon
-	OrganicOptions   *koch.OrganicOptions
-	ErosionStrength  float64
-	ErosionSeed      int64
 	IncludeDimension bool
 	Builder          func([]geometry.LatLon, int) []geometry.LatLon
 }
@@ -46,7 +41,8 @@ func writeCoastlineSVG(points, renderPoints []geometry.LatLon, output, defaultNa
 	visualHints := coastline.BuildVisualizationHints(points)
 	validationSummary := coastline.BuildValidationSummary(points)
 
-	if err := svgrender.DrawDocument(svgrender.Document{
+	// Build base document
+	doc := svgrender.Document{
 		Title:    "Береговая линия",
 		Subtitle: "Реальные загруженные данные: исходная географическая полилиния; SVG использует упрощённую копию только для рендера",
 		Layers: []svgrender.Layer{
@@ -70,8 +66,19 @@ func writeCoastlineSVG(points, renderPoints []geometry.LatLon, output, defaultNa
 			fmt.Sprintf("Подсвечено длинных сегментов: %d", len(visualHints.LongSegments)),
 			fmt.Sprintf("Валидация: %d исправлений, %d предупреждений", len(ctx.Validation.Fixes), len(ctx.Validation.Warnings)),
 		},
-	}, filename); err != nil {
-		return err
+	}
+
+	// Wrap with enhanced options if enabled
+	enhancedDoc := wrapDocumentForEnhanced(doc, ctx.Config, points, 0, nil, nil)
+
+	if ctx.Config.EnableEnhanced {
+		if err := svgrender.DrawEnhancedSVG(enhancedDoc, filename); err != nil {
+			return err
+		}
+	} else {
+		if err := svgrender.DrawDocument(doc, filename); err != nil {
+			return err
+		}
 	}
 
 	metricsPath := outputPathManager.MetricsPath("coastline.metrics.json")
@@ -91,35 +98,18 @@ func writeCoastlineSVG(points, renderPoints []geometry.LatLon, output, defaultNa
 		return err
 	}
 
-	fmt.Printf("SVG saved to %s\n", filename)
-	fmt.Printf("Metrics saved to %s\n", metricsPath)
+	fmt.Printf("SVG сохранён: %s\n", filename)
+	fmt.Printf("Метрики сохранены: %s\n", metricsPath)
 	return nil
 }
 
-
-func writeOrganicKochSVGSeries(originalBase, modelBase []geometry.LatLon, iterations int, output string, opts koch.OrganicOptions, erosionStrength float64, prefix, metricsBaseName string, includeDimension bool, ctx exportContext, outputPathManager *OutputPathManager) error {
-	title := "Органическая кривая Коха"
-	if includeDimension {
-		title = "Фрактальная размерность (органическая модель)"
+func writeErosionSVGSeries(originalBase, modelBase []geometry.LatLon, snapshots [][]geometry.LatLon, steps int, strength float64, seed int64, waveOptions geometry.WaveErosionOptions, output string, ctx exportContext, outputPathManager *OutputPathManager, sedimentResult *geometry.SedimentTransportResult) error {
+	ctx.Report = buildReportMetadata(ctx, originalBase, fmt.Sprintf("strength=%.6f|seed=%d|steps=%d|years=%.6f", strength, seed, steps, waveOptions.YearsPerStep))
+	reportKind := "Расчётный отчёт"
+	if ctx.Scenario.ScenarioStatus == geometry.ScenarioStatusDemo {
+		reportKind = "Демонстрационный отчёт (demo)"
 	}
-	return writeFractalSeries(fractalSeriesOptions{
-		Title:            title,
-		Prefix:           prefix,
-		MetricsBaseName:  metricsBaseName,
-		Iterations:       iterations,
-		OriginalBase:     originalBase,
-		ModelBase:        modelBase,
-		OrganicOptions:   &opts,
-		ErosionStrength:  erosionStrength,
-		ErosionSeed:      opts.Seed,
-		IncludeDimension: includeDimension,
-		Builder: func(points []geometry.LatLon, iter int) []geometry.LatLon {
-			return koch.OrganicKochCurve(points, iter, opts)
-		},
-	}, output, ctx, outputPathManager)
-}
-
-func writeErosionSVGSeries(originalBase, modelBase []geometry.LatLon, snapshots [][]geometry.LatLon, steps int, strength float64, seed int64, waveOptions geometry.WaveErosionOptions, output string, ctx exportContext, outputPathManager *OutputPathManager) error {
+	fmt.Printf("🧾 %s: эксперимент %s, источник %s, версия данных %s\n", reportKind, ctx.Report.ExperimentID, ctx.Report.GeometrySource, ctx.Report.InputDataVersion[:12])
 	outputDir := outputPathManager.SVGDir()
 
 	if len(originalBase) == 0 {
@@ -150,6 +140,22 @@ func writeErosionSVGSeries(originalBase, modelBase []geometry.LatLon, snapshots 
 	visualHints := coastline.BuildVisualizationHints(originalBase)
 	validationSummary := coastline.BuildValidationSummary(originalBase)
 
+	erosionChanges := make([][]svgrender.ErosionChangePoint, len(snapshots))
+	maxAbsChange := 0.0
+	for step := 1; step < len(snapshots); step++ {
+		erosionChanges[step] = erosionChangePoints(snapshots[step-1], snapshots[step], waveOptions.YearsPerStep)
+		for _, point := range erosionChanges[step] {
+			maxAbsChange = math.Max(maxAbsChange, math.Abs(point.ChangePerUnit))
+		}
+	}
+	changeUnit := "м/шаг"
+	if waveOptions.YearsPerStep > 0 && waveOptions.YearsPerStep != 1 {
+		changeUnit = "м/год"
+	}
+	if maxAbsChange > 0 {
+		fmt.Printf("🎨 Цветовая шкала эрозии: размыв — красный, накопление — синий, нейтральная зона — серая; максимум %.2f %s\n", maxAbsChange, changeUnit)
+	}
+
 	stepMetrics := make([]erosionStepMetrics, 0, len(snapshots))
 
 	for step := 0; step < len(snapshots); step++ {
@@ -164,15 +170,54 @@ func writeErosionSVGSeries(originalBase, modelBase []geometry.LatLon, snapshots 
 		}
 		meta = append(meta, fmt.Sprintf("Эрозия: базовый отступ %.0f м, seed=%d", strength, seed))
 		meta = append(meta, fmt.Sprintf("Волны: %.0f° от севера, ветер %.1f м/с, сектор ±%.0f°, fetch <= %.0f км", waveOptions.WindSourceDirectionDeg, waveOptions.WindSpeedMetersPerSecond, waveOptions.FetchSpreadDeg, waveOptions.MaxFetchMeters/1000))
+		metadataSubtitle := reportMetadataLines(ctx.Report)
+		if ctx.Scenario.ScenarioStatus == geometry.ScenarioStatusDemo {
+			metadataSubtitle += "\nDEMO: не использовать для оценки годового размыва, калибровки или публикации"
+		}
 
-		if err := svgrender.DrawDocument(svgrender.Document{
-			Title:     fmt.Sprintf("Эрозия — шаг %d", step),
-			Subtitle:  "Серая пунктирная линия показывает реальную загруженную береговую линию; цветные слои — результаты пошаговой эрозии",
+		alerts := makeCoastlineAlerts(ctx.Validation, visualHints)
+		if ctx.Scenario.ScenarioStatus == geometry.ScenarioStatusDemo {
+			alerts = append([]string{"DEMO: не использовать для оценки годового размыва, калибровки или публикации"}, alerts...)
+		}
+
+		// Build document and apply enhanced options if enabled
+		doc := svgrender.Document{
+			Title: "Волновая эрозия береговой линии",
+			Subtitle: fmt.Sprintf("Модель: волновая эрозия · шаг %d · сетка ячеек\nВолны: %.0f° от севера · ветер %.1f м/с · сектор ±%.0f° · fetch ≤ %.0f км\nОтступ %.0f м · seed=%d · масштаб глубины %.0f м · экспозиция %.2f · samples=%d\n%s",
+				step, waveOptions.WindSourceDirectionDeg, waveOptions.WindSpeedMetersPerSecond, waveOptions.FetchSpreadDeg, waveOptions.MaxFetchMeters/1000,
+				strength, seed, waveOptions.DepthScaleMeters, waveOptions.ExposurePower, waveOptions.FetchSamples, metadataSubtitle),
 			Layers:    layers,
 			StatCards: makeValidationStatCards(ctx.Validation, validationSummary),
+			Alerts:    alerts,
 			Meta:      meta,
-		}, filename); err != nil {
-			return err
+		}
+
+		if ctx.Config.EnableEnhanced {
+			fmt.Printf("🔧 Расширенный режим включён для шага эрозии\n")
+			// Подключаем сетку эрозионного моделирования.
+			enhancedDoc := wrapErosionDocumentForEnhanced(doc, ctx.Config, referenceRender, waveOptions)
+			if step > 0 && len(erosionChanges[step]) > 0 {
+				enhancedDoc.ErosionChangeOptions = &svgrender.ErosionChangeOptions{
+					Show:             true,
+					Points:           erosionChanges[step],
+					MaxAbsChange:     maxAbsChange,
+					NeutralThreshold: math.Max(0.1, maxAbsChange*0.03),
+					UnitLabel:        changeUnit,
+				}
+			}
+			// Добавляем транспорт наносов, если доступны его состояния.
+			if sedimentResult != nil && len(sedimentResult.States) > 0 {
+				// Merge sediment options into the enhanced document
+				sedimentEnhanced := wrapDocumentForEnhanced(doc, ctx.Config, referenceRender, waveOptions.WindSourceDirectionDeg, sedimentResult, renderSnapshots[step])
+				enhancedDoc.SedimentTransportOptions = sedimentEnhanced.SedimentTransportOptions
+			}
+			if err := svgrender.DrawEnhancedSVG(enhancedDoc, filename); err != nil {
+				return err
+			}
+		} else {
+			if err := svgrender.DrawDocument(doc, filename); err != nil {
+				return err
+			}
 		}
 
 		stepMetrics = append(stepMetrics, erosionStepMetrics{
@@ -182,12 +227,22 @@ func writeErosionSVGSeries(originalBase, modelBase []geometry.LatLon, snapshots 
 			LengthKM:     lengths[step],
 			RenderPoints: len(renderSnapshots[step]),
 			AreaKM:       areas[step],
+			MeanChange:   meanErosionChange(erosionChanges[step]),
+			MaxChange:    maxErosionChange(erosionChanges[step]),
+			ChangeUnit:   changeUnit,
 		})
 
-		fmt.Printf("SVG saved to %s\n", filename)
+		fmt.Printf("SVG сохранён: %s\n", filename)
 	}
 
 	metricsPath := outputPathManager.MetricsPath("erosion.metrics.json")
+	erosionCellSize, erosionBufferKM, _ := adaptiveGridParameters(originalBase)
+	reproducibility := reproducibilityForGeometry(originalBase)
+	reproducibility.GridType = "erosion"
+	reproducibility.GridCellSizeMeters = erosionCellSize
+	reproducibility.GridBufferKM = erosionBufferKM
+	fmt.Printf("🔐 Воспроизводимость: SHA-256 геометрии %s, точек %d, сетка %.0f м, буфер %.1f км\n",
+		reproducibility.InputGeometrySHA256, reproducibility.InputPointCount, erosionCellSize, erosionBufferKM)
 	seriesMetrics := erosionSeriesArtifactMetrics{
 		GeneratedAt:         nowTimestamp(),
 		Command:             canonicalCommandPath(ctx.Command),
@@ -207,19 +262,102 @@ func writeErosionSVGSeries(originalBase, modelBase []geometry.LatLon, snapshots 
 		MaxFetchKM:          waveOptions.MaxFetchMeters / 1000,
 		DepthScaleMeters:    waveOptions.DepthScaleMeters,
 		ExposurePower:       waveOptions.ExposurePower,
+		YearsPerStep:        waveOptions.YearsPerStep,
+		Report:              ctx.Report,
 		Steps:               stepMetrics,
 		Highlights:          coastlineHighlightsMetricsFromHints(visualHints),
 		Validation:          validationMetricsFromData(ctx.Validation, validationSummary),
+		Reproducibility:     reproducibility,
 	}
 
 	if err := writeMetricsJSON(metricsPath, seriesMetrics); err != nil {
 		return err
 	}
-	fmt.Printf("Metrics saved to %s\n", metricsPath)
+	fmt.Printf("Метрики сохранены: %s\n", metricsPath)
 	return nil
 }
 
+// erosionChangePoints вычисляет подписанное смещение береговой линии по нормали.
+// Положительное значение означает отступ берега (размыв), отрицательное — накопление.
+func erosionChangePoints(previous, current []geometry.LatLon, yearsPerStep float64) []svgrender.ErosionChangePoint {
+	if len(previous) < 2 || len(previous) != len(current) {
+		return nil
+	}
+
+	projection := geometry.NewLocalMetricProjection(previous)
+	clockwise := geometry.SignedArea(previous) < 0
+	points := make([]svgrender.ErosionChangePoint, 0, len(current))
+	for index := range current {
+		previousProjected := projection.Project(previous[index])
+		currentProjected := projection.Project(current[index])
+		displacementX := currentProjected.X - previousProjected.X
+		displacementY := currentProjected.Y - previousProjected.Y
+
+		leftIndex := index - 1
+		rightIndex := index + 1
+		if leftIndex < 0 {
+			leftIndex = 0
+		}
+		if rightIndex >= len(previous) {
+			rightIndex = len(previous) - 1
+		}
+		left := projection.Project(previous[leftIndex])
+		right := projection.Project(previous[rightIndex])
+		tangentX := right.X - left.X
+		tangentY := right.Y - left.Y
+		tangentLength := math.Hypot(tangentX, tangentY)
+		if tangentLength == 0 {
+			continue
+		}
+		tangentX /= tangentLength
+		tangentY /= tangentLength
+
+		outwardX, outwardY := tangentY, -tangentX
+		if clockwise {
+			outwardX, outwardY = -tangentY, tangentX
+		}
+		change := displacementX*outwardX + displacementY*outwardY
+		if yearsPerStep > 0 && yearsPerStep != 1 {
+			change /= yearsPerStep
+		}
+		points = append(points, svgrender.ErosionChangePoint{Point: current[index], ChangePerUnit: change})
+	}
+	return points
+}
+
+func meanErosionChange(points []svgrender.ErosionChangePoint) float64 {
+	if len(points) == 0 {
+		return 0
+	}
+	total := 0.0
+	for _, point := range points {
+		total += point.ChangePerUnit
+	}
+	return total / float64(len(points))
+}
+
+func maxErosionChange(points []svgrender.ErosionChangePoint) float64 {
+	maximum := 0.0
+	for _, point := range points {
+		maximum = math.Max(maximum, math.Abs(point.ChangePerUnit))
+	}
+	return maximum
+}
+
 func writeFractalSeries(opts fractalSeriesOptions, output string, ctx exportContext, outputPathManager *OutputPathManager) error {
+	metadataPoints := opts.OriginalBase
+	if len(metadataPoints) == 0 {
+		metadataPoints = opts.ModelBase
+	}
+	reportParameters := "method=box-counting|geometry=observed"
+	ctx.Report = buildReportMetadata(ctx, metadataPoints, reportParameters)
+	reportKind := "Научный отчёт по наблюдениям"
+	if ctx.Scenario.ScenarioStatus == geometry.ScenarioStatusDemo {
+		reportKind = "Демонстрационный отчёт (demo)"
+	} else if ctx.Scenario.ScenarioStatus == geometry.ScenarioStatusUnclassified {
+		reportKind = "Расчётный отчёт без подтверждённого исследовательского статуса"
+	}
+	fmt.Printf("🧾 %s: эксперимент %s, источник %s, версия данных %s\n", reportKind, ctx.Report.ExperimentID, ctx.Report.GeometrySource, ctx.Report.InputDataVersion[:12])
 	outputDir := outputPathManager.SVGDir()
 
 	originalBase := opts.OriginalBase
@@ -247,13 +385,6 @@ func writeFractalSeries(opts fractalSeriesOptions, output string, ctx exportCont
 
 	for iter := 0; iter <= iterations; iter++ {
 		curves[iter] = opts.Builder(modelBase, iter)
-		if opts.ErosionStrength > 0 {
-			seed := opts.ErosionSeed
-			if seed == 0 {
-				seed = time.Now().UnixNano()
-			}
-			curves[iter] = geometry.ErodeWithSeed(curves[iter], opts.ErosionStrength, seed+int64(iter))
-		}
 		renderCurves[iter] = simplifyForSeriesSVG(curves[iter]).Points
 		lengths[iter] = geometry.PolylineLength(curves[iter])
 		if len(curves[iter]) > maxRawPoints {
@@ -268,7 +399,7 @@ func writeFractalSeries(opts fractalSeriesOptions, output string, ctx exportCont
 	}
 
 	if maxRawPoints > maxRenderPoints {
-		fmt.Printf("info: synthetic SVG simplification: max layer %d -> %d points for rendering\n", maxRawPoints, maxRenderPoints)
+		fmt.Printf("ℹ️  Упрощение наблюдаемой линии для SVG: %d → %d точек; расчёт выполнен по всем исходным точкам\n", maxRawPoints, maxRenderPoints)
 	}
 
 	referenceSummary := summarizePolyline(originalBase)
@@ -281,39 +412,81 @@ func writeFractalSeries(opts fractalSeriesOptions, output string, ctx exportCont
 	iterationsMetrics := make([]fractalIterationMetrics, 0, iterations+1)
 	for iter := 0; iter <= iterations; iter++ {
 		filename := filepath.Join(outputDir, fmt.Sprintf("%s_%d.svg", opts.Prefix, iter))
-		layers := makeFractalLayers(referenceRender, referenceSummary.LengthKM, renderCurves[:iter+1], lengths[:iter+1])
-		charts := makeSeriesCharts(iter, lengths[:iter+1], dimensions[:iter+1])
+		logLogFilename := ""
+		if dimensions[iter] != nil && len(dimensions[iter].Samples) > 1 {
+			logLogFilename = filepath.Join(outputDir, fmt.Sprintf("%s_loglog_%d.svg", opts.Prefix, iter))
+			analysis := fractal.AnalyzeBoxCounting(curves[iter])
+			if err := svgrender.DrawLogLogSVG(logLogPlotOptionsFromAnalysis(analysis), logLogFilename); err != nil {
+				return err
+			}
+			dimensions[iter].LogLogSVGFile = logLogFilename
+			fmt.Printf("Log-log график сохранён: %s\n", logLogFilename)
+		}
+		layers := makeFractalLayers(renderCurves[iter:iter+1], lengths[iter:iter+1], iter)
+		charts := makeSeriesCharts(dimensions[:iter+1])
 		meta := []string{
-			fmt.Sprintf("Реальная линия: %.0f км, %d т.", referenceSummary.LengthKM, referenceSummary.PointsCount),
-			fmt.Sprintf("База модели: %.0f км, %d т. (%+.1f%% к реальной)", modelSummary.LengthKM, modelSummary.PointsCount, modelSimplification.LengthDeltaPercent),
-			fmt.Sprintf("Текущий слой: %.0f км, %d т. расчёт / %d т. SVG", lengths[iter], len(curves[iter]), len(renderCurves[iter])),
+			fmt.Sprintf("Наблюдаемая линия: %.0f км, %d т.", referenceSummary.LengthKM, referenceSummary.PointsCount),
+			fmt.Sprintf("Расчёт: %d исходных точек; SVG: %d точек", len(curves[iter]), len(renderCurves[iter])),
 		}
 		if dimension := dimensions[iter]; dimension != nil {
 			if dimension.Valid {
-				meta = append(meta, fmt.Sprintf("D: %.5f, R²=%.4f, стаб=%t", dimension.Dimension, dimension.RegressionRSquared, dimension.StableAcrossScales))
+				stability := "нет"
+				if dimension.StableAcrossScales {
+					stability = "да"
+				}
+				meta = append(meta, fmt.Sprintf("D: %.5f, R²=%.4f, устойчива=%s", dimension.Dimension, dimension.RegressionRSquared, stability))
 			} else {
-				meta = append(meta, fmt.Sprintf("D: n/a, масштабов=%d", dimension.SampleCount))
+				meta = append(meta, fmt.Sprintf("D: н/д, масштабов=%d", dimension.SampleCount))
 			}
 		}
-		if opts.ErosionStrength > 0 {
-			meta = append(meta, fmt.Sprintf("Эрозия: σ=%.0f м, seed=%d", opts.ErosionStrength, opts.ErosionSeed))
+		subtitle := "Наблюдаемая береговая линия без синтетического преобразования · сетка box-counting"
+		if dimensions[iter] != nil {
+			subtitle += fmt.Sprintf("\nМасштабов ε: %d · εпредст.=%.0f м · D=%.5f · R²=%.4f\nУстойчивость по масштабам: %t",
+				dimensions[iter].SampleCount, dimensions[iter].BoxSizeMeters, dimensions[iter].Dimension, dimensions[iter].RegressionRSquared, dimensions[iter].StableAcrossScales)
+			if dimensions[iter].DimensionCI95High > dimensions[iter].DimensionCI95Low {
+				subtitle += fmt.Sprintf("\n95%% ДИ размерности: [%.5f; %.5f]", dimensions[iter].DimensionCI95Low, dimensions[iter].DimensionCI95High)
+			} else {
+				subtitle += "\n95% ДИ размерности: не оценён"
+			}
+		}
+		subtitle += "\n" + reportMetadataLines(ctx.Report)
+		if ctx.Scenario.ScenarioStatus == geometry.ScenarioStatusDemo {
+			subtitle += "\nDEMO: стартовый сценарий не является исследовательским отчётом"
 		}
 
-		subtitle := "Серая пунктирная линия показывает реальную загруженную береговую линию; цветные слои строятся от упрощённой базы модели и упрощены для рендера"
-		if opts.OrganicOptions != nil {
-			subtitle = fmt.Sprintf("Органическая модель: seed=%d, угол ±%.0f°, высота ±%.0f%%; серая пунктирная линия — реальная линия, цветные слои — от упрощённой базы",
-				opts.OrganicOptions.Seed, opts.OrganicOptions.AngleJitterDeg, opts.OrganicOptions.HeightJitterPct*100)
-		}
-
-		if err := svgrender.DrawDocument(svgrender.Document{
-			Title:     fmt.Sprintf("%s — итерация %d", opts.Title, iter),
+		// Build document and apply enhanced options if enabled
+		doc := svgrender.Document{
+			Title:     opts.Title,
 			Subtitle:  subtitle,
 			Layers:    layers,
 			StatCards: makeValidationStatCards(ctx.Validation, validationSummary),
 			Charts:    charts,
 			Meta:      meta,
-		}, filename); err != nil {
-			return err
+		}
+
+		if ctx.Config.EnableEnhanced {
+			modeName := "научный режим наблюдений"
+			if ctx.Scenario.ScenarioStatus == geometry.ScenarioStatusDemo {
+				modeName = "демонстрационный режим (demo)"
+			} else if ctx.Scenario.ScenarioStatus == geometry.ScenarioStatusUnclassified {
+				modeName = "расчётный режим без подтверждённого исследовательского статуса"
+			}
+			fmt.Printf("🔧 Включён %s, шаг %d\n", modeName, iter)
+			// Для фрактального анализа направление ветра не используется.
+			renderConfig := ctx.Config
+			if dimensions[iter] != nil {
+				renderConfig.BoxCountingBoxSize = dimensions[iter].BoxSizeMeters
+				renderConfig.BoxCountingRegressionMin, renderConfig.BoxCountingRegressionMax = regressionBoxSizeRange(dimensions[iter])
+				renderConfig.BoxCountingLogLogSVGFile = logLogFilename
+			}
+			enhancedDoc := wrapDocumentForEnhanced(doc, renderConfig, referenceRender, 0, nil, nil)
+			if err := svgrender.DrawEnhancedSVG(enhancedDoc, filename); err != nil {
+				return err
+			}
+		} else {
+			if err := svgrender.DrawDocument(doc, filename); err != nil {
+				return err
+			}
 		}
 
 		iterationMetrics := fractalIterationMetrics{
@@ -328,43 +501,63 @@ func writeFractalSeries(opts fractalSeriesOptions, output string, ctx exportCont
 		}
 		iterationsMetrics = append(iterationsMetrics, iterationMetrics)
 
-		fmt.Printf("SVG saved to %s\n", filename)
+		fmt.Printf("SVG сохранён: %s\n", filename)
 	}
 
 	metricsPath := outputPathManager.MetricsPath(opts.MetricsBaseName + ".metrics.json")
+	reproducibility := reproducibilityForGeometry(originalBase)
+	reproducibility.GridType = "box-counting"
+	if len(dimensions) > 0 && dimensions[len(dimensions)-1] != nil {
+		reproducibility.GridCellSizeMeters = dimensions[len(dimensions)-1].BoxSizeMeters
+	} else {
+		reproducibility.GridCellSizeMeters, _, _ = adaptiveGridParameters(originalBase)
+	}
+	_, reproducibility.GridBufferKM, _ = adaptiveGridParameters(originalBase)
+	fmt.Printf("🔐 Воспроизводимость: SHA-256 геометрии %s, точек %d, box-counting %.0f м, буфер %.1f км\n",
+		reproducibility.InputGeometrySHA256, reproducibility.InputPointCount, reproducibility.GridCellSizeMeters, reproducibility.GridBufferKM)
 	seriesMetrics := fractalSeriesArtifactMetrics{
 		GeneratedAt:         nowTimestamp(),
 		Command:             canonicalCommandPath(ctx.Command),
 		Dataset:             ctx.Dataset,
 		Source:              ctx.Source,
 		Title:               opts.Title,
+		GeometryKind:        "наблюдаемая",
+		Interpretation:      "Оценка box-counting относится к наблюдаемому набору данных и доступному диапазону масштабов.",
 		OutputDir:           outputPathManager.BaseDir(),
 		ReferenceCoastline:  referenceSummary,
 		ReferenceRender:     referenceRenderSummary,
 		ModelBase:           modelSummary,
 		ModelSimplification: modelSimplification,
-		ErosionStrength:     opts.ErosionStrength,
-		ErosionSeed:         opts.ErosionSeed,
+		Report:              ctx.Report,
 		Iterations:          iterationsMetrics,
 		Highlights:          coastlineHighlightsMetricsFromHints(visualHints),
 		Validation:          validationMetricsFromData(ctx.Validation, validationSummary),
-	}
-	if opts.OrganicOptions != nil {
-		seriesMetrics.OrganicOptions = &organicOptionsMetrics{
-			Seed:            opts.OrganicOptions.Seed,
-			AngleJitterDeg:  opts.OrganicOptions.AngleJitterDeg,
-			HeightJitterPct: opts.OrganicOptions.HeightJitterPct,
-		}
+		Reproducibility:     reproducibility,
 	}
 	if err := writeMetricsJSON(metricsPath, seriesMetrics); err != nil {
 		return err
 	}
 
-	fmt.Printf("Metrics saved to %s\n", metricsPath)
+	fmt.Printf("Метрики сохранены: %s\n", metricsPath)
 	return nil
 }
 
-func makeFractalLayers(reference []geometry.LatLon, referenceLength float64, curves [][]geometry.LatLon, lengths []float64) []svgrender.Layer {
+// regressionBoxSizeRange возвращает диапазон размеров ячеек, использованных
+// в линейной регрессии log-log box-counting.
+func regressionBoxSizeRange(metrics *dimensionMetrics) (float64, float64) {
+	if metrics == nil || metrics.RegressionStart < 0 || metrics.RegressionEnd < metrics.RegressionStart || metrics.RegressionEnd >= len(metrics.Samples) {
+		return 0, 0
+	}
+	minimum := metrics.Samples[metrics.RegressionStart].BoxSizeMeters
+	maximum := minimum
+	for index := metrics.RegressionStart; index <= metrics.RegressionEnd; index++ {
+		minimum = math.Min(minimum, metrics.Samples[index].BoxSizeMeters)
+		maximum = math.Max(maximum, metrics.Samples[index].BoxSizeMeters)
+	}
+	return minimum, maximum
+}
+
+func makeFractalLayers(curves [][]geometry.LatLon, lengths []float64, iteration int) []svgrender.Layer {
 	palette := []string{
 		"#1f6f8b",
 		"#2c7a7b",
@@ -375,41 +568,15 @@ func makeFractalLayers(reference []geometry.LatLon, referenceLength float64, cur
 		"#4a5d23",
 	}
 
-	layers := []svgrender.Layer{
-		{
-			Label:       "Реальная загруженная полилиния (справочно)",
-			Points:      reference,
-			LengthKM:    referenceLength,
-			Stroke:      "#7a8b99",
-			StrokeWidth: 1.8,
-			Opacity:     0.85,
-			DashArray:   "8 6",
-		},
-	}
-
+	layers := make([]svgrender.Layer, 0, len(curves))
 	for i := range curves {
-		label := fmt.Sprintf("Синтетическая итерация %d", i)
-		if i == 0 {
-			label = "Упрощённая база модели (итерация 0)"
-		}
-
-		strokeWidth := 2.1
-		opacity := 0.38 + float64(i)*0.08
-		if opacity > 1 {
-			opacity = 1
-		}
-		if i == len(curves)-1 {
-			strokeWidth = 3.6
-			opacity = 1
-		}
-
 		layers = append(layers, svgrender.Layer{
-			Label:       label,
+			Label:       "Наблюдаемая береговая линия",
 			Points:      curves[i],
 			LengthKM:    lengths[i],
-			Stroke:      palette[i%len(palette)],
-			StrokeWidth: strokeWidth,
-			Opacity:     opacity,
+			Stroke:      palette[iteration%len(palette)],
+			StrokeWidth: 3.2,
+			Opacity:     1,
 		})
 	}
 
@@ -426,35 +593,17 @@ func makeErosionLayers(reference []geometry.LatLon, referenceLength float64, sna
 		"#3f6b4b",
 	}
 
-	layers := []svgrender.Layer{
-		{
-			Label:       "Реальная загруженная полилиния (справочно)",
-			Points:      reference,
-			LengthKM:    referenceLength,
-			Stroke:      "#7a8b99",
-			StrokeWidth: 1.8,
-			Opacity:     0.85,
-			DashArray:   "8 6",
-		},
+	if current < 0 || current >= len(snapshots) {
+		return nil
 	}
-
-	for i := 0; i <= current && i < len(snapshots); i++ {
-		color := palette[i%len(palette)]
-		opacity := 0.35 + float64(i)*0.1
-		if i == current {
-			opacity = 1
-		}
-		layers = append(layers, svgrender.Layer{
-			Label:       fmt.Sprintf("Эрозия шаг %d", i),
-			Points:      snapshots[i],
-			LengthKM:    lengths[i],
-			Stroke:      color,
-			StrokeWidth: 2.2,
-			Opacity:     opacity,
-		})
-	}
-
-	return layers
+	return []svgrender.Layer{{
+		Label:       fmt.Sprintf("Эрозионная модель, шаг %d", current),
+		Points:      snapshots[current],
+		LengthKM:    lengths[current],
+		Stroke:      palette[current%len(palette)],
+		StrokeWidth: 3.2,
+		Opacity:     1,
+	}}
 }
 
 func safeRatio(value, base float64) float64 {
@@ -462,6 +611,27 @@ func safeRatio(value, base float64) float64 {
 		return 0
 	}
 	return value / base
+}
+
+func logLogPlotOptionsFromAnalysis(analysis fractal.BoxCountingAnalysis) svgrender.LogLogPlotOptions {
+	points := make([]svgrender.LogLogPoint, 0, len(analysis.Samples))
+	for index, sample := range analysis.Samples {
+		points = append(points, svgrender.LogLogPoint{
+			LogInverseScale: sample.LogInvScale,
+			LogBoxes:        sample.LogBoxes,
+			BoxSizeMeters:   sample.BoxSizeMeters,
+			InRegression:    index >= analysis.RegressionStart && index <= analysis.RegressionEnd,
+		})
+	}
+	return svgrender.LogLogPlotOptions{
+		Title:          "Аудит box-counting — наблюдаемая линия",
+		Subtitle:       "Все масштабы ε и значения N(ε); пунктир — окно линейной регрессии",
+		Points:         points,
+		Dimension:      analysis.Dimension,
+		RSquared:       analysis.RegressionRSquared,
+		RegressionFrom: analysis.RegressionStart,
+		RegressionTo:   analysis.RegressionEnd,
+	}
 }
 
 func makeCoastlineHighlights(hints coastline.VisualizationHints) []svgrender.HighlightSegment {
@@ -558,36 +728,13 @@ func fixStatTone(count int) string {
 	return "#3f6b4b"
 }
 
-func makeSeriesCharts(currentIter int, lengths []float64, dimensions []*dimensionMetrics) []svgrender.Chart {
-	charts := []svgrender.Chart{
-		buildLengthChart(lengths),
-	}
-
+func makeSeriesCharts(dimensions []*dimensionMetrics) []svgrender.Chart {
+	charts := make([]svgrender.Chart, 0, 1)
 	dimensionChart := buildDimensionChart(dimensions)
 	if len(dimensionChart.Series) > 0 {
 		charts = append(charts, dimensionChart)
 	}
-
-	if currentIter == 0 {
-		return charts
-	}
 	return charts
-}
-
-func buildLengthChart(lengths []float64) svgrender.Chart {
-	chart := svgrender.Chart{
-		Title: "Длина по итерациям",
-		Series: []svgrender.ChartSeries{
-			{
-				Label:  "Измерено",
-				Values: append([]float64(nil), lengths...),
-				Stroke: "#1f6f8b",
-			},
-		},
-	}
-
-
-	return chart
 }
 
 func buildDimensionChart(dimensions []*dimensionMetrics) svgrender.Chart {
@@ -605,13 +752,7 @@ func buildDimensionChart(dimensions []*dimensionMetrics) svgrender.Chart {
 		return svgrender.Chart{}
 	}
 
-	theory := make([]float64, len(values))
-	theoreticalDimension := math.Log(4) / math.Log(3)
-	for i := range theory {
-		theory[i] = theoreticalDimension
-	}
-
-	return svgrender.Chart{
+	chart := svgrender.Chart{
 		Title: "Размерность D",
 		Series: []svgrender.ChartSeries{
 			{
@@ -619,14 +760,9 @@ func buildDimensionChart(dimensions []*dimensionMetrics) svgrender.Chart {
 				Values: values,
 				Stroke: "#8b3f5c",
 			},
-			{
-				Label:     "Теория",
-				Values:    theory,
-				Stroke:    "#6f5f1f",
-				DashArray: "5 4",
-			},
 		},
 	}
+	return chart
 }
 
 func resolveOutputPath(output, defaultName, command string) (string, error) {
@@ -677,4 +813,87 @@ func resolveSeriesOutputDir(output string) (string, error) {
 	}
 
 	return filepath.Abs(output)
+}
+
+// Публичные функции-обёртки для cobra-команд
+
+// WriteCoastlineSVG создаёт SVG-визуализацию береговой линии
+func WriteCoastlineSVG(points []geometry.LatLon, validation coastline.ValidationReport, outputPathManager *OutputPathManager) error {
+	if len(points) == 0 {
+		return fmt.Errorf("нет точек для рендеринга")
+	}
+	if outputPathManager == nil {
+		return fmt.Errorf("менеджер выходных путей не задан")
+	}
+	if err := outputPathManager.EnsureDirectories(); err != nil {
+		return err
+	}
+
+	ctx := exportContext{
+		Command:    "source",
+		Dataset:    "coastline",
+		Source:     "unknown",
+		Validation: validation,
+		Config:     config{},
+	}
+
+	renderPoints := simplifyForSeriesSVG(points)
+	if len(renderPoints.Points) == 0 {
+		renderPoints.Points = points
+	}
+
+	return writeCoastlineSVG(points, renderPoints.Points, "", "coastline.svg", ctx, outputPathManager)
+}
+
+// WriteDimensionSVG создаёт SVG-артефакты оценки box-counting для неизменённой
+// наблюдаемой береговой линии. Необязательная классификация маркирует весь
+// внешний сценарий как демонстрационный, не меняя геометрический расчёт.
+func WriteDimensionSVG(points []geometry.LatLon, outputPathManager *OutputPathManager, dataset, source string, validation coastline.ValidationReport, classifications ...geometry.ScenarioClassification) error {
+	if len(points) == 0 {
+		return fmt.Errorf("нет наблюдаемых точек")
+	}
+	if outputPathManager == nil {
+		return fmt.Errorf("менеджер выходных путей не задан")
+	}
+	if err := outputPathManager.EnsureDirectories(); err != nil {
+		return err
+	}
+
+	ctx := newExportContext("dimension", dataset, source, validation)
+	if len(classifications) > 0 {
+		ctx = withScenarioClassification(ctx, classifications[0])
+	}
+	return writeFractalSeries(fractalSeriesOptions{
+		Title:            "Фрактальная размерность наблюдаемой береговой линии",
+		Prefix:           "dimension",
+		MetricsBaseName:  "dimension",
+		Iterations:       0,
+		OriginalBase:     points,
+		ModelBase:        points,
+		IncludeDimension: true,
+		Builder: func(base []geometry.LatLon, _ int) []geometry.LatLon {
+			return append([]geometry.LatLon(nil), base...)
+		},
+	}, "", ctx, outputPathManager)
+}
+
+// WriteErosionSVGSeries создаёт SVG-файлы для каждого шага эрозии и переносит
+// необязательный статус сценария в подписи и JSON-метрики.
+func WriteErosionSVGSeries(originalBase []geometry.LatLon, snapshots [][]geometry.LatLon, steps int, strength float64, seed int64, waveOptions geometry.WaveErosionOptions, outputPathManager *OutputPathManager, dataset, source string, validation coastline.ValidationReport, classifications ...geometry.ScenarioClassification) error {
+	if len(originalBase) == 0 && len(snapshots) == 0 {
+		return fmt.Errorf("нет данных для рендеринга")
+	}
+	if outputPathManager == nil {
+		return fmt.Errorf("менеджер выходных путей не задан")
+	}
+	if err := outputPathManager.EnsureDirectories(); err != nil {
+		return err
+	}
+
+	ctx := newExportContext("erosion", dataset, source, validation)
+	if len(classifications) > 0 {
+		ctx = withScenarioClassification(ctx, classifications[0])
+	}
+
+	return writeErosionSVGSeries(originalBase, nil, snapshots, steps, strength, seed, waveOptions, "", ctx, outputPathManager, nil)
 }

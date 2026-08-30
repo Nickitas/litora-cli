@@ -1,0 +1,94 @@
+{
+  "schema_version": "lito-bathymetry-source-selection/v1",
+  "scope": {
+    "basin_id": "black-sea",
+    "name": "Чёрное море",
+    "requested_bounds": {
+      "min_lat": 40.5,
+      "max_lat": 47.5,
+      "min_lon": 27.0,
+      "max_lon": 42.5
+    },
+    "spatial_policy": "Используются только точки внутри полигона Чёрного моря Marine Regions MRGID 3319; прямоугольник является областью загрузки с буфером."
+  },
+  "selected_at": "2026-08-20T20:28:48Z",
+  "primary": {
+    "role": "основная высотная модель и классификация происхождения ячеек",
+    "product": "GEBCO_2026 Grid and Type Identifier Grid",
+    "publisher": "GEBCO Bathymetric Compilation Group 2026; NERC British Oceanographic Data Centre",
+    "publication_date": "2026-04-23",
+    "doi": "10.5285/4f68d5c7-45eb-f999-e063-7086abc036fa",
+    "documentation_url": "https://www.gebco.net/data-products/gridded-bathymetry-data/gebco2026-grid",
+    "catalogue_url": "https://catalogue.ceda.ac.uk/uuid/fb236c93aa574cb9b5154db45dfdd784/",
+    "source_grid_interval_arc_seconds": 15,
+    "registration": "pixel-centre",
+    "horizontal_reference": "WGS 84 (допущение GEBCO)",
+    "vertical_reference": "Высота относительно среднего уровня моря по допущению GEBCO",
+    "vertical_reference_caveat": "В мелководных областях часть исходных данных может относиться к иной вертикальной системе.",
+    "elevation_sign": "Положительное направление вверх; батиметрия отрицательна.",
+    "license": "Public domain по условиям GEBCO; обязательны атрибуция, отсутствие ложного официального одобрения и сохранение происхождения.",
+    "license_url": "https://www.gebco.net/data-products/gridded-bathymetry-data/gebco2026-grid#terms-of-use-and-disclaimer",
+    "attribution": "GEBCO Bathymetric Compilation Group 2026 (2026). The GEBCO_2026 Grid - a continuous terrain model for oceans and land at 15 arc-second intervals. NERC British Oceanographic Data Centre. doi:10.5285/4f68d5c7-45eb-f999-e063-7086abc036fa",
+    "elevation_subset": {
+      "opendap_url": "https://dap.ceda.ac.uk/thredds/dodsC/bodc/gebco/global/gebco_2026/ice_surface_elevation/netcdf/GEBCO_2026.nc",
+      "local_file": "output/source/netcdf/GEBCO_2026_Black_Sea_40.5_47.5_27.0_42.5.nc",
+      "sha256": "c957981ff054f50d1cd87f730c1e6b08f948686f8342a8208655a512efaa77ac",
+      "size_bytes": 12569007,
+      "dimensions": {
+        "lat": 1680,
+        "lon": 3720
+      },
+      "actual_cell_centre_bounds": {
+        "min_lat": 40.50208333333333,
+        "max_lat": 47.49791666666667,
+        "min_lon": 27.00208333333333,
+        "max_lon": 42.49791666666667
+      },
+      "minimum_elevation_m": -2666,
+      "maximum_elevation_m": 5560,
+      "nodata_count": 0
+    },
+    "tid_subset": {
+      "opendap_url": "https://dap.ceda.ac.uk/thredds/dodsC/bodc/gebco/global/gebco_2026/type_identifier_grid/netcdf/gebco_2026_tid.nc",
+      "local_file": "output/source/netcdf/GEBCO_2026_TID_Black_Sea_40.5_47.5_27.0_42.5.nc",
+      "sha256": "32e1a21859c0422553f7b3bb7f7fbb9c35c65f170e3cc0f5c32fbd572e239f9e",
+      "size_bytes": 6326701,
+      "dimensions": {
+        "lat": 1680,
+        "lon": 3720
+      }
+    },
+    "subset_processing": {
+      "method": "OPeNDAP + xarray.sel по центрам ячеек без интерполяции и изменения значений",
+      "downloaded_at": "2026-08-20T20:28:48Z",
+      "software": {
+        "python": "3.13.1",
+        "xarray": "2026.4.0",
+        "netCDF4": "1.7.4",
+        "numpy": "2.4.6"
+      },
+      "hash_scope": "SHA-256 относится к региональному NetCDF после записи xarray, а не к глобальному файлу GEBCO размером 7 ГБ."
+    },
+    "limitations": [
+      "Не предназначено для навигации или иных задач безопасности на море.",
+      "Шаг 15 угловых секунд не равен разрешению исходных измерений.",
+      "Полностью заполненная сетка содержит измеренные, интерполированные и предсказанные значения; тип происхождения обязателен из TID.",
+      "Суша и соседние воды прямоугольной области исключаются маской полигона Чёрного моря."
+    ]
+  },
+  "control": {
+    "role": "контроль береговой и шельфовой зоны",
+    "product": "EMODnet Digital Bathymetry DTM 2024, MSL",
+    "publisher": "EMODnet Bathymetry Consortium",
+    "doi": "10.12770/cf51df64-56f9-4a99-b1aa-36b8d7b743a1",
+    "documentation_url": "https://emodnet.ec.europa.eu/en/bathymetry",
+    "source_grid_interval_arc_seconds": 3.75,
+    "horizontal_reference": "Географические широта/долгота; WGS 84 / EPSG:4326 для сервисов",
+    "vertical_reference": "Вариант MSL; исходный DTM также публикуется в LAT",
+    "license": "CC BY 4.0 для продуктов EMODnet, если метаданные конкретного слоя не устанавливают иное",
+    "license_url": "https://emodnet.ec.europa.eu/en/terms-use-emodnet-online-services-data-and-data-products",
+    "attribution": "EMODnet Bathymetry Consortium. EMODnet Digital Bathymetry (DTM 2024). doi:10.12770/cf51df64-56f9-4a99-b1aa-36b8d7b743a1",
+    "dependency_policy": "Сравниваются только ячейки с доступным Source Reference и без GEBCO как преобладающего источника. EMODnet заполняет пробелы GEBCO, а GEBCO интегрирует EMODnet, поэтому сравнение продуктов не считается полностью независимой валидацией.",
+    "download_status": "planned_for_qa_01"
+  }
+}

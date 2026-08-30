@@ -9,9 +9,12 @@ import argparse
 import sys
 from pathlib import Path
 import pandas as pd
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
+from cli_csv import read_erosion_csv
 
 
 class StormAnalyzer:
@@ -28,7 +31,7 @@ class StormAnalyzer:
         if not self.csv_path.exists():
             raise FileNotFoundError(f"CSV файл не найден: {csv_path}")
 
-        self.df = pd.read_csv(self.csv_path)
+        self.df = read_erosion_csv(self.csv_path)
         self._validate_data()
 
     def _validate_data(self):

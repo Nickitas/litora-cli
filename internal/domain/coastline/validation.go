@@ -10,13 +10,13 @@ import (
 	"coastal-geometry/internal/domain/geometry"
 )
 
-const longSegmentWarningKM = 450.0
-
+// segmentIntersection представляет пересечение сегментов
 type segmentIntersection struct {
 	First  int
 	Second int
 }
 
+// validateAndNormalizePoints валидирует и нормализует точки береговой линии
 func validateAndNormalizePoints(points []geometry.LatLon) ([]geometry.LatLon, ValidationReport, error) {
 	report := ValidationReport{}
 
@@ -35,7 +35,7 @@ func validateAndNormalizePoints(points []geometry.LatLon) ([]geometry.LatLon, Va
 
 	intersections := findSelfIntersections(best)
 	if len(intersections) > 0 {
-		return nil, report, fmt.Errorf("полилиния имеет self-intersection: пересекаются сегменты %s", formatIntersections(intersections))
+		return nil, report, fmt.Errorf("полилиния имеет самопересечения: пересекаются сегменты %s", formatIntersections(intersections))
 	}
 
 	report.Warnings = append(report.Warnings, duplicateLocationWarnings(best)...)
@@ -44,6 +44,7 @@ func validateAndNormalizePoints(points []geometry.LatLon) ([]geometry.LatLon, Va
 	return best, report, nil
 }
 
+// removeDuplicateCoordinates удаляет дубликаты координат
 func removeDuplicateCoordinates(points []geometry.LatLon) ([]geometry.LatLon, int) {
 	seen := make(map[string]struct{}, len(points))
 	result := make([]geometry.LatLon, 0, len(points))
@@ -62,6 +63,7 @@ func removeDuplicateCoordinates(points []geometry.LatLon) ([]geometry.LatLon, in
 	return result, removed
 }
 
+// chooseBestOrder выбирает лучшую упорядоченность точек
 func chooseBestOrder(points []geometry.LatLon) []geometry.LatLon {
 	candidates := [][]geometry.LatLon{
 		slices.Clone(points),
@@ -86,6 +88,7 @@ func chooseBestOrder(points []geometry.LatLon) []geometry.LatLon {
 	return best
 }
 
+// orderScore представляет оценку упорядоченности точек
 type orderScore struct {
 	intersections int
 	longSegments  int
@@ -93,6 +96,7 @@ type orderScore struct {
 	totalLengthKM float64
 }
 
+// less сравнивает оценки (меньше - лучше)
 func (s orderScore) less(other orderScore) bool {
 	if s.intersections != other.intersections {
 		return s.intersections < other.intersections
@@ -100,12 +104,13 @@ func (s orderScore) less(other orderScore) bool {
 	if s.longSegments != other.longSegments {
 		return s.longSegments < other.longSegments
 	}
-	if math.Abs(s.maxSegmentKM-other.maxSegmentKM) > 1e-9 {
+	if math.Abs(s.maxSegmentKM-other.maxSegmentKM) > eps {
 		return s.maxSegmentKM < other.maxSegmentKM
 	}
 	return s.totalLengthKM < other.totalLengthKM
 }
 
+// scoreOrder вычисляет оценку упорядоченности точек
 func scoreOrder(points []geometry.LatLon) orderScore {
 	var maxSegment float64
 	var longSegments int
@@ -130,6 +135,7 @@ func scoreOrder(points []geometry.LatLon) orderScore {
 	}
 }
 
+// candidateStartIndices возвращает индексы кандидатов для начала обхода
 func candidateStartIndices(points []geometry.LatLon) []int {
 	if len(points) == 0 {
 		return nil
@@ -168,6 +174,7 @@ func candidateStartIndices(points []geometry.LatLon) []int {
 	return indices
 }
 
+// greedyTraversal выполняет жадный обход точек
 func greedyTraversal(points []geometry.LatLon, start int) []geometry.LatLon {
 	used := make([]bool, len(points))
 	result := make([]geometry.LatLon, 0, len(points))
@@ -198,6 +205,7 @@ func greedyTraversal(points []geometry.LatLon, start int) []geometry.LatLon {
 	return result
 }
 
+// reversePoints переворачивает порядок точек
 func reversePoints(points []geometry.LatLon) []geometry.LatLon {
 	reversed := slices.Clone(points)
 	for i, j := 0, len(reversed)-1; i < j; i, j = i+1, j-1 {
@@ -206,6 +214,7 @@ func reversePoints(points []geometry.LatLon) []geometry.LatLon {
 	return reversed
 }
 
+// samePointOrder проверяет, совпадает ли порядок точек
 func samePointOrder(a, b []geometry.LatLon) bool {
 	if len(a) != len(b) {
 		return false
@@ -218,12 +227,15 @@ func samePointOrder(a, b []geometry.LatLon) bool {
 	return true
 }
 
+// pointKey создаёт уникальный ключ для точки
 func pointKey(point geometry.LatLon) string {
-	return strconv.FormatFloat(point.Lat, 'f', 6, 64) + "|" + strconv.FormatFloat(point.Lon, 'f', 6, 64)
+	return strconv.FormatFloat(point.Lat, 'f', pointPrecision, 64) + "|" +
+		strconv.FormatFloat(point.Lon, 'f', pointPrecision, 64)
 }
 
+// duplicateLocationWarnings генерирует предупреждения о повторяющихся местахоположениях
 func duplicateLocationWarnings(points []geometry.LatLon) []string {
-	if len(points) > 200 {
+	if len(points) > maxPointsForDuplicateCheck {
 		return nil
 	}
 
@@ -245,6 +257,7 @@ func duplicateLocationWarnings(points []geometry.LatLon) []string {
 	return warnings
 }
 
+// longSegmentWarnings генерирует предупреждения о длинных сегментах
 func longSegmentWarnings(points []geometry.LatLon, thresholdKM float64) []string {
 	var warnings []string
 	for i := 1; i < len(points); i++ {
@@ -256,6 +269,7 @@ func longSegmentWarnings(points []geometry.LatLon, thresholdKM float64) []string
 	return warnings
 }
 
+// findSelfIntersections находит самопересечения полилинии
 func findSelfIntersections(points []geometry.LatLon) []segmentIntersection {
 	var intersections []segmentIntersection
 	for i := 0; i < len(points)-1; i++ {
@@ -268,13 +282,8 @@ func findSelfIntersections(points []geometry.LatLon) []segmentIntersection {
 	return intersections
 }
 
+// segmentsIntersect проверяет, пересекаются ли два сегмента
 func segmentsIntersect(a, b, c, d geometry.LatLon) bool {
-	const eps = 1e-9
-
-	if samePoint(a, c) || samePoint(a, d) || samePoint(b, c) || samePoint(b, d) {
-		return false
-	}
-
 	o1 := orientation(a, b, c)
 	o2 := orientation(a, b, d)
 	o3 := orientation(c, d, a)
@@ -300,22 +309,20 @@ func segmentsIntersect(a, b, c, d geometry.LatLon) bool {
 	return false
 }
 
+// orientation вычисляет ориентацию троих точек
 func orientation(a, b, c geometry.LatLon) float64 {
 	return (b.Lon-a.Lon)*(c.Lat-a.Lat) - (b.Lat-a.Lat)*(c.Lon-a.Lon)
 }
 
+// onSegment проверяет, что точка лежит на сегменте
 func onSegment(a, b, c geometry.LatLon) bool {
-	const eps = 1e-9
 	return b.Lon <= math.Max(a.Lon, c.Lon)+eps &&
 		b.Lon >= math.Min(a.Lon, c.Lon)-eps &&
 		b.Lat <= math.Max(a.Lat, c.Lat)+eps &&
 		b.Lat >= math.Min(a.Lat, c.Lat)-eps
 }
 
-func samePoint(a, b geometry.LatLon) bool {
-	return math.Abs(a.Lat-b.Lat) <= 1e-9 && math.Abs(a.Lon-b.Lon) <= 1e-9
-}
-
+// formatIntersections форматирует список пересечений
 func formatIntersections(intersections []segmentIntersection) string {
 	parts := make([]string, 0, len(intersections))
 	for _, intersection := range intersections {

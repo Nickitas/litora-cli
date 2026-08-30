@@ -4,8 +4,10 @@ import (
 	"coastal-geometry/internal/domain/coastline"
 	"coastal-geometry/internal/domain/fractal"
 	"coastal-geometry/internal/domain/geometry"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -17,6 +19,22 @@ type exportContext struct {
 	Dataset    string
 	Source     string
 	Validation coastline.ValidationReport
+	Config     config
+	Report     reportMetadata
+	Scenario   geometry.ScenarioClassification
+}
+
+// reportMetadata содержит идентификационные данные и статус отчёта.
+type reportMetadata struct {
+	GeneratedAt        string   `json:"generated_at"`
+	InputDataVersion   string   `json:"input_data_version"`
+	GeometrySource     string   `json:"geometry_source"`
+	ExperimentID       string   `json:"experiment_id"`
+	Projection         string   `json:"projection"`
+	ReferenceLatitude  float64  `json:"reference_latitude"`
+	ReferenceLongitude float64  `json:"reference_longitude"`
+	ScenarioStatus     string   `json:"scenario_status,omitempty"`
+	UsageLimitations   []string `json:"usage_limitations,omitempty"`
 }
 
 type polylineMetrics struct {
@@ -56,6 +74,32 @@ type coastlineHighlightsMetrics struct {
 	LongSegments []segmentHighlightMetrics `json:"long_segments"`
 }
 
+const (
+	// MetricsSchemaVersion фиксирует формат JSON-метрик для воспроизводимости.
+	MetricsSchemaVersion = "1.0"
+	// ApplicationVersion указывает состояние приложения без привязки к git-репозиторию.
+	ApplicationVersion = "development"
+)
+
+// reproducibilityMetrics описывает условия, необходимые для интерпретации результата.
+type reproducibilityMetrics struct {
+	MetricsSchemaVersion        string  `json:"metrics_schema_version"`
+	ApplicationVersion          string  `json:"application_version"`
+	InputCoordinateSystem       string  `json:"input_coordinate_system"`
+	CalculationCoordinateSystem string  `json:"calculation_coordinate_system"`
+	ProjectionReferenceLat      float64 `json:"projection_reference_latitude,omitempty"`
+	ProjectionReferenceLon      float64 `json:"projection_reference_longitude,omitempty"`
+	MetersPerDegreeLatitude     float64 `json:"meters_per_degree_latitude,omitempty"`
+	MetersPerDegreeLongitude    float64 `json:"meters_per_degree_longitude,omitempty"`
+	DistanceUnit                string  `json:"distance_unit"`
+	GridUnit                    string  `json:"grid_unit"`
+	InputGeometrySHA256         string  `json:"input_geometry_sha256"`
+	InputPointCount             int     `json:"input_point_count"`
+	GridType                    string  `json:"grid_type,omitempty"`
+	GridCellSizeMeters          float64 `json:"grid_cell_size_meters,omitempty"`
+	GridBufferKM                float64 `json:"grid_buffer_km,omitempty"`
+}
+
 type segmentHighlightMetrics struct {
 	StartIndex int             `json:"start_index"`
 	EndIndex   int             `json:"end_index"`
@@ -75,6 +119,7 @@ type coastlineArtifactMetrics struct {
 	RenderSimplification simplificationMetrics      `json:"render_simplification"`
 	Highlights           coastlineHighlightsMetrics `json:"highlights"`
 	Validation           validationMetrics          `json:"validation"`
+	Report               reportMetadata             `json:"report_metadata"`
 }
 
 type fractalSeriesArtifactMetrics struct {
@@ -83,6 +128,8 @@ type fractalSeriesArtifactMetrics struct {
 	Dataset             string                     `json:"dataset,omitempty"`
 	Source              string                     `json:"source,omitempty"`
 	Title               string                     `json:"title"`
+	GeometryKind        string                     `json:"geometry_kind"`
+	Interpretation      string                     `json:"interpretation"`
 	OutputDir           string                     `json:"output_dir"`
 	ReferenceCoastline  polylineMetrics            `json:"reference_coastline"`
 	ReferenceRender     polylineMetrics            `json:"reference_render"`
@@ -90,16 +137,11 @@ type fractalSeriesArtifactMetrics struct {
 	ModelSimplification simplificationMetrics      `json:"model_simplification"`
 	ErosionStrength     float64                    `json:"erosion_strength_meters,omitempty"`
 	ErosionSeed         int64                      `json:"erosion_seed,omitempty"`
-	OrganicOptions      *organicOptionsMetrics     `json:"organic_options,omitempty"`
 	Iterations          []fractalIterationMetrics  `json:"iterations"`
 	Highlights          coastlineHighlightsMetrics `json:"highlights"`
 	Validation          validationMetrics          `json:"validation"`
-}
-
-type organicOptionsMetrics struct {
-	Seed            int64   `json:"seed"`
-	AngleJitterDeg  float64 `json:"angle_jitter_deg"`
-	HeightJitterPct float64 `json:"height_jitter_pct"`
+	Report              reportMetadata             `json:"report_metadata"`
+	Reproducibility     reproducibilityMetrics     `json:"reproducibility"`
 }
 
 type fractalIterationMetrics struct {
@@ -110,23 +152,40 @@ type fractalIterationMetrics struct {
 	LengthKM            float64           `json:"length_km"`
 	RelativeToModelBase float64           `json:"relative_to_model_base"`
 	RelativeToReference float64           `json:"relative_to_reference"`
-	Theory              *theoryMetrics    `json:"theory,omitempty"`
 	Dimension           *dimensionMetrics `json:"dimension,omitempty"`
 }
 
-type theoryMetrics struct {
-	ExpectedLengthKM float64 `json:"expected_length_km"`
-	ErrorKM          float64 `json:"error_km"`
-	ErrorPercent     float64 `json:"error_percent"`
+type dimensionMetrics struct {
+	Valid              bool                       `json:"valid"`
+	Dimension          float64                    `json:"dimension,omitempty"`
+	RegressionRSquared float64                    `json:"regression_r_squared,omitempty"`
+	StableAcrossScales bool                       `json:"stable_across_scales"`
+	StabilitySpread    float64                    `json:"stability_spread,omitempty"`
+	SampleCount        int                        `json:"sample_count"`
+	BoxSizeMeters      float64                    `json:"representative_box_size_meters,omitempty"`
+	Samples            []boxCountingSampleMetrics `json:"samples,omitempty"`
+	GridOffsets        []gridOffsetMetrics        `json:"grid_offsets,omitempty"`
+	RegressionStart    int                        `json:"regression_start_sample,omitempty"`
+	RegressionEnd      int                        `json:"regression_end_sample,omitempty"`
+	RegressionStdError float64                    `json:"regression_standard_error,omitempty"`
+	DimensionCI95Low   float64                    `json:"dimension_ci95_low,omitempty"`
+	DimensionCI95High  float64                    `json:"dimension_ci95_high,omitempty"`
+	LocalDimensions    []float64                  `json:"local_dimensions,omitempty"`
+	LogLogSVGFile      string                     `json:"log_log_svg_file,omitempty"`
 }
 
-type dimensionMetrics struct {
-	Valid              bool    `json:"valid"`
-	Dimension          float64 `json:"dimension,omitempty"`
-	RegressionRSquared float64 `json:"regression_r_squared,omitempty"`
-	StableAcrossScales bool    `json:"stable_across_scales"`
-	StabilitySpread    float64 `json:"stability_spread,omitempty"`
-	SampleCount        int     `json:"sample_count"`
+type boxCountingSampleMetrics struct {
+	ScaleFactor   float64 `json:"scale_factor"`
+	RelativeScale float64 `json:"relative_scale"`
+	BoxSizeMeters float64 `json:"box_size_meters"`
+	BoxesCovered  int     `json:"boxes_covered"`
+	LogInvScale   float64 `json:"log_inverse_scale"`
+	LogBoxes      float64 `json:"log_boxes"`
+}
+
+type gridOffsetMetrics struct {
+	X float64 `json:"x"`
+	Y float64 `json:"y"`
 }
 
 type erosionStepMetrics struct {
@@ -136,6 +195,9 @@ type erosionStepMetrics struct {
 	RenderPoints int     `json:"render_points"`
 	LengthKM     float64 `json:"length_km"`
 	AreaKM       float64 `json:"area_km2"`
+	MeanChange   float64 `json:"mean_change_per_unit,omitempty"`
+	MaxChange    float64 `json:"max_abs_change_per_unit,omitempty"`
+	ChangeUnit   string  `json:"change_unit,omitempty"`
 }
 
 type erosionSeriesArtifactMetrics struct {
@@ -157,22 +219,112 @@ type erosionSeriesArtifactMetrics struct {
 	MaxFetchKM          float64                    `json:"max_fetch_km,omitempty"`
 	DepthScaleMeters    float64                    `json:"depth_scale_meters,omitempty"`
 	ExposurePower       float64                    `json:"exposure_power,omitempty"`
+	YearsPerStep        float64                    `json:"years_per_step,omitempty"`
 	Steps               []erosionStepMetrics       `json:"steps"`
 	Highlights          coastlineHighlightsMetrics `json:"highlights"`
 	Validation          validationMetrics          `json:"validation"`
+	Report              reportMetadata             `json:"report_metadata"`
+	Reproducibility     reproducibilityMetrics     `json:"reproducibility"`
 }
 
-func newExportContext(app *App) exportContext {
-	if app == nil {
-		return exportContext{}
+func defaultReproducibilityMetrics() reproducibilityMetrics {
+	return reproducibilityMetrics{
+		MetricsSchemaVersion:        MetricsSchemaVersion,
+		ApplicationVersion:          ApplicationVersion,
+		InputCoordinateSystem:       "WGS 84 (EPSG:4326)",
+		CalculationCoordinateSystem: "локальная равнопромежуточная метрическая проекция WGS 84",
+		DistanceUnit:                "м и км",
+		GridUnit:                    "м",
+	}
+}
+
+// reproducibilityForGeometry добавляет к общим метаданным отпечаток входной
+// геометрии в каноническом формате координат.
+func reproducibilityForGeometry(points []geometry.LatLon) reproducibilityMetrics {
+	metrics := defaultReproducibilityMetrics()
+	projection := geometry.NewLocalMetricProjection(points)
+	metrics.ProjectionReferenceLat = projection.ReferenceLat
+	metrics.ProjectionReferenceLon = projection.ReferenceLon
+	metrics.MetersPerDegreeLatitude = projection.MetersPerDegreeLatitude
+	metrics.MetersPerDegreeLongitude = projection.MetersPerDegreeLongitude
+	hash := sha256.New()
+	for _, point := range points {
+		fmt.Fprintf(hash, "%.12f,%.12f\n", point.Lat, point.Lon)
+	}
+	metrics.InputGeometrySHA256 = fmt.Sprintf("%x", hash.Sum(nil))
+	metrics.InputPointCount = len(points)
+	return metrics
+}
+
+// buildReportMetadata формирует воспроизводимые метаданные для SVG и JSON.
+func buildReportMetadata(ctx exportContext, points []geometry.LatLon, parameters string) reportMetadata {
+	reproducibility := reproducibilityForGeometry(points)
+	identity := sha256.Sum256([]byte(ctx.Command + "|" + reproducibility.InputGeometrySHA256 + "|" + parameters + "|scenario=" + ctx.Scenario.ScenarioStatus))
+	return reportMetadata{
+		GeneratedAt:        nowTimestamp(),
+		InputDataVersion:   reproducibility.InputGeometrySHA256,
+		GeometrySource:     ctx.Source,
+		ExperimentID:       fmt.Sprintf("exp-%x", identity[:6]),
+		Projection:         reproducibility.CalculationCoordinateSystem,
+		ReferenceLatitude:  reproducibility.ProjectionReferenceLat,
+		ReferenceLongitude: reproducibility.ProjectionReferenceLon,
+		ScenarioStatus:     ctx.Scenario.ScenarioStatus,
+		UsageLimitations:   append([]string(nil), ctx.Scenario.UsageLimitations...),
+	}
+}
+
+// reportMetadataLines подготавливает компактное описание для карты отчёта.
+func reportMetadataLines(metadata reportMetadata) string {
+	source := metadata.GeometrySource
+	if cacheIndex := strings.Index(source, " (кешированная копия"); cacheIndex > 0 {
+		source = source[:cacheIndex] + " (кешированная копия)"
+	}
+	if len(source) > 96 {
+		source = source[:93] + "..."
+	}
+	lines := fmt.Sprintf("Эксперимент: %s · дата: %s\nИсточник: %s · версия данных: %s\nПроекция: %s · референс: %.4f° с.ш., %.4f° в.д.",
+		metadata.ExperimentID, metadata.GeneratedAt, source,
+		metadata.InputDataVersion[:12], metadata.Projection,
+		metadata.ReferenceLatitude, metadata.ReferenceLongitude)
+	if metadata.ScenarioStatus != "" {
+		lines += "\nСтатус сценария: " + metadata.ScenarioStatus
+	}
+	return lines
+}
+
+// withScenarioClassification добавляет к контексту экспорта статус сценария
+// и передаёт его в подписи расширенной SVG-карты.
+func withScenarioClassification(ctx exportContext, scenario geometry.ScenarioClassification) exportContext {
+	ctx.Scenario = scenario
+	ctx.Scenario.UsageLimitations = append([]string(nil), scenario.UsageLimitations...)
+	ctx.Config.ScenarioStatus = scenario.ScenarioStatus
+	return ctx
+}
+
+func newExportContext(command, dataset, source string, validation coastline.ValidationReport) exportContext {
+	cfg := config{Command: command}
+
+	// По умолчанию включите расширенный режим для команд измерения и размывания
+	// Здесь показаны таблицы подсчета ячеек и размывания для лучшего понимания
+	if command == cmdDimension || command == cmdErosion {
+		cfg.EnableEnhanced = true
+		cfg.ShowGrid = true
+		cfg.ShowCompass = true
+		cfg.ShowMarkers = true
 	}
 
 	return exportContext{
-		Command:    app.Config.Command,
-		Dataset:    app.Dataset,
-		Source:     app.DataSource,
-		Validation: app.Validation,
+		Command:    command,
+		Dataset:    dataset,
+		Source:     source,
+		Validation: validation,
+		Config:     cfg,
 	}
+}
+
+// Legacy newExportContext для обеспечения обратной совместимости (устарел)
+func newExportContextFromApp(command, dataset, source string, validation coastline.ValidationReport) exportContext {
+	return newExportContext(command, dataset, source, validation)
 }
 
 func summarizePolyline(points []geometry.LatLon) polylineMetrics {
@@ -240,10 +392,68 @@ func dimensionMetricsFromAnalysis(analysis fractal.BoxCountingAnalysis) *dimensi
 		StabilitySpread:    analysis.StabilitySpread,
 		SampleCount:        len(analysis.Samples),
 	}
+	result.Samples = make([]boxCountingSampleMetrics, 0, len(analysis.Samples))
+	for _, sample := range analysis.Samples {
+		result.Samples = append(result.Samples, boxCountingSampleMetrics{
+			ScaleFactor:   sample.ScaleFactor,
+			RelativeScale: sample.RelativeScale,
+			BoxSizeMeters: sample.BoxSizeMeters,
+			BoxesCovered:  sample.BoxesCovered,
+			LogInvScale:   sample.LogInvScale,
+			LogBoxes:      sample.LogBoxes,
+		})
+	}
+	result.GridOffsets = make([]gridOffsetMetrics, 0, len(analysis.GridOffsets))
+	for _, offset := range analysis.GridOffsets {
+		result.GridOffsets = append(result.GridOffsets, gridOffsetMetrics{X: offset.X, Y: offset.Y})
+	}
+	if analysis.RegressionEnd >= analysis.RegressionStart && analysis.RegressionStart >= 0 {
+		result.RegressionStart = analysis.RegressionStart
+		result.RegressionEnd = analysis.RegressionEnd
+		result.LocalDimensions = append([]float64(nil), analysis.LocalDimensions...)
+		result.RegressionStdError = regressionStandardError(analysis)
+		if result.RegressionStdError > 0 {
+			result.DimensionCI95Low = analysis.Dimension - 1.96*result.RegressionStdError
+			result.DimensionCI95High = analysis.Dimension + 1.96*result.RegressionStdError
+		}
+	}
+	if len(analysis.Samples) > 0 {
+		// Для карты берём средний по списку фактический масштаб анализа.
+		result.BoxSizeMeters = analysis.Samples[len(analysis.Samples)/2].BoxSizeMeters
+	}
 	if analysis.Valid {
 		result.Dimension = analysis.Dimension
 	}
 	return result
+}
+
+func regressionStandardError(analysis fractal.BoxCountingAnalysis) float64 {
+	start, end := analysis.RegressionStart, analysis.RegressionEnd
+	if start < 0 || end <= start || end >= len(analysis.Samples) || analysis.Dimension == 0 {
+		return 0
+	}
+
+	count := float64(end - start + 1)
+	meanX, meanY := 0.0, 0.0
+	for _, sample := range analysis.Samples[start : end+1] {
+		meanX += sample.LogInvScale
+		meanY += sample.LogBoxes
+	}
+	meanX /= count
+	meanY /= count
+
+	sumSquaresX, sumSquaresY := 0.0, 0.0
+	for _, sample := range analysis.Samples[start : end+1] {
+		deltaX := sample.LogInvScale - meanX
+		deltaY := sample.LogBoxes - meanY
+		sumSquaresX += deltaX * deltaX
+		sumSquaresY += deltaY * deltaY
+	}
+	if count <= 2 || sumSquaresX <= 0 || sumSquaresY <= 0 || analysis.RegressionRSquared >= 1 {
+		return 0
+	}
+	residualVariance := (1 - analysis.RegressionRSquared) * sumSquaresY / (count - 2)
+	return math.Sqrt(residualVariance / sumSquaresX)
 }
 
 func validationMetricsFromData(report coastline.ValidationReport, summary coastline.ValidationSummary) validationMetrics {
