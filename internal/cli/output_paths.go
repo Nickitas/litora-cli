@@ -13,7 +13,6 @@ const (
 	subdirCSV        = "csv"
 	subdirGIF        = "gif"
 	subdirErosion    = "erosion"
-	subdirBenchmark  = "benchmark"
 	subdirMesh       = "mesh"
 	defaultOutputDir = "output"
 )
@@ -36,7 +35,7 @@ func NewOutputPathManager(baseDir string) *OutputPathManager {
 }
 
 // EnsureDirectories создаёт все выходные подкаталоги, если они не существуют.
-// Создаёт каталоги SVG, метрик, CSV, GIF, эрозии, benchmark и сеток.
+// Создаёт каталоги SVG, метрик, CSV, GIF, эрозии и сеток.
 func (opm *OutputPathManager) EnsureDirectories() error {
 	dirs := []string{
 		opm.SVGDir(),
@@ -44,7 +43,6 @@ func (opm *OutputPathManager) EnsureDirectories() error {
 		opm.CSVDir(),
 		opm.GIFDir(),
 		opm.ErosionDir(),
-		opm.BenchmarkDir(),
 		opm.MeshDir(),
 	}
 
@@ -100,28 +98,6 @@ func (opm *OutputPathManager) ErosionDir() string {
 // ErosionPath возвращает путь к файлу результатов расчёта эрозии.
 func (opm *OutputPathManager) ErosionPath(filename string) string {
 	return filepath.Join(opm.ErosionDir(), filename)
-}
-
-// BenchmarkDir возвращает каталог параметрических и калибровочных отчётов.
-func (opm *OutputPathManager) BenchmarkDir() string {
-	return filepath.Join(opm.baseDir, subdirBenchmark)
-}
-
-// BenchmarkPath возвращает путь к файлу отчёта в каталоге benchmark.
-func (opm *OutputPathManager) BenchmarkPath(filename string) string {
-	return filepath.Join(opm.BenchmarkDir(), filename)
-}
-
-// ResolveBenchmarkPath помещает относительное имя отчёта в каталог benchmark.
-// Абсолютный путь сохраняется как явно заданный пользователем.
-func (opm *OutputPathManager) ResolveBenchmarkPath(userPath, defaultFilename string) string {
-	if userPath == "" {
-		return opm.BenchmarkPath(defaultFilename)
-	}
-	if filepath.IsAbs(userPath) {
-		return userPath
-	}
-	return opm.BenchmarkPath(filepath.Base(userPath))
 }
 
 // SVGPath возвращает полный путь к SVG файлу

@@ -1654,4 +1654,3 @@ func main() {
 
 - [`../coastline`](../coastline) — загрузка, валидация и анализ береговых линий
 - [`../fractal`](../fractal) — box-counting анализ фрактальной размерности
-- [`../generators/koch`](../generators/koch) — генерация фрактальных кривых Коха

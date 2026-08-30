@@ -10,6 +10,7 @@ import sys
 from pathlib import Path
 import pandas as pd
 import numpy as np
+from cli_csv import read_erosion_csv
 
 
 class ErosionAnalyzer:
@@ -26,7 +27,7 @@ class ErosionAnalyzer:
         if not self.csv_path.exists():
             raise FileNotFoundError(f"CSV файл не найден: {csv_path}")
 
-        self.df = pd.read_csv(self.csv_path)
+        self.df = read_erosion_csv(self.csv_path)
         self._validate_data()
 
     def _validate_data(self):

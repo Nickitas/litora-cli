@@ -1,303 +1,96 @@
-# Python Analysis Scripts
+# Анализ результатов Lito
 
-Коллекция Python скриптов для анализа CSV данных, генерируемых Litora-CLI.
-
-## Структура
-
-```
-scripts/
-├── README.md                  # Эта документация
-├── requirements.txt           # Зависимости Python
-└── analysis/                 # Скрипты анализа
-    ├── analyze_erosion.py         # Базовый анализ эрозии
-    ├── plot_dynamics.py           # Визуализация динамики
-    ├── storm_analysis.py          # Анализ штормов
-    ├── compare_scenarios.py       # Сравнение сценариев
-    ├── export_reports.py          # Генерация отчетов
-    ├── segment_analysis.py        # Детализация по сегментам берега
-    ├── segment_svg_generator.py   # SVG генератор карт сегментов
-    └── sediment_temporal_analysis.py  # Анализ временной динамики седиментации
-```
+Скрипты, работающие с актуальными артефактами CLI Lito.
+Все команды выполняются из корня репозитория.
 
 ## Установка
 
 ```bash
-# Установка зависимостей
-pip install -r scripts/requirements.txt
-
-# Или используя virtualenv (рекомендуется)
 python3 -m venv scripts/venv
-source scripts/venv/bin/activate  
-# На Windows: venv\Scripts\activate
-pip install -r scripts/requirements.txt
+source scripts/venv/bin/activate
+python -m pip install -r scripts/requirements.txt
 ```
 
-## Использование
+Графики используют backend `Agg` и подходят для серверов и CI.
 
-### Базовый анализ эрозии
+## Сценарии использования
 
-**Задача:** Получить базовую статистику моделирования эрозии.
+### Сводный анализ
+
+`analyze_outputs.py` читает `profiles.csv`, `dimension.metrics.json` и
+`mesh-comparison.json` из `output` и вложенных каталогов.
 
 ```bash
-# Моделирование
-./lito model erosion --steps 10 --target-years 25 --years-per-step 2.5
-
-# Анализ одного CSV файла
-python scripts/analysis/analyze_erosion.py output/csv/erosion_metrics.csv
-
-# С сохранением результатов
-python scripts/analysis/analyze_erosion.py output/csv/erosion_metrics.csv --output output/report/analysis.txt
-
-# Только краткая сводка
-python scripts/analysis/analyze_erosion.py output/csv/erosion_metrics.csv --summary
+./lito seabed render --input output/seabed/black-sea-depth.msh
+./lito dimension --iterations 5
+python scripts/analysis/analyze_outputs.py output
 ```
 
-**Результат:**
-- Текстовый отчет с полной статистикой
-- Данные о темпах эрозии
-- Временной анализ
-- Краткая сводка при использовании --summary
+Создаются `output/analysis/analysis_report.txt`,
+`bathymetry_profiles.png` и `dimension_convergence.png`.
 
-### Визуализация динамики
-
-**Задача:** Создать профессиональные графики для презентации.
+### Анализ эрозии
 
 ```bash
-# Моделирование
-./lito model erosion --steps 12 --target-years 30 --years-per-step 2.5 \
-  --storm-probability 0.25 --sea-level-rise 0.01
-
-# Генерация графиков
-python scripts/analysis/plot_dynamics.py output/csv/erosion_metrics.csv
-
-# С настройкой стиля
-python scripts/analysis/plot_dynamics.py output/csv/erosion_metrics.csv --style seaborn
-
-# Комплексная панель дашборда
-python scripts/analysis/plot_dynamics.py output/csv/erosion_metrics.csv \
-  --dashboard --output presentation_dashboard --style seaborn
-
-# С настройкой размера графиков
-python scripts/analysis/plot_dynamics.py output/csv/erosion_metrics.csv \
-  --figsize 12 8 --output custom_plots
+./lito erosion --black-sea-sochi --steps 20 \
+  --output output --output-csv output/csv/erosion.csv
+python scripts/analysis/analyze_erosion.py output/csv/erosion.csv \
+  --output output/analysis/erosion_report.txt
 ```
 
-**Результат:**
-- `presentation_dashboard.png` — комплексная панель для презентации
-- Все ключевые метрики на одном графике
-- Профессиональное оформление
-- Настройка размера и стиля графиков
+### Графики динамики
+
+```bash
+./lito erosion --black-sea-sochi --steps 20 \
+  --storm-probability 0.25 --output output \
+  --output-csv output/csv/storm-erosion.csv
+python scripts/analysis/plot_dynamics.py output/csv/storm-erosion.csv \
+  --dashboard --output output/analysis/erosion_dashboard
+```
 
 ### Анализ штормов
 
-**Задача:** Исследовать влияние штормов на эрозию берега.
-
 ```bash
-# Моделирование с частыми штормами
-./lito model erosion --steps 20 --target-years 40 --years-per-step 2 \
-  --storm-probability 0.4 --storm-intensity 2.5 --output-csv storm_analysis.csv
-
-# Статистика штормовых событий
-python scripts/analysis/storm_analysis.py output/csv/erosion_metrics.csv
-
-# Детальный анализ
-python scripts/analysis/storm_analysis.py output/csv/storm_analysis.csv \
-  --detailed --plot --output output/report/storm_report
+./lito erosion --black-sea-sochi --steps 30 \
+  --storm-probability 0.3 --storm-intensity 2.5 \
+  --output output --output-csv output/csv/storms.csv
+python scripts/analysis/storm_analysis.py output/csv/storms.csv \
+  --detailed --plot --output output/analysis/storms
 ```
-
-**Результат:**
-- Детальный текстовый отчет о штормах
-- Графики воздействия штормов
-- Сравнение эффективности штормовых событий
 
 ### Сравнение сценариев
 
-**Задача:** Сравнить влияние вручную заданных уровней усиления воздействия.
-
-Эти примеры являются параметрическими экспериментами. Они не реализуют
-траектории RCP/SSP и не содержат реальных временных рядов волнения или
-откалиброванных распределений штормов.
-
 ```bash
-# Умеренный параметрический подъём
-./lito model erosion --steps 15 --target-years 50 --years-per-step 3.33 \
-  --sea-level-rise 0.007 --output-csv parametric_moderate.csv
-
-# Высокий параметрический подъём
-./lito model erosion --steps 15 --target-years 50 --years-per-step 3.33 \
-  --sea-level-rise 0.015 --output-csv parametric_high.csv
-
-# Сравнение нескольких CSV файлов
-python scripts/analysis/compare_scenarios.py output/csv/parametric_moderate.csv output/csv/parametric_high.csv
-
-# С heatmap визуализацией
-python scripts/analysis/compare_scenarios.py "output/csv/parametric_*.csv" \
-  --heatmap --output parametric_comparison
-
-# С текстовым отчетом сравнения
-python scripts/analysis/compare_scenarios.py output/csv/parametric_*.csv \
-  --report --output comparison_report.txt
+./lito erosion --black-sea-sochi --steps 20 --storm-probability 0.1 \
+  --output output --output-csv output/csv/scenario-calm.csv
+./lito erosion --black-sea-sochi --steps 20 --storm-probability 0.4 \
+  --output output --output-csv output/csv/scenario-stormy.csv
+python scripts/analysis/compare_scenarios.py \
+  output/csv/scenario-calm.csv output/csv/scenario-stormy.csv \
+  --report --heatmap --output scenario-comparison
 ```
 
-**Результат:**
-- `parametric_comparison.png` — графики сравнения
-- `parametric_comparison_heatmap.png` — heatmap визуализация
-- `comparison_report.txt` — текстовый отчет со статистикой
-- Понимание различий между сценариями
+Результаты сравнения сохраняются в `output/report/comparison/`.
 
-### Генерация отчета
-
-**Задача:** Создать профессиональные отчеты для научной публикации.
+### Экспорт отчётов
 
 ```bash
-# Моделирование с комплексными параметрами
-./lito model erosion --steps 20 --target-years 50 --years-per-step 2.5 \
-  --storm-probability 0.2 --sea-level-rise 0.01 --enable-seasonality
-
-# Все форматы отчетов
-python scripts/analysis/export_reports.py output/csv/erosion_metrics.csv \
-  --format all --output output/report/paper_analysis
-
-# Указание директории для отчетов
-python scripts/analysis/export_reports.py output/csv/erosion_metrics.csv \
-  --format markdown --report-dir my_reports --output output/report/chapter1
-
-# Только Markdown отчет
-python scripts/analysis/export_reports.py output/csv/erosion_metrics.csv \
-  --format markdown --output output/report/paper_summary
+python scripts/analysis/export_reports.py output/csv/storms.csv \
+  --format all --output output/analysis/erosion-report
 ```
 
-**Результат:**
-- `reports/paper_analysis.md` — Markdown для документации
-- `reports/paper_analysis.json` — JSON для автоматизации
-- `reports/paper_analysis.tex` — LaTeX для научных статей
-- Настройка директории сохранения через `--report-dir`
+Создаются Markdown, JSON и LaTeX-версии отчёта.
 
-### Детализация по сегментам берега
+## Файлы каталога `analysis`
 
-**Задача:** Анализ береговой линии по сегментам (бухты, мысы, защищенные/незащищенные участки).
+- `analyze_outputs.py` — сводка `seabed`, `dimension`, `mesh`;
+- `analyze_erosion.py` — числовая статистика эрозии;
+- `plot_dynamics.py` — графики динамики;
+- `storm_analysis.py` — анализ штормовых состояний;
+- `compare_scenarios.py` — параметрическое сравнение CSV;
+- `export_reports.py` — отчёты Markdown/JSON/LaTeX;
+- `cli_csv.py` — внутренний адаптер русских имён CSV.
 
-```bash
-# Анализ сегментов с GeoJSON координатами
-python scripts/analysis/segment_analysis.py output/csv/erosion_metrics.csv \
-  --geojson data/black-sea.json
-
-# С настраиваемым порогом уязвимости
-python scripts/analysis/segment_analysis.py output/csv/erosion_metrics.csv \
-  --geojson data/black-sea.json --threshold 65 --output segment_report
-
-# Только текстовый отчет
-python scripts/analysis/segment_analysis.py output/csv/erosion_metrics.csv \
-  --geojson data/black-sea.json --report-only
-```
-
-**Результат:**
-- `output/report/segment_report_report.txt` — текстовый отчет со статистикой
-- `output/report/segment_report_segments.png` — карта сегментов берега
-- `output/report/segment_report_exposure.png` — карта экспозиции участков
-- `output/report/segment_report_vulnerability.png` — график уязвимости
-- `output/report/segment_report_comparison.png` — панель сравнения защищенных/незащищенных участков
-
-**Классификация сегментов:**
-- **Бухты** (зеленый) — защищенные участки с низкой эрозией
-- **Мысы** (красный) — опасные участки с высокой эрозией
-- **Прямые участки** (синий) — нейтральные участки
-- **Плавные изгибы** (оранжевый) — промежуточные участки
-- **Сложные участки** (фиолетовый) — участки со сложной геометрией
-
-### Анализ временной динамики седиментации
-
-**Задача:** Анализ влияния штормов и сезонности на транспорт наносов и аккумуляцию.
-
-```bash
-# Анализ с данными о штормах
-python scripts/analysis/sediment_temporal_analysis.py output/csv/storm_analysis.csv
-
-# С указанием количества точек береговой линии
-python scripts/analysis/sediment_temporal_analysis.py output/csv/storm_analysis.csv \
-  --num-points 150 --output sediment_analysis
-
-# С кастомным порогом эрозии для определения штормов
-python scripts/analysis/sediment_temporal_analysis.py output/csv/erosion_metrics.csv \
-  --erosion-threshold 5000
-```
-
-**Результат:**
-- `output/report/sediment_temporal_report.txt` — текстовый отчет
-- `output/report/sediment_temporal_seasonal.png` — сезонный цикл эрозии/аккумуляции
-- `output/report/sediment_temporal_storms.png` — влияние штормов
-- `output/report/sediment_temporal_budget.png` — баланс седиментов
-
-**Анализируемые параметры:**
-- **Штормовые события**: интенсивность, частота, эрозионное воздействие
-- **Сезонная цикличность**: зимние штормы vs летняя аккумуляция
-- **Штормовые отложения**: толщина слоёв, размер зёрен, сохранность
-- **Баланс седиментов**: эрозия vs аккумуляция vs транспорт
-
-### SVG генератор карт сегментов
-
-**Задача:** Создать интерактивные SVG карты с классификацией сегментов.
-
-```bash
-# Генерация карты сегментов
-python scripts/analysis/segment_svg_generator.py data/black-sea.json
-
-# С указанием выходного файла
-python scripts/analysis/segment_svg_generator.py data/black-sea.json \
-  --output output/report/black_sea_segments.svg
-
-# Генерация карты экспозиции
-python scripts/analysis/segment_svg_generator.py data/black-sea.json \
-  --exposure-map
-
-# Генерация обеих карт
-python scripts/analysis/segment_svg_generator.py data/black-sea.json \
-  --both --width 1600 --height 1200
-```
-
-**Результат:**
-- Интерактивные SVG карты с всплывающими подсказками
-- Цветовая кодировка по типам сегментов и экспозиции
-- Масштабная линейка и сетка координат
-- Маркеры проблемных зон (уязвимость > 70)
-
-### Комплексный анализ
-
-**Задача:** Полный анализ данных для диссертационного исследования.
-
-```bash
-# 1. Базовая модель
-./lito all --steps 15 --target-years 30 --years-per-step 2 \
-  --storm-probability 0.2 --sea-level-rise 0.008
-
-# 2. Анализ
-python scripts/analysis/analyze_erosion.py output/csv/erosion_metrics.csv \
-  --output analysis_results.txt
-
-# 3. Визуализации
-python scripts/analysis/plot_dynamics.py output/csv/erosion_metrics.csv \
-  --dashboard --output thesis_dashboard --style seaborn
-
-# 4. Штормовый анализ
-python scripts/analysis/storm_analysis.py output/csv/erosion_metrics.csv \
-  --detailed --plot --output thesis_storms
-
-# 5. Детализация по сегментам
-python scripts/analysis/segment_analysis.py output/csv/erosion_metrics.csv \
-  --geojson data/black-sea.json --output thesis_segments
-
-# 6. SVG карты сегментов
-python scripts/analysis/segment_svg_generator.py data/black-sea.json \
-  --both --output thesis_maps
-
-# 7. Отчеты
-python scripts/analysis/export_reports.py output/csv/erosion_metrics.csv \
-  --format all --output thesis_chapter
-```
-
-**Результат:**
-- Полный набор анализов для диссертации
-- Профессиональные графики
-- Детализация по сегментам берега
-- Интерактивные SVG карты
-- LaTeX код для включения в диссертацию
+Демонстрационный режим `--black-sea-sochi` не является калибровкой годового
+размыва. Нулевые значения на графиках означают отсутствие изменения в
+исходном запуске, а не неисправность построения.

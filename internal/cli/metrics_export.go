@@ -137,18 +137,11 @@ type fractalSeriesArtifactMetrics struct {
 	ModelSimplification simplificationMetrics      `json:"model_simplification"`
 	ErosionStrength     float64                    `json:"erosion_strength_meters,omitempty"`
 	ErosionSeed         int64                      `json:"erosion_seed,omitempty"`
-	OrganicOptions      *organicOptionsMetrics     `json:"organic_options,omitempty"`
 	Iterations          []fractalIterationMetrics  `json:"iterations"`
 	Highlights          coastlineHighlightsMetrics `json:"highlights"`
 	Validation          validationMetrics          `json:"validation"`
 	Report              reportMetadata             `json:"report_metadata"`
 	Reproducibility     reproducibilityMetrics     `json:"reproducibility"`
-}
-
-type organicOptionsMetrics struct {
-	Seed            int64   `json:"seed"`
-	AngleJitterDeg  float64 `json:"angle_jitter_deg"`
-	HeightJitterPct float64 `json:"height_jitter_pct"`
 }
 
 type fractalIterationMetrics struct {
@@ -159,14 +152,7 @@ type fractalIterationMetrics struct {
 	LengthKM            float64           `json:"length_km"`
 	RelativeToModelBase float64           `json:"relative_to_model_base"`
 	RelativeToReference float64           `json:"relative_to_reference"`
-	Theory              *theoryMetrics    `json:"theory,omitempty"`
 	Dimension           *dimensionMetrics `json:"dimension,omitempty"`
-}
-
-type theoryMetrics struct {
-	ExpectedLengthKM float64 `json:"expected_length_km"`
-	ErrorKM          float64 `json:"error_km"`
-	ErrorPercent     float64 `json:"error_percent"`
 }
 
 type dimensionMetrics struct {
@@ -212,8 +198,6 @@ type erosionStepMetrics struct {
 	MeanChange   float64 `json:"mean_change_per_unit,omitempty"`
 	MaxChange    float64 `json:"max_abs_change_per_unit,omitempty"`
 	ChangeUnit   string  `json:"change_unit,omitempty"`
-	ControlCount int     `json:"control_count,omitempty"`
-	ControlMatch int     `json:"control_matches,omitempty"`
 }
 
 type erosionSeriesArtifactMetrics struct {
@@ -322,7 +306,7 @@ func newExportContext(command, dataset, source string, validation coastline.Vali
 
 	// По умолчанию включите расширенный режим для команд измерения и размывания
 	// Здесь показаны таблицы подсчета ячеек и размывания для лучшего понимания
-	if command == cmdDimension || command == cmdKochDemo || command == cmdErosion {
+	if command == cmdDimension || command == cmdErosion {
 		cfg.EnableEnhanced = true
 		cfg.ShowGrid = true
 		cfg.ShowCompass = true

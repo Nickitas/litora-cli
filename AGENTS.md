@@ -48,7 +48,6 @@ Do not skip documentation when implementing features or fixes.
 **Lito** is a Go CLI tool for coastal geomorphology modeling, specifically for analyzing Black Sea coastline geometry. The tool combines:
 - Fractal analysis via box-counting dimension
 - Wave erosion modeling with bathymetry support
-- Benchmark calibration against observed erosion data
 
 Module name: `coastal-geometry`
 
@@ -83,7 +82,6 @@ Commands use `github.com/spf13/cobra`:
 - `dimension` - fractal box-counting analysis
 - `erosion` - wave erosion simulation
 - `all` - full pipeline (validation + fractal + erosion)
-- `benchmark` - calibration sites and parameter optimization
 
 Each command file follows the pattern: flag variables in `init()`, command logic in `run*()` function.
 
@@ -108,27 +106,19 @@ Each command file follows the pattern: flag variables in `init()`, command logic
 **fractal/** - Box-counting dimension analysis
 - `dimension.go` - `AnalyzeBoxCounting()` returns fractal D with stability metrics
 
-**benchmark/** - Model calibration
-- `repository.go` - Black Sea calibration sites
-- `calibration.go` - parameter search vs observed erosion
-- `types.go` - `BenchmarkSite` with `ErosionObservation` records
-
-**generators/koch/** - Organic Koch curve generation for fractal validation
-
 ### Render Layer (`internal/render/svg/`)
 SVG visualization with multi-layer rendering, stat cards, charts, scale bars. Key function: `DrawSVG()`.
 
 ## Key Data Flows
 
 1. **Coastline loading**: `coastline.Load()` → local file or remote URL with caching → `[]geometry.LatLon`
-2. **Fractal analysis**: Base coastline → `koch.OrganicKochCurve()` (iterative growth) → `fractal.AnalyzeBoxCounting()`
+2. **Fractal analysis**: Coastline → `fractal.AnalyzeBoxCounting()`
 3. **Erosion**: Coastline → `geometry.SimulateWaveErosionWithSeed()` → snapshots array with optional temporal dynamics
 
 ## Important Constants and Defaults
 
 - Default coastline path: `data/black-sea-coastline.geojson`
 - Default bathymetry: `data/black-sea-bathymetry.json`
-- Koch theoretical D: `log(4)/log(3) ≈ 1.262`
 - Default output: `./output/`
 
 ## Testing Patterns

@@ -9,8 +9,11 @@ import argparse
 import sys
 from pathlib import Path
 import pandas as pd
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import seaborn as sns
+from cli_csv import read_erosion_csv
 import numpy as np
 
 
@@ -38,7 +41,7 @@ class DynamicsPlotter:
         else:
             plt.style.use('default')
 
-        self.df = pd.read_csv(self.csv_path)
+        self.df = read_erosion_csv(self.csv_path)
         self._validate_data()
 
     def _validate_data(self):
@@ -62,7 +65,7 @@ class DynamicsPlotter:
 
         # 1. Длина берега по времени
         ax1 = axes[0, 0]
-        if 'year' in self.df.columns:
+        if 'year' in self.df.columns and self.df['year'].nunique() > 1:
             x_data = self.df['year']
             x_label = 'Год'
         else:
@@ -222,12 +225,12 @@ class DynamicsPlotter:
             figsize: Размер графика (ширина, высота)
         """
         fig = plt.figure(figsize=figsize)
-        gs = fig.add_gridspec(3, 3, hspace=0.3, wspace=0.3)
+        gs = fig.add_gridspec(3, 3, hspace=0.55, wspace=0.3)
 
         fig.suptitle('ДАШБОРД АНАЛИЗА ЭРОЗИИ', fontsize=18, fontweight='bold')
 
         # Данные для графиков
-        if 'year' in self.df.columns:
+        if 'year' in self.df.columns and self.df['year'].nunique() > 1:
             x_data = self.df['year']
             x_label = 'Год'
         else:
@@ -317,22 +320,22 @@ class DynamicsPlotter:
         ax7.axis('off')
 
         # Расчет статистики
-        stats_text = "СТАТИСТИКА\\n"
-        stats_text += f"Шагов: {len(self.df)}\\n"
-        stats_text += f"Начальная длина: {self.df['length_km'].iloc[0]:.1f} км\\n"
-        stats_text += f"Конечная длина: {self.df['length_km'].iloc[-1]:.1f} км\\n"
+        stats_text = "СТАТИСТИКА\n"
+        stats_text += f"Шагов: {len(self.df)}\n"
+        stats_text += f"Начальная длина: {self.df['length_km'].iloc[0]:.1f} км\n"
+        stats_text += f"Конечная длина: {self.df['length_km'].iloc[-1]:.1f} км\n"
 
         if len(self.df['length_km']) > 1:
             length_change = self.df['length_km'].iloc[-1] - self.df['length_km'].iloc[0]
-            stats_text += f"Изменение: {length_change:+.1f} км\\n"
+            stats_text += f"Изменение: {length_change:+.1f} км\n"
 
         if 'eroded_m3' in self.df.columns:
             total_erosion = self.df['eroded_m3'].sum()
-            stats_text += f"Общая эрозия: {total_erosion:.1f} м³\\n"
+            stats_text += f"Общая эрозия: {total_erosion:.1f} м³\n"
 
         if 'storm_event' in self.df.columns:
             storm_count = self.df['storm_event'].sum()
-            stats_text += f"Штормов: {int(storm_count)}\\n"
+            stats_text += f"Штормов: {int(storm_count)}\n"
 
         ax7.text(0.1, 0.5, stats_text, transform=ax7.transAxes, fontsize=11,
                 verticalalignment='center', fontfamily='monospace',

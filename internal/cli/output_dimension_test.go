@@ -3,17 +3,16 @@ package cli
 import (
 	"encoding/json"
 	"os"
-	"strings"
 	"testing"
 
 	"coastal-geometry/internal/domain/coastline"
 	"coastal-geometry/internal/domain/geometry"
 )
 
-func TestBuildDimensionChartSeparatesScientificAndKochTheory(t *testing.T) {
+func TestBuildDimensionChartShowsObservedEstimate(t *testing.T) {
 	dimensions := []*dimensionMetrics{{Valid: true, Dimension: 1.17}}
 
-	scientific := buildDimensionChart(dimensions, false)
+	scientific := buildDimensionChart(dimensions)
 	if len(scientific.Series) != 1 {
 		t.Fatalf("научный график должен содержать только оценку наблюдений, получено серий: %d", len(scientific.Series))
 	}
@@ -21,10 +20,6 @@ func TestBuildDimensionChartSeparatesScientificAndKochTheory(t *testing.T) {
 		t.Fatalf("неожиданная серия научного графика: %q", scientific.Series[0].Label)
 	}
 
-	demo := buildDimensionChart(dimensions, true)
-	if len(demo.Series) != 2 || demo.Series[1].Label != "Теория" {
-		t.Fatalf("теоретическая линия Коха должна присутствовать только в демонстрационном графике: %#v", demo.Series)
-	}
 }
 
 func TestWriteDimensionSVGMarksObservedGeometry(t *testing.T) {
@@ -44,19 +39,12 @@ func TestWriteDimensionSVGMarksObservedGeometry(t *testing.T) {
 	if err != nil {
 		t.Fatalf("чтение метрик dimension: %v", err)
 	}
-	if strings.Contains(string(data), "Koch") || strings.Contains(string(data), "Кох") {
-		t.Fatal("научные метрики dimension не должны содержать сравнение с Кохом")
-	}
-
 	var metrics fractalSeriesArtifactMetrics
 	if err := json.Unmarshal(data, &metrics); err != nil {
 		t.Fatalf("разбор метрик dimension: %v", err)
 	}
 	if metrics.GeometryKind != "наблюдаемая" {
 		t.Fatalf("ожидалась наблюдаемая геометрия, получено %q", metrics.GeometryKind)
-	}
-	if metrics.OrganicOptions != nil {
-		t.Fatal("в научных метриках dimension не должно быть параметров органического генератора")
 	}
 	if len(metrics.Iterations) != 1 || metrics.Iterations[0].PointsCount != len(points) {
 		t.Fatalf("расчёт должен использовать все исходные точки: %#v", metrics.Iterations)

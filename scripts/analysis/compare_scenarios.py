@@ -10,10 +10,13 @@ import argparse
 import sys
 from pathlib import Path
 import pandas as pd
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
 import glob
+from cli_csv import read_erosion_csv
 
 
 class ScenarioComparator:
@@ -37,7 +40,7 @@ class ScenarioComparator:
         self.scenarios = {}
         for csv_path in self.csv_paths:
             scenario_name = csv_path.stem  # Имя файла без расширения
-            self.scenarios[scenario_name] = pd.read_csv(csv_path)
+            self.scenarios[scenario_name] = read_erosion_csv(csv_path)
 
         self._validate_data()
 

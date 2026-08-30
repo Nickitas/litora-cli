@@ -84,17 +84,17 @@ func buildEnhancedOptions(cfg config, points []geometry.LatLon, waveDir float64)
 			Show:          true,
 			Size:          float64(cfg.CompassSize),
 			WindDirection: waveDir,
-			ShowWindArrow: cfg.Command != cmdDimension && cfg.Command != cmdKochDemo,
+			ShowWindArrow: cfg.Command != cmdDimension,
 			Label:         "",
 			Style:         cfg.CompassStyle,
 		}
-		if cfg.Command == cmdDimension || cfg.Command == cmdKochDemo {
+		if cfg.Command == cmdDimension {
 			compassOpts.WindDirection = -1
 		}
 	}
 
 	var markerOpts *svgrender.MarkerOptions
-	if cfg.ShowMarkers && len(points) > 1 && cfg.Command != cmdDimension && cfg.Command != cmdKochDemo && cfg.Command != cmdErosion {
+	if cfg.ShowMarkers && len(points) > 1 && cfg.Command != cmdDimension && cfg.Command != cmdErosion {
 		markers := []svgrender.Marker{
 			{
 				Lat:     points[0].Lat,
@@ -148,8 +148,6 @@ func wrapDocumentForEnhanced(doc svgrender.Document, cfg config, points []geomet
 		modeName = "Демонстрационный SVG-режим"
 	} else if cfg.ScenarioStatus == geometry.ScenarioStatusUnclassified {
 		modeName = "SVG-режим без подтверждённого исследовательского статуса"
-	} else if cfg.Command == cmdKochDemo {
-		modeName = "Учебный SVG-режим"
 	} else if cfg.Command == cmdErosion {
 		modeName = "Расчётный SVG-режим"
 	}
@@ -169,7 +167,7 @@ func wrapDocumentForEnhanced(doc svgrender.Document, cfg config, points []geomet
 		enhancedDoc.CompassOptions = enhanced.CompassOptions
 		enhancedDoc.MarkerOptions = enhanced.MarkerOptions
 	}
-	enhancedDoc.MinimalMap = cfg.Command == cmdDimension || cfg.Command == cmdKochDemo || cfg.Command == cmdErosion
+	enhancedDoc.MinimalMap = cfg.Command == cmdDimension || cfg.Command == cmdErosion
 	if enhancedDoc.MinimalMap {
 		// На box-counting-карте аналитическая сетка заменяет координатную.
 		enhancedDoc.GridOptions = nil
@@ -311,7 +309,7 @@ func wrapErosionDocumentForEnhanced(doc svgrender.Document, cfg config, points [
 	}
 
 	enhanced.Document = doc
-	enhanced.MinimalMap = cfg.Command == cmdDimension || cfg.Command == cmdKochDemo || cfg.Command == cmdErosion
+	enhanced.MinimalMap = cfg.Command == cmdDimension || cfg.Command == cmdErosion
 	if enhanced.MinimalMap {
 		// Аналитическая сетка заменяет координатную на научной карте.
 		enhanced.GridOptions = nil

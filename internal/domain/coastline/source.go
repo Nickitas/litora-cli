@@ -351,25 +351,25 @@ func parseCoastlineData(data []byte, bounds GeoBounds) ([]geometry.LatLon, error
 		case "featurecollection", "feature", "polygon", "multipolygon", "linestring", "multilinestring", "geometrycollection":
 			return parseGeoJSONPoints(trimmed, bounds)
 		default:
-			return parseBenchmarkCoastline(trimmed, envelope.Type)
+			return parseCoastlineEnvelope(trimmed, envelope.Type)
 		}
 	default:
 		return nil, fmt.Errorf("неподдерживаемый формат данных береговой линии")
 	}
 }
 
-// parseBenchmarkCoastline извлекает последовательность из файла эталонного
-// участка. Это позволяет использовать проверенные локальные линии из
-// data/benchmarks непосредственно в расчётной команде.
-func parseBenchmarkCoastline(data []byte, objectType string) ([]geometry.LatLon, error) {
-	var benchmark struct {
+// parseCoastlineEnvelope извлекает последовательность координат из JSON-объекта
+// с полем coastline. Такой компактный формат удобен для локальных наблюдений,
+// не представленных в виде GeoJSON.
+func parseCoastlineEnvelope(data []byte, objectType string) ([]geometry.LatLon, error) {
+	var envelope struct {
 		Coastline []geometry.LatLon `json:"coastline"`
 	}
-	if err := json.Unmarshal(data, &benchmark); err != nil {
+	if err := json.Unmarshal(data, &envelope); err != nil {
 		return nil, fmt.Errorf("ошибка парсинга JSON-объекта: %w", err)
 	}
-	if len(benchmark.Coastline) >= 2 {
-		return benchmark.Coastline, nil
+	if len(envelope.Coastline) >= 2 {
+		return envelope.Coastline, nil
 	}
 	return nil, fmt.Errorf("неподдерживаемый тип JSON-объекта: %q", objectType)
 }
@@ -498,7 +498,7 @@ func parsePolygonSequences(data []byte, bounds GeoBounds) ([][]geometry.LatLon, 
 		}
 		return filterGeoJSONSequences(sequences, bounds), nil
 	default:
-		points, err := parseBenchmarkCoastline(trimmed, envelope.Type)
+		points, err := parseCoastlineEnvelope(trimmed, envelope.Type)
 		if err != nil {
 			return nil, err
 		}

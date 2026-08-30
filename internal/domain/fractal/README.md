@@ -481,38 +481,6 @@ func main() {
 }
 ```
 
-### Учебная проверка на теоретическом значении Коха
-
-Это сравнение предназначено только для синтетического теста реализации
-box-counting. Оно выполняется в CLI-команде `lito koch-demo` и не используется
-в научном выводе `lito dimension` по наблюдаемой береговой линии.
-
-```go
-import (
-    "coastal-geometry/internal/domain/generators/koch"
-    "coastal-geometry/internal/domain/fractal"
-    "math"
-)
-
-func main() {
-    base := []geometry.LatLon{
-        {Lat: 0, Lon: 0},
-        {Lat: 0, Lon: 0.2},
-    }
-    
-    curve := koch.KochCurve(base, 5)
-    analysis := fractal.AnalyzeBoxCounting(curve)
-    theoretical := math.Log(4) / math.Log(3) // ≈ 1.26186
-    
-    fmt.Printf("Теоретическая D (Кох): %.5f\n", theoretical)
-    fmt.Printf("Измеренная D:          %.5f\n", analysis.Dimension)
-    fmt.Printf("Отклонение:            %.5f\n", 
-        math.Abs(analysis.Dimension - theoretical))
-}
-```
-
----
-
 ## Обработка ошибок
 
 Модуль **никогда не возвращает ошибку**. Вместо этого:
@@ -557,7 +525,6 @@ d := fractal.FractalDimension(points)
 |--------|-----------------|--------------------|
 | Прямая линия | 1.0000 | 1.0–1.1 |
 | Береговая линия (типичная) | — | 1.10–1.30 |
-| Кривая Коха | 1.2619 | 1.20–1.35 |
 | Кривая Гильберта | 2.0000 | 1.90–2.00 |
 
 ---
@@ -565,6 +532,5 @@ d := fractal.FractalDimension(points)
 ## Связанные модули
 
 - [`../geometry`](../geometry) — `LatLon`, `Haversine`, `PolylineLength`
-- [`../generators/koch`](../generators/koch) — генерация кривых Коха для тестирования
 - [`../coastline`](../coastline) — загрузка и валидация береговых линий
 - [`../render`](../render) — визуализация результатов box-counting в SVG
